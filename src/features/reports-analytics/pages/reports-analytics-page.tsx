@@ -1,0 +1,118 @@
+import { useMemo, useState } from 'react'
+import type { ColumnDef } from '@tanstack/react-table'
+import { Download } from 'lucide-react'
+import { PageHeader } from '@/components/common/page-header'
+import { DataTable } from '@/components/data-table/data-table'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { ComparisonBarChart, TrendLineChart } from '@/components/charts'
+import { formatCurrency, formatPercent } from '@/lib/utils'
+import { useReport } from '../api/use-reports'
+import type { ReportColumn, ReportRow, ReportType } from '../types'
+
+const REPORT_TYPES: { type: ReportType; label: string }[] = [
+  { type: 'sales', label: 'Sales' },
+  { type: 'target', label: 'Target Achievement' },
+  { type: 'attendance', label: 'Attendance' },
+  { type: 'visit-history', label: 'Visit History' },
+  { type: 'expense', label: 'Expense' },
+  { type: 'performance', label: 'Performance' },
+]
+
+function renderCell(col: ReportColumn, value: string | number) {
+  if (typeof value === 'number') {
+    if (col.format === 'currency') return formatCurrency(value)
+    if (col.format === 'percent') return formatPercent(value)
+  }
+  return String(value)
+}
+
+function exportCsv(columns: ReportColumn[], rows: ReportRow[], type: string) {
+  const header = columns.map((c) => c.header).join(',')
+  const body = rows
+    .map((r) => columns.map((c) => JSON.stringify(r[c.key] ?? '')).join(','))
+    .join('\n')
+  const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${type}-report.csv`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export function ReportsPage() {
+  const [active, setActive] = useState<ReportType>('sales')
+  const { data, isLoading } = useReport(active)
+
+  const columns = useMemo<ColumnDef<ReportRow>[]>(() => {
+    if (!data) return []
+    return data.columns.map((col) => ({
+      accessorKey: col.key,
+      header: col.header,
+      cell: ({ row }) => renderCell(col, row.original[col.key]),
+    }))
+  }, [data])
+
+  return (
+    <div>
+      <PageHeader
+        title="Reports & Analytics"
+        description="Sales, target, attendance, visit, expense & performance reports."
+        actions={
+          <Button
+            variant="outline"
+            disabled={!data}
+            onClick={() => data && exportCsv(data.columns, data.rows, active)}
+          >
+            <Download /> Export CSV
+          </Button>
+        }
+      />
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {REPORT_TYPES.map((r) => (
+          <Button
+            key={r.type}
+            size="sm"
+            variant={active === r.type ? 'default' : 'outline'}
+            onClick={() => setActive(r.type)}
+          >
+            {r.label}
+          </Button>
+        ))}
+      </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>
+            {REPORT_TYPES.find((r) => r.type === active)?.label} — Overview
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {data &&
+            (data.chartKind === 'line' ? (
+              <TrendLineChart
+                data={data.rows}
+                xKey={data.chartXKey}
+                series={data.chartSeries}
+              />
+            ) : (
+              <ComparisonBarChart
+                data={data.rows}
+                xKey={data.chartXKey}
+                series={data.chartSeries}
+              />
+            ))}
+        </CardContent>
+      </Card>
+
+      <DataTable
+        columns={columns}
+        data={data?.rows ?? []}
+        isLoading={isLoading}
+        searchPlaceholder="Search report…"
+      />
+    </div>
+  )
+}
