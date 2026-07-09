@@ -2,8 +2,9 @@ import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
+import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
@@ -101,9 +102,12 @@ export function SalesInchargeCreatePage() {
         </div>
 
         <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3 xl:grid-cols-4">
-          <p className="md:col-span-3 xl:col-span-4 border-b border-border pb-2 text-sm font-semibold text-foreground/90">
-            Basic Details
-          </p>
+          <FormSection
+            icon={User}
+            title="Basic Details"
+            description="Personal, contact and employment information."
+            className="mt-0"
+          />
 
           <Field
             label="Profile Photo"
@@ -282,9 +286,12 @@ export function SalesInchargeCreatePage() {
 
           {/* Bank details */}
           <div className="md:col-span-3 xl:col-span-4">
-            <p className="mb-4 border-b border-border pb-2 text-sm font-semibold text-foreground/90">
-              Bank Details
-            </p>
+            <FormSection
+              icon={Landmark}
+              title="Bank Details"
+              description="Salary account for payouts."
+              className="mb-4"
+            />
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:grid-cols-4">
               <Field
                 label="Account Holder Name"
@@ -329,9 +336,12 @@ export function SalesInchargeCreatePage() {
 
           {/* Aadhaar */}
           <div className="md:col-span-3 xl:col-span-4">
-            <p className="mb-4 border-b border-border pb-2 text-sm font-semibold text-foreground/90">
-              Adharcard
-            </p>
+            <FormSection
+              icon={IdCard}
+              title="Aadhaar Card"
+              description="Identity proof — number and photos."
+              className="mb-4"
+            />
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:grid-cols-4">
               <Field
                 label="Aadhaar Number"

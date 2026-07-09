@@ -1,3 +1,12 @@
 export { DistributorsPage } from './pages/distributors-page'
-export { OnboardingWizard } from './components/onboarding-wizard'
-export { useDistributors, useApproveDistributor } from './api/use-distributors'
+export { DistributorCreatePage } from './pages/distributor-create-page'
+export { useDistributors, useCreateDistributor, useDeleteDistributor } from './api/use-distributors'
+export type {
+  Distributor,
+  DistributorInput,
+  DistributorStatus,
+  FirmType,
+  DistributorMarketType,
+  MarketSystem,
+  PaymentCondition,
+} from './types'

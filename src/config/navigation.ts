@@ -3,12 +3,12 @@ import {
   LayoutDashboard,
   UserCog,
   Network,
+  MapPinned,
+  Building2,
   // Icons below are used by the temporarily-hidden nav groups — keep for restore.
-  // Building2,
   // UserPlus,
   // Store,
   // Network,
-  // MapPinned,
   // Briefcase,
   // Navigation,
   // Users,
@@ -45,18 +45,18 @@ export const navGroups: NavGroup[] = [
       { label: 'Salesman Hierarchy', to: '/salesman-hierarchy', icon: Network },
     ],
   },
+  // {
+  //   title: 'Beat Foundation',
+  //   items: [{ label: 'Beat Creation', to: '/beats', icon: MapPinned }],
+  // },
+  {
+    title: 'Sales Network',
+    items: [{ label: 'Distributor Management', to: '/distributors', icon: Building2 }],
+  },
   // Temporarily hidden — restore the groups below to re-enable the rest of the nav.
   // {
   //   title: 'Sales Network',
   //   items: [
-  //     {
-  //       label: 'Distributors',
-  //       icon: Building2,
-  //       children: [
-  //         { label: 'All Distributors', to: '/distributors', icon: Building2, exact: true },
-  //         { label: 'Onboard', to: '/distributors/onboard', icon: UserPlus },
-  //       ],
-  //     },
   //     { label: 'Retailers', to: '/retailers', icon: Store },
   //     { label: 'Team', to: '/team', icon: Network },
   //   ],

@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
+import { toastApiError, toastApiSuccess } from '@/lib/api-toast'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { useOtpSessionStore } from '@/stores/otp-session-store'
 import { useRequestOtp, useVerifyOtp } from '../api/use-otp-auth'
+import { clearPendingConfirmation } from '../api/firebase-phone-auth'
 
 const OTP_LENGTH = 6
 const RESEND_SECONDS = 60
 
-export function VerifyOtpPage({ mobile }: { mobile: string }) {
+/** Step 2 of sign-in: verify the code sent to the pending mobile number. */
+export function VerifyOtpPage() {
   const navigate = useNavigate()
+  const session = useOtpSessionStore((s) => s.session)
+  const startSession = useOtpSessionStore((s) => s.startSession)
+  const clearSession = useOtpSessionStore((s) => s.clearSession)
   const requestOtp = useRequestOtp()
   const verifyOtp = useVerifyOtp()
 
@@ -21,14 +27,30 @@ export function VerifyOtpPage({ mobile }: { mobile: string }) {
 
   const [seconds, setSeconds] = useState(RESEND_SECONDS)
 
+  // No pending code (direct visit, or refresh after finishing) → back to login.
+  useEffect(() => {
+    if (!session) navigate({ to: '/login', replace: true })
+  }, [session, navigate])
+
   useEffect(() => {
     inputsRef.current[0]?.focus()
   }, [])
 
+  // Seed the cooldown from when the code was last requested, so it survives a
+  // refresh instead of restarting at 60s.
   useEffect(() => {
+    if (!session) return
+    const elapsed = Math.floor((Date.now() - session.requestedAt) / 1000)
+    setSeconds(Math.max(0, RESEND_SECONDS - elapsed))
+  }, [session?.requestedAt])
+
+  useEffect(() => {
+    if (seconds <= 0) return
     const id = setInterval(() => setSeconds((s) => (s <= 1 ? 0 : s - 1)), 1000)
     return () => clearInterval(id)
-  }, [])
+  }, [seconds])
+
+  const mobile = session?.mobile ?? ''
 
   const setAt = (i: number, val: string) =>
     setDigits((prev) => {
@@ -82,15 +104,18 @@ export function VerifyOtpPage({ mobile }: { mobile: string }) {
     if (!complete || submittedRef.current || verifyOtp.isPending) return
     submittedRef.current = true
     verifyOtp.mutate(
-      { mobile, code },
+      { mobile, otp: code },
       {
-        onSuccess: () => {
-          toast.success('Signed in successfully')
-          navigate({ to: '/dashboard' })
+        onSuccess: (session) => {
+          clearSession()
+          toastApiSuccess(session, 'Signed in successfully')
+          navigate({ to: '/dashboard', replace: true })
         },
-        onError: () => {
+        onError: (err) => {
           submittedRef.current = false
-          toast.error('Invalid or expired code. Please try again.')
+          setDigits(Array(OTP_LENGTH).fill(''))
+          inputsRef.current[0]?.focus()
+          toastApiError(err, 'Invalid or expired code. Please try again.')
         },
       },
     )
@@ -108,19 +133,35 @@ export function VerifyOtpPage({ mobile }: { mobile: string }) {
   }
 
   const handleResend = () => {
-    if (seconds > 0 || requestOtp.isPending) return
+    if (!session || seconds > 0 || requestOtp.isPending) return
+    const { remember } = session
     requestOtp.mutate(
       { mobile },
       {
-        onSuccess: () => toast.success(`New code sent to ${mobile}`),
-        onError: () => toast.error("Couldn't resend the code. Please try again."),
+        onSuccess: () => {
+          startSession({ mobile, remember, requestedAt: Date.now() })
+          setSeconds(RESEND_SECONDS)
+          toastApiSuccess(undefined, `New code sent to ${mobile}`)
+        },
+        onError: (err) =>
+          toastApiError(err, "Couldn't resend the code. Please try again."),
       },
     )
     setDigits(Array(OTP_LENGTH).fill(''))
     submittedRef.current = false
     inputsRef.current[0]?.focus()
-    setSeconds(RESEND_SECONDS)
   }
+
+  const handleChangeNumber = () => {
+    clearPendingConfirmation()
+    verifyOtp.reset()
+    clearSession()
+    navigate({ to: '/login' })
+  }
+
+  // Guard render (all hooks above run unconditionally); the redirect effect
+  // handles navigating away when there's no pending session.
+  if (!session) return null
 
   return (
     <div>
@@ -133,6 +174,15 @@ export function VerifyOtpPage({ mobile }: { mobile: string }) {
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        {verifyOtp.isError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {verifyOtp.error.message}
+          </p>
+        )}
+
         <div className="space-y-3.5">
           <Label className="mb-3 block text-foreground/90">
             Verification code
@@ -188,7 +238,7 @@ export function VerifyOtpPage({ mobile }: { mobile: string }) {
         Entered the wrong number?{' '}
         <button
           type="button"
-          onClick={() => navigate({ to: '/login' })}
+          onClick={handleChangeNumber}
           className="cursor-pointer font-medium text-primary transition-opacity hover:opacity-80"
         >
           Change it

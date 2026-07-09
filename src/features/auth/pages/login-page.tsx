@@ -1,23 +1,22 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { Check, Phone } from 'lucide-react'
+import { toastApiError } from '@/lib/api-toast'
+import { Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useOtpSessionStore } from '@/stores/otp-session-store'
 import { useRequestOtp } from '../api/use-otp-auth'
+import { mobileSchema, type MobileValues } from '../schemas'
 
-const mobileSchema = z.object({
-  mobile: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit mobile number'),
-  remember: z.boolean(),
-})
-type MobileValues = z.infer<typeof mobileSchema>
-
+/** Step 1 of sign-in: collect a mobile number and request an OTP via Firebase. */
 export function LoginPage() {
   const navigate = useNavigate()
   const requestOtp = useRequestOtp()
+  const startSession = useOtpSessionStore((s) => s.startSession)
 
   const {
     register,
@@ -25,7 +24,7 @@ export function LoginPage() {
     formState: { errors },
   } = useForm<MobileValues>({
     resolver: zodResolver(mobileSchema),
-    defaultValues: { mobile: '', remember: true },
+    defaultValues: { mobile: '', remember: false },
   })
 
   const mobileField = register('mobile')
@@ -35,11 +34,16 @@ export function LoginPage() {
       { mobile: v.mobile },
       {
         onSuccess: () => {
+          // Persist the pending number so the verify screen survives a refresh.
+          startSession({
+            mobile: v.mobile,
+            remember: v.remember,
+            requestedAt: Date.now(),
+          })
           toast.success(`Code sent to ${v.mobile}`)
-          navigate({ to: '/verify', state: { mobile: v.mobile } })
+          navigate({ to: '/verify' })
         },
-        onError: () =>
-          toast.error("Couldn't send the code. Please try again."),
+        onError: (err) => toastApiError(err, "Couldn't send the code. Please try again."),
       },
     ),
   )
@@ -54,6 +58,15 @@ export function LoginPage() {
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
+        {requestOtp.isError && (
+          <p
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          >
+            {requestOtp.error.message}
+          </p>
+        )}
+
         <div className="space-y-3.5">
           <Label htmlFor="mobile" className="mb-3 block text-foreground/90">
             Mobile number
@@ -65,7 +78,7 @@ export function LoginPage() {
               type="text"
               inputMode="numeric"
               maxLength={10}
-              autoComplete="off"
+              autoComplete="tel-national"
               placeholder="98765 43210"
               className="h-11 border-foreground/15 bg-transparent pl-10 text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:ring-0"
               {...mobileField}
@@ -80,19 +93,19 @@ export function LoginPage() {
           )}
         </div>
 
-        <label className="flex w-fit cursor-pointer select-none items-center gap-2.5 text-sm text-muted-foreground">
-          <span className="relative inline-flex">
-            <input
-              type="checkbox"
-              className="peer sr-only"
-              {...register('remember')}
-            />
-            <span className="grid h-4.5 w-4.5 place-items-center rounded-[5px] border border-foreground/25 bg-transparent text-transparent transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-primary/40 peer-focus-visible:ring-offset-1">
-              <Check className="h-3 w-3" strokeWidth={3.5} />
-            </span>
-          </span>
-          Remember me
-        </label>
+        <div className="flex w-fit items-center gap-2.5 text-sm text-muted-foreground">
+          <Checkbox
+            id="remember"
+            className="border-foreground/15 bg-transparent shadow-none"
+            {...register('remember')}
+          />
+          <Label
+            htmlFor="remember"
+            className="cursor-pointer select-none font-normal text-muted-foreground"
+          >
+            Remember me
+          </Label>
+        </div>
 
         <Button
           type="submit"

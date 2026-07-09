@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +31,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
@@ -42,7 +43,8 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         aria-hidden="true"
       />
       {children}
-    </div>
+    </div>,
+    document.body,
   )
 }
 

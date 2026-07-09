@@ -105,9 +105,8 @@ export function DataTablePagination<TData>({
       {pageSizeOptions?.length ? (
         <div className="sm:justify-self-end">
           <Combobox
-            className="w-24"
+            className="w-17"
             align="end"
-            responsiveCenter
             searchable={false}
             // An exact option match wins; otherwise "All" (page holds every row).
             value={

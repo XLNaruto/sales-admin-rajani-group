@@ -386,6 +386,22 @@
   color: var(--destructive);
 }
 
+/* react-drag-drop-files — strip the library's default label chrome so our
+   inner drop area controls sizing/appearance and stretches full width. */
+.sa-file-drop {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  border: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+.sa-file-drop > svg,
+.sa-file-drop > span:not([class]) {
+  display: none !important;
+}
+
 /* react-date-picker — themed to match the design system. */
 .sa-datepicker { width: 100%; }
 .sa-datepicker .react-date-picker__wrapper {
@@ -558,3 +574,6 @@
 .pan-canvas { cursor: grab; }
 .pan-canvas.is-panning { cursor: grabbing; }
 .pan-canvas.is-panning * { cursor: grabbing !important; }
+
+/* Firebase Phone Auth reCAPTCHA badge — keep it above the auth footer. */
+.grecaptcha-badge { z-index: 100 !important; }

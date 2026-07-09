@@ -1,43 +1,132 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { mockDelay } from '@/lib/utils'
-import type { Distributor, DistributorOnboarding } from '../types'
+import type { Distributor, DistributorInput, DistributorStatus } from '../types'
 
+/** In-memory mock store — replace with real API calls when the backend lands. */
 const DISTRIBUTORS: Distributor[] = [
-  { id: 'd1', name: 'Shree Traders', code: 'DST-001', category: 'A', zone: 'North', incharge: 'R. Mehta', status: 'active', monthlySales: 482000, outstanding: 38000 },
-  { id: 'd2', name: 'Maruti Distributors', code: 'DST-002', category: 'B', zone: 'West', incharge: 'S. Patel', status: 'active', monthlySales: 361000, outstanding: 0 },
-  { id: 'd3', name: 'Ganesh Agency', code: 'DST-003', category: 'A', zone: 'South', incharge: 'K. Rao', status: 'pending', monthlySales: 0, outstanding: 0 },
-  { id: 'd4', name: 'Bhagwati Sales', code: 'DST-004', category: 'C', zone: 'East', incharge: 'A. Singh', status: 'suspended', monthlySales: 128000, outstanding: 96000 },
-  { id: 'd5', name: 'Om Enterprises', code: 'DST-005', category: 'B', zone: 'West', incharge: 'S. Patel', status: 'active', monthlySales: 274000, outstanding: 12000 },
-  { id: 'd6', name: 'Krishna Traders', code: 'DST-006', category: 'A', zone: 'North', incharge: 'R. Mehta', status: 'pending', monthlySales: 0, outstanding: 0 },
+  {
+    id: 'd1',
+    firmName: 'Shree Traders',
+    firmType: 'proprietorship',
+    ownerName: 'Ramesh Mehta',
+    ownerMobile: '9876543210',
+    email: 'shree.traders@example.com',
+    code: 'DST-001',
+    status: 'active',
+    officeAddress: 'Main Bazaar, Rajkot',
+    stateId: 'st-gj',
+    zoneId: 'zn-gj-s',
+    districtId: 'dt-rajkot',
+    talukaId: 'tl-rajkot',
+    cityId: 'ct-rajkot',
+    marketType: 'local_rural',
+    marketSystem: 'ready_stock',
+    retailersLocal: 120,
+    retailersRural: 45,
+  },
+  {
+    id: 'd2',
+    firmName: 'Maruti Distributors',
+    firmType: 'partnership',
+    ownerName: 'Suresh Patel',
+    ownerMobile: '9825011122',
+    email: 'maruti.dist@example.com',
+    code: 'DST-002',
+    status: 'active',
+    officeAddress: 'GIDC Road, Vadodara',
+    stateId: 'st-gj',
+    zoneId: 'zn-gj-c',
+    districtId: 'dt-vadodara',
+    talukaId: 'tl-vadodara',
+    cityId: 'ct-vadodara',
+    marketType: 'local',
+    marketSystem: 'booking',
+    retailersLocal: 80,
+  },
+  {
+    id: 'd3',
+    firmName: 'Maharashtra Sales Corp',
+    firmType: 'company',
+    ownerName: 'Kiran Rao',
+    ownerMobile: '9700099887',
+    email: 'msc.pune@example.com',
+    code: 'DST-003',
+    status: 'pending',
+    officeAddress: 'FC Road, Pune',
+    stateId: 'st-mh',
+    zoneId: 'zn-mh-w',
+    districtId: 'dt-pune',
+    talukaId: 'tl-haveli',
+    cityId: 'ct-pune',
+    marketType: 'rural',
+    marketSystem: 'booking',
+  },
+  {
+    id: 'd4',
+    firmName: 'Vidarbha Agencies',
+    firmType: 'proprietorship',
+    ownerName: 'Ajay Singh',
+    ownerMobile: '9911223344',
+    email: 'vidarbha.agencies@example.com',
+    code: 'DST-004',
+    status: 'suspended',
+    officeAddress: 'Sitabuldi, Nagpur',
+    stateId: 'st-mh',
+    zoneId: 'zn-mh-v',
+    districtId: 'dt-nagpur',
+    talukaId: 'tl-nagpur',
+    cityId: 'ct-nagpur',
+    marketType: 'counter_sales',
+    marketSystem: 'ready_stock',
+  },
 ]
 
 export function useDistributors() {
   return useQuery({
     queryKey: queryKeys.distributors.list(),
-    queryFn: () => mockDelay(DISTRIBUTORS),
+    queryFn: () => mockDelay([...DISTRIBUTORS]),
   })
 }
 
-export function usePendingDistributors() {
-  return useQuery({
-    queryKey: queryKeys.distributors.pendingApproval(),
-    queryFn: () => mockDelay(DISTRIBUTORS.filter((d) => d.status === 'pending')),
-  })
-}
-
-export function useOnboardDistributor() {
+export function useCreateDistributor() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (payload: DistributorOnboarding) => mockDelay({ id: 'new', ...payload }),
+    mutationFn: (input: DistributorInput) => {
+      const created: Distributor = {
+        ...input,
+        id: `dst-${crypto.randomUUID().slice(0, 8)}`,
+        code: input.code?.trim()
+          ? input.code
+          : `DST-${String(DISTRIBUTORS.length + 1).padStart(3, '0')}`,
+      }
+      DISTRIBUTORS.unshift(created)
+      return mockDelay(created, 500)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
   })
 }
 
-export function useApproveDistributor() {
+export function useSetDistributorStatus() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => mockDelay({ id, status: 'active' as const }),
+    mutationFn: ({ id, status }: { id: string; status: DistributorStatus }) => {
+      const d = DISTRIBUTORS.find((x) => x.id === id)
+      if (d) d.status = status
+      return mockDelay({ id, status }, 400)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
+  })
+}
+
+export function useDeleteDistributor() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => {
+      const i = DISTRIBUTORS.findIndex((d) => d.id === id)
+      if (i !== -1) DISTRIBUTORS.splice(i, 1)
+      return mockDelay({ id }, 400)
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
   })
 }

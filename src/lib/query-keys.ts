@@ -51,6 +51,18 @@ export const queryKeys = {
     productivity: () => [...queryKeys.team.all, 'productivity'] as const,
     dailyActivity: () => [...queryKeys.team.all, 'daily-activity'] as const,
   },
+  beats: {
+    all: ['beats'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.beats.all, 'list', filters ?? {}] as const,
+    detail: (id: string) => [...queryKeys.beats.all, 'detail', id] as const,
+  },
+  beatAllocations: {
+    all: ['beat-allocations'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.beatAllocations.all, 'list', filters ?? {}] as const,
+    detail: (id: string) => [...queryKeys.beatAllocations.all, 'detail', id] as const,
+  },
   beatTour: {
     all: ['beat-tour'] as const,
     beats: () => [...queryKeys.beatTour.all, 'beats'] as const,

@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { Bell, ChevronDown, LogOut, Menu, Moon, User } from 'lucide-react'
 import { Breadcrumbs } from './breadcrumbs'
+import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import {
@@ -10,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useUiStore } from '@/stores/ui-store'
 import { useAuthStore } from '@/stores/auth-store'
+import { useLogout } from '@/features/auth'
 import { cn } from '@/lib/utils'
 
 const roleLabel: Record<string, string> = {
@@ -23,12 +26,14 @@ export function Topbar() {
   const toggleTheme = useUiStore((s) => s.toggleTheme)
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar)
   const user = useAuthStore((s) => s.user)
-  const logout = useAuthStore((s) => s.logout)
+  const logout = useLogout()
   const navigate = useNavigate()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const handleLogout = () => {
-    logout()
-    navigate({ to: '/login' })
+    logout.mutate(undefined, {
+      onSettled: () => navigate({ to: '/login' }),
+    })
   }
 
   const name = user?.name ?? 'User'
@@ -118,12 +123,23 @@ export function Topbar() {
           <DropdownSeparator />
 
           <div className="p-1">
-            <DropdownItem onClick={handleLogout} className="text-destructive">
+            <DropdownItem onClick={() => setConfirmOpen(true)} className="text-destructive">
               <LogOut className="size-4" /> Sign out
             </DropdownItem>
           </div>
         </DropdownMenu>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        variant="destructive"
+        icon={LogOut}
+        title="Sign out?"
+        description="You'll need to log in again to access your dashboard."
+        confirmLabel="Sign out"
+        onConfirm={handleLogout}
+      />
     </header>
   )
 }

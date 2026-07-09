@@ -1,6 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { DistributorsPage } from '@/features/distributor-management'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/_authenticated/distributors')({
-  component: DistributorsPage,
+  component: Outlet,
 })

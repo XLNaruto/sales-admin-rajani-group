@@ -1,0 +1,888 @@
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import {
+  ArrowLeft,
+  Store,
+  MapPin,
+  Briefcase,
+  Landmark,
+} from "lucide-react";
+import { PageHeader } from "@/components/common/page-header";
+import { FormSection } from "@/components/common/form-section";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Combobox } from "@/components/ui/combobox";
+import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
+import { useCreateDistributor } from "../api/use-distributors";
+import { FileInput } from "../components/file-input";
+import {
+  distributorSchema,
+  distributorDefaults,
+  type DistributorFormValues,
+} from "../lib/distributor-form";
+import {
+  DISTRIBUTOR_STATUSES,
+  FIRM_TYPES,
+  MARKET_SYSTEMS,
+  MARKET_TYPES,
+  PAYMENT_CONDITIONS,
+  STATES,
+  YES_NO,
+  citiesByTaluka,
+  districtsByZone,
+  talukasByDistrict,
+  toOptions,
+  villagesByCity,
+  zonesByState,
+} from "../lib/distributor-reference";
+
+const CURRENT_YEAR = new Date().getFullYear();
+
+/** Parse an optional numeric-text field into a number (or undefined when blank). */
+const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
+/** Trim an optional text field, collapsing blanks to undefined. */
+const str = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
+
+export function DistributorCreatePage() {
+  const navigate = useNavigate();
+  const createDistributor = useCreateDistributor();
+
+  const {
+    register,
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<DistributorFormValues>({
+    resolver: zodResolver(distributorSchema),
+    mode: "onTouched",
+    defaultValues: distributorDefaults as DistributorFormValues,
+  });
+
+  // Cascading territory selection — watch parents to build child options.
+  const stateId = watch("stateId");
+  const zoneId = watch("zoneId");
+  const districtId = watch("districtId");
+  const talukaId = watch("talukaId");
+  const cityId = watch("cityId");
+
+  const onSubmit = handleSubmit((values) => {
+    createDistributor.mutate(
+      {
+        // Firm & owner
+        firmName: values.firmName,
+        firmType: values.firmType,
+        ownerName: values.ownerName,
+        ownerMobile: values.ownerMobile,
+        ownerBirthDate: str(values.ownerBirthDate),
+        ownerAnniversaryDate: str(values.ownerAnniversaryDate),
+        communicationMobile: str(values.communicationMobile),
+        multipleLogin: values.multipleLogin,
+        email: values.email,
+        code: values.code ?? "",
+        status: values.status,
+        // Location & coverage
+        officeAddress: values.officeAddress,
+        godownAddress: str(values.godownAddress),
+        homeAddress: str(values.homeAddress),
+        stateId: values.stateId,
+        zoneId: values.zoneId,
+        districtId: values.districtId,
+        talukaId: values.talukaId,
+        cityId: values.cityId,
+        pincode: str(values.pincode),
+        deliveryRoute: str(values.deliveryRoute),
+        agencyTalukaIds: values.agencyTalukaIds ?? [],
+        marketType: values.marketType,
+        villageIds: values.villageIds ?? [],
+        retailersLocal: num(values.retailersLocal),
+        retailersRural: num(values.retailersRural),
+        marketSystem: values.marketSystem,
+        weeklyOff: str(values.weeklyOff),
+        geoLocation: str(values.geoLocation),
+        officeGodownImages: str(values.officeGodownImages),
+        // Business details
+        otherAgencies: str(values.otherAgencies),
+        similarAgencies: str(values.similarAgencies),
+        assignedProducts: str(values.assignedProducts),
+        productTargets: str(values.productTargets),
+        deliveryVehicle: values.deliveryVehicle,
+        deliveryVehicleDetail: str(values.deliveryVehicleDetail),
+        godownSize: num(values.godownSize),
+        yearOfEst: str(values.yearOfEst),
+        // Legal & financial
+        panNumber: str(values.panNumber),
+        panPhoto: str(values.panPhoto),
+        gstNumber: str(values.gstNumber),
+        gstPhoto: str(values.gstPhoto),
+        advanceChequeNumbers: str(values.advanceChequeNumbers),
+        advanceChequePhoto: str(values.advanceChequePhoto),
+        paymentCondition: values.paymentCondition,
+        bankDetails: str(values.bankDetails),
+      },
+      {
+        onSuccess: () => {
+          toast.success(`${values.firmName} created`);
+          navigate({ to: "/distributors" });
+        },
+        onError: () =>
+          toast.error("Couldn't create the distributor. Please try again."),
+      },
+    );
+  });
+
+  return (
+    <div>
+      <PageHeader
+        title="Add Distributor"
+        description="Create a new distributor record with firm, coverage, business and financial details."
+        actions={
+          <Button
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => navigate({ to: "/distributors" })}
+          >
+            <ArrowLeft /> Back to list
+          </Button>
+        }
+      />
+
+      <form
+        onSubmit={onSubmit}
+        autoComplete="off"
+        className="mt-4 rounded-xl border border-border bg-card dark:bg-transparent"
+      >
+        <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3 xl:grid-cols-4">
+          {/* ------------------------ Firm & owner ------------------------ */}
+          <FormSection
+            icon={Store}
+            title="Firm & Owner Details"
+            description="Identity and contact information of the distributor."
+            className="mt-0"
+          />
+
+          <Field
+            label="Distributor's Firm Name"
+            error={errors.firmName?.message}
+          >
+            <Input
+              placeholder="Distributor's Firm Name"
+              {...register("firmName")}
+            />
+          </Field>
+
+          <Field label="Type Of Firm" error={errors.firmType?.message}>
+            <Controller
+              control={control}
+              name="firmType"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={FIRM_TYPES}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Owner's / Partner Name"
+            error={errors.ownerName?.message}
+          >
+            <Input
+              placeholder="Owner's / Partner Name"
+              {...register("ownerName")}
+            />
+          </Field>
+
+          <Field
+            label="Owner's / Partner Mobile Number"
+            error={errors.ownerMobile?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="10-digit mobile number"
+              {...register("ownerMobile")}
+            />
+          </Field>
+
+          <Field
+            label="Owner's / Partner Birth Date"
+            optional
+            error={errors.ownerBirthDate?.message}
+          >
+            <Controller
+              control={control}
+              name="ownerBirthDate"
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  fromYear={1940}
+                  toYear={CURRENT_YEAR}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Owner's / Partner Marriage Anniversary Date"
+            optional
+            error={errors.ownerAnniversaryDate?.message}
+          >
+            <Controller
+              control={control}
+              name="ownerAnniversaryDate"
+              render={({ field }) => (
+                <DatePicker
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  fromYear={1960}
+                  toYear={CURRENT_YEAR}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Communication Mobile Number"
+            optional
+            error={errors.communicationMobile?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="10-digit mobile number"
+              {...register("communicationMobile")}
+            />
+          </Field>
+
+          <Field
+            label="Multiple Login For Same Profile"
+            optional
+            hint="For partnership firms"
+            error={errors.multipleLogin?.message}
+          >
+            <Controller
+              control={control}
+              name="multipleLogin"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={YES_NO}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="E-mail Id" error={errors.email?.message}>
+            <Input
+              type="email"
+              placeholder="E-mail Id"
+              {...register("email")}
+            />
+          </Field>
+
+          <Field label="Distributor Code" optional error={errors.code?.message}>
+            <Input
+              placeholder="Auto-generated if left blank"
+              {...register("code")}
+            />
+          </Field>
+
+          <Field label="Status" error={errors.status?.message}>
+            <Controller
+              control={control}
+              name="status"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={DISTRIBUTOR_STATUSES}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          {/* --------------------- Location & coverage -------------------- */}
+          <FormSection
+            icon={MapPin}
+            title="Location & Coverage"
+            description="Addresses, territory and the markets served."
+          />
+
+          <Field
+            label="Office Address"
+            className="md:col-span-2"
+            error={errors.officeAddress?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Office Address"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("officeAddress")}
+            />
+          </Field>
+
+          <Field
+            label="Godown Address"
+            className="md:col-span-2"
+            optional
+            error={errors.godownAddress?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Godown Address"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("godownAddress")}
+            />
+          </Field>
+
+          <Field
+            label="Home Address"
+            className="md:col-span-2"
+            optional
+            error={errors.homeAddress?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Home Address"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("homeAddress")}
+            />
+          </Field>
+
+          <Field label="State" error={errors.stateId?.message}>
+            <Controller
+              control={control}
+              name="stateId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setValue("zoneId", "");
+                    setValue("districtId", "");
+                    setValue("talukaId", "");
+                    setValue("cityId", "");
+                    setValue("villageIds", []);
+                    setValue("agencyTalukaIds", []);
+                  }}
+                  options={toOptions(STATES)}
+                  placeholder="Select…"
+                  searchPlaceholder="Search state"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Zone" error={errors.zoneId?.message}>
+            <Controller
+              control={control}
+              name="zoneId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setValue("districtId", "");
+                    setValue("talukaId", "");
+                    setValue("cityId", "");
+                    setValue("villageIds", []);
+                  }}
+                  options={toOptions(zonesByState(stateId))}
+                  placeholder={stateId ? "Select…" : "Select a state first"}
+                  searchPlaceholder="Search zone"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="District" error={errors.districtId?.message}>
+            <Controller
+              control={control}
+              name="districtId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setValue("talukaId", "");
+                    setValue("cityId", "");
+                    setValue("villageIds", []);
+                  }}
+                  options={toOptions(districtsByZone(zoneId))}
+                  placeholder={zoneId ? "Select…" : "Select a zone first"}
+                  searchPlaceholder="Search district"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Taluka" error={errors.talukaId?.message}>
+            <Controller
+              control={control}
+              name="talukaId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setValue("cityId", "");
+                    setValue("villageIds", []);
+                  }}
+                  options={toOptions(talukasByDistrict(districtId))}
+                  placeholder={
+                    districtId ? "Select…" : "Select a district first"
+                  }
+                  searchPlaceholder="Search taluka"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="City" error={errors.cityId?.message}>
+            <Controller
+              control={control}
+              name="cityId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    setValue("villageIds", []);
+                  }}
+                  options={toOptions(citiesByTaluka(talukaId))}
+                  placeholder={talukaId ? "Select…" : "Select a taluka first"}
+                  searchPlaceholder="Search city"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Pincode" optional error={errors.pincode?.message}>
+            <Input
+              inputMode="numeric"
+              placeholder="6-digit pincode"
+              {...register("pincode")}
+            />
+          </Field>
+
+          <Field
+            label="Delivery Route (Delivery Day)"
+            optional
+            error={errors.deliveryRoute?.message}
+          >
+            <Input
+              placeholder="Delivery Route (Delivery Day)"
+              {...register("deliveryRoute")}
+            />
+          </Field>
+
+          <Field
+            label="Taluka Of Agency"
+            optional
+            error={errors.agencyTalukaIds?.message}
+          >
+            <Controller
+              control={control}
+              name="agencyTalukaIds"
+              render={({ field }) => (
+                <MultiSelect
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  options={toOptions(talukasByDistrict(districtId))}
+                  placeholder={
+                    districtId ? "Select talukas…" : "Select a district first"
+                  }
+                  searchPlaceholder="Search taluka"
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Market Type"
+            optional
+            error={errors.marketType?.message}
+          >
+            <Controller
+              control={control}
+              name="marketType"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={MARKET_TYPES}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="List Of Villages"
+            optional
+            error={errors.villageIds?.message}
+          >
+            <Controller
+              control={control}
+              name="villageIds"
+              render={({ field }) => (
+                <MultiSelect
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  options={toOptions(villagesByCity(cityId))}
+                  placeholder={
+                    cityId ? "Select villages…" : "Select a city first"
+                  }
+                  searchPlaceholder="Search village"
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Retailers In Local Market"
+            optional
+            error={errors.retailersLocal?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="e.g. 120"
+              {...register("retailersLocal")}
+            />
+          </Field>
+
+          <Field
+            label="Retailers In Rural Market"
+            optional
+            error={errors.retailersRural?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="e.g. 45"
+              {...register("retailersRural")}
+            />
+          </Field>
+
+          <Field
+            label="Market System"
+            optional
+            error={errors.marketSystem?.message}
+          >
+            <Controller
+              control={control}
+              name="marketSystem"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={MARKET_SYSTEMS}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Weekly Off" optional error={errors.weeklyOff?.message}>
+            <Input placeholder="e.g. Sunday" {...register("weeklyOff")} />
+          </Field>
+
+          <Field
+            label="Geo Location Of Distributor"
+            optional
+            error={errors.geoLocation?.message}
+          >
+            <Input
+              placeholder="Latitude, Longitude"
+              {...register("geoLocation")}
+            />
+          </Field>
+
+          <Field
+            label="Images Of Office & Godown"
+            optional
+            error={errors.officeGodownImages?.message}
+          >
+            <Controller
+              control={control}
+              name="officeGodownImages"
+              render={({ field }) => (
+                <FileInput
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  accept="image/*"
+                  multiple
+                />
+              )}
+            />
+          </Field>
+
+          {/* ----------------------- Business details --------------------- */}
+          <FormSection
+            icon={Briefcase}
+            title="Business Details"
+            description="Agencies, assigned products and delivery setup."
+          />
+
+          <Field
+            label="Details Of Other Agencies"
+            className="md:col-span-2"
+            optional
+            error={errors.otherAgencies?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Details Of Other Agencies"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("otherAgencies")}
+            />
+          </Field>
+
+          <Field
+            label="Agencies Of Similar Category Of Rajani Product"
+            className="md:col-span-2"
+            optional
+            error={errors.similarAgencies?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Agencies Of Similar Category Of Rajani Product"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("similarAgencies")}
+            />
+          </Field>
+
+          <Field
+            label="Assigned Rajani Products"
+            className="md:col-span-2"
+            optional
+            error={errors.assignedProducts?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Assigned Rajani Products"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("assignedProducts")}
+            />
+          </Field>
+
+          <Field
+            label="Target Of Every Product"
+            className="md:col-span-2"
+            optional
+            error={errors.productTargets?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Target Of Every Product"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("productTargets")}
+            />
+          </Field>
+
+          <Field
+            label="Delivery Vehicle"
+            optional
+            error={errors.deliveryVehicle?.message}
+          >
+            <Controller
+              control={control}
+              name="deliveryVehicle"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={YES_NO}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Delivery Vehicle Detail"
+            optional
+            error={errors.deliveryVehicleDetail?.message}
+          >
+            <Input
+              placeholder="Delivery Vehicle Detail"
+              {...register("deliveryVehicleDetail")}
+            />
+          </Field>
+
+          <Field
+            label="Godown Size (Sqft)"
+            optional
+            error={errors.godownSize?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="e.g. 1200"
+              {...register("godownSize")}
+            />
+          </Field>
+
+          <Field
+            label="Year Of Est."
+            optional
+            error={errors.yearOfEst?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="e.g. 2015"
+              {...register("yearOfEst")}
+            />
+          </Field>
+
+          {/* ----------------------- Legal & financial -------------------- */}
+          <FormSection
+            icon={Landmark}
+            title="Legal & Financial"
+            description="PAN, GST, cheques and bank details."
+          />
+
+          <Field
+            label="Pan Card Number"
+            optional
+            error={errors.panNumber?.message}
+          >
+            <Input placeholder="ABCDE1234F" {...register("panNumber")} />
+          </Field>
+
+          <Field
+            label="Pan Card Photo"
+            optional
+            error={errors.panPhoto?.message}
+          >
+            <Controller
+              control={control}
+              name="panPhoto"
+              render={({ field }) => (
+                <FileInput
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  accept="image/*"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="GST Number" optional error={errors.gstNumber?.message}>
+            <Input placeholder="15-digit GSTIN" {...register("gstNumber")} />
+          </Field>
+
+          <Field label="GST Photo" optional error={errors.gstPhoto?.message}>
+            <Controller
+              control={control}
+              name="gstPhoto"
+              render={({ field }) => (
+                <FileInput
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  accept="image/*"
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Advance Cheque Numbers"
+            className="md:col-span-2"
+            optional
+            error={errors.advanceChequeNumbers?.message}
+          >
+            <Input
+              placeholder="Enter 5 cheque numbers"
+              {...register("advanceChequeNumbers")}
+            />
+          </Field>
+
+          <Field
+            label="Advance Cheque Photo"
+            optional
+            error={errors.advanceChequePhoto?.message}
+          >
+            <Controller
+              control={control}
+              name="advanceChequePhoto"
+              render={({ field }) => (
+                <FileInput
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  accept="image/*"
+                  multiple
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Payment Condition"
+            optional
+            error={errors.paymentCondition?.message}
+          >
+            <Controller
+              control={control}
+              name="paymentCondition"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={PAYMENT_CONDITIONS}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Bank Details"
+            className="md:col-span-2"
+            optional
+            error={errors.bankDetails?.message}
+          >
+            <textarea
+              rows={2}
+              placeholder="Bank Details"
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+              {...register("bankDetails")}
+            />
+          </Field>
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="cursor-pointer"
+            onClick={() => navigate({ to: "/distributors" })}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            className="cursor-pointer text-white"
+            disabled={createDistributor.isPending}
+          >
+            {createDistributor.isPending ? "Saving…" : "Save Distributor"}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+}

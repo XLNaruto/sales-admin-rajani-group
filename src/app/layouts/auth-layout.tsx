@@ -138,6 +138,12 @@ export function AuthLayout() {
           </a>
         </div>
       </div>
+
+      {/* Invisible reCAPTCHA host for Firebase Phone Auth. Lives on the shared
+          layout so it survives navigation between the mobile and OTP steps,
+          letting "Resend code" reuse the same verifier. Absolutely positioned
+          so it stays out of the grid flow and doesn't affect column layout. */}
+      <div id="recaptcha-container" className="pointer-events-none absolute" />
     </div>
   )
 }

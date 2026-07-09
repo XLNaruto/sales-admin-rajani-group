@@ -1,6 +1,9 @@
 import { useMutation } from '@tanstack/react-query'
-import { mockDelay } from '@/lib/utils'
-import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { useAuthStore } from '@/stores/auth-store'
+import { useOtpSessionStore } from '@/stores/otp-session-store'
+import { confirmOtp, firebaseSignOut, sendOtp } from './firebase-phone-auth'
+import { loginWithIdToken, logoutRequest } from './auth-api'
+import type { AuthSession } from '../types'
 
 export interface RequestOtpInput {
   mobile: string
@@ -8,38 +11,55 @@ export interface RequestOtpInput {
 
 export interface VerifyOtpInput {
   mobile: string
-  code: string
+  otp: string
 }
 
 /**
- * Requests an OTP for the given mobile number.
- * Mock: pretends to text a code; returns nothing meaningful.
+ * Step 1 of sign-in: text a one-time code to the number via Firebase Phone
+ * Auth. No session exists yet — that happens on verify.
  */
 export function useRequestOtp() {
-  return useMutation({
-    mutationFn: async ({ mobile }: RequestOtpInput) => {
-      return mockDelay({ mobile, sent: true }, 600)
+  return useMutation<void, Error, RequestOtpInput>({
+    mutationFn: ({ mobile }) => sendOtp(mobile),
+  })
+}
+
+/**
+ * Step 2 of sign-in: verify the OTP with Firebase, then exchange the resulting
+ * ID token for a backend session and hydrate the auth store.
+ */
+export function useVerifyOtp() {
+  const setSession = useAuthStore((s) => s.setSession)
+
+  return useMutation<AuthSession, Error, VerifyOtpInput>({
+    mutationFn: async ({ otp }) => {
+      const confirmed = await confirmOtp(otp)
+      return loginWithIdToken(confirmed)
+    },
+    onSuccess: ({ user, token, refreshToken }) => {
+      const remember = useOtpSessionStore.getState().session?.remember ?? false
+      setSession(user, token, refreshToken, { remember })
     },
   })
 }
 
 /**
- * Verifies the OTP and hydrates the global auth store.
- * Mock: accepts any 4-6 digit code and derives a demo admin session.
+ * Sign out everywhere: revoke the backend refresh token, sign out of Firebase,
+ * then clear local client state (auth + any pending OTP session).
  */
-export function useVerifyOtp() {
-  const login = useAuthStore((s) => s.login)
+export function useLogout() {
+  const logout = useAuthStore((s) => s.logout)
+  const clearOtpSession = useOtpSessionStore((s) => s.clearSession)
 
-  return useMutation({
-    mutationFn: async ({ mobile }: VerifyOtpInput) => {
-      const user: AuthUser = {
-        id: 'u-1',
-        name: 'Analytics Admin',
-        email: `${mobile}@rajanigroup.com`,
-        role: 'admin',
-      }
-      return mockDelay({ user, token: 'demo-token' }, 500)
+  return useMutation<void, Error, void>({
+    mutationFn: async () => {
+      const { refreshToken } = useAuthStore.getState()
+      // Best-effort revoke + Firebase sign-out; never block local logout on it.
+      await Promise.allSettled([logoutRequest(refreshToken), firebaseSignOut()])
     },
-    onSuccess: ({ user, token }) => login(user, token),
+    onSettled: () => {
+      logout()
+      clearOtpSession()
+    },
   })
 }
