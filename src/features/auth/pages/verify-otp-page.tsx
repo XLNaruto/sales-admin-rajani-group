@@ -138,8 +138,8 @@ export function VerifyOtpPage() {
     requestOtp.mutate(
       { mobile },
       {
-        onSuccess: () => {
-          startSession({ mobile, remember, requestedAt: Date.now() })
+        onSuccess: (verificationId) => {
+          startSession({ mobile, remember, requestedAt: Date.now(), verificationId })
           setSeconds(RESEND_SECONDS)
           toastApiSuccess(undefined, `New code sent to ${mobile}`)
         },

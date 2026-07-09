@@ -41,7 +41,7 @@ export function DataTablePagination<TData>({
   const to = Math.min(total, (pageIndex + 1) * pageSize)
 
   return (
-    <div className="flex flex-col items-center gap-3 sm:grid sm:grid-cols-3">
+    <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
       {/* Left: summary */}
       <p className="text-sm text-muted-foreground sm:justify-self-start">
         Showing <span className="font-medium text-foreground tabular-nums">{from}</span> to{' '}
@@ -49,12 +49,15 @@ export function DataTablePagination<TData>({
         <span className="font-medium text-foreground tabular-nums">{total}</span> {itemName}
       </p>
 
+      {/* Controls + page size share one row on mobile; `contents` restores the
+          3-column grid on sm+ so each lands in its own column. */}
+      <div className="flex items-center justify-between sm:contents">
       {/* Center: page controls */}
       <div className="flex items-center gap-1 sm:justify-self-center">
         <Button
           variant="outline"
           size="icon"
-          className="size-8 cursor-pointer rounded-sm"
+          className="size-8 cursor-pointer rounded-sm border-border/50"
           onClick={() => table.previousPage()}
           disabled={!table.getCanPreviousPage()}
           aria-label="Previous page"
@@ -77,7 +80,7 @@ export function DataTablePagination<TData>({
               variant={p === pageIndex + 1 ? 'default' : 'outline'}
               size="icon"
               className={cn(
-                'size-8 cursor-pointer rounded-sm text-xs tabular-nums',
+                'size-8 cursor-pointer rounded-sm border-border/50 text-xs tabular-nums',
                 p !== pageIndex + 1 && 'font-normal',
               )}
               onClick={() => table.setPageIndex(p - 1)}
@@ -92,7 +95,7 @@ export function DataTablePagination<TData>({
         <Button
           variant="outline"
           size="icon"
-          className="size-8 cursor-pointer rounded-sm"
+          className="size-8 cursor-pointer rounded-sm border-border/50"
           onClick={() => table.nextPage()}
           disabled={!table.getCanNextPage()}
           aria-label="Next page"
@@ -105,7 +108,7 @@ export function DataTablePagination<TData>({
       {pageSizeOptions?.length ? (
         <div className="sm:justify-self-end">
           <Combobox
-            className="w-17"
+            className="w-17 border-border/50"
             align="end"
             searchable={false}
             // An exact option match wins; otherwise "All" (page holds every row).
@@ -124,6 +127,7 @@ export function DataTablePagination<TData>({
           />
         </div>
       ) : null}
+      </div>
     </div>
   )
 }

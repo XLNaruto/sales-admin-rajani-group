@@ -126,7 +126,7 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
   return (
     <div
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center',
+        'flex flex-col gap-3 rounded-xl border border-border/50 bg-card p-3 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] sm:flex-row sm:items-center',
         className,
       )}
     >
@@ -138,7 +138,7 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
             placeholder={search.placeholder ?? 'Search…'}
             value={search.value}
             onChange={(e) => search.onChange(e.target.value)}
-            className="h-10 pl-9 pr-9"
+            className="h-10 truncate border-border/50 pl-9 pr-9"
           />
           {searchActive ? (
             <button

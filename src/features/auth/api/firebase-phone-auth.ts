@@ -1,5 +1,7 @@
 import {
+  PhoneAuthProvider,
   RecaptchaVerifier,
+  signInWithCredential,
   signInWithPhoneNumber,
   signOut,
   type ConfirmationResult,
@@ -27,6 +29,14 @@ let pendingConfirmation: ConfirmationResult | null = null
 
 function getRecaptcha(): RecaptchaVerifier {
   if (!recaptchaVerifier) {
+    // The JS singleton and the container's DOM can fall out of sync: a page
+    // refresh/HMR resets this module to null while a previously-rendered
+    // widget's nodes survive in the host, and a swallowed `.clear()` failure
+    // in resetRecaptcha() can leave nodes behind too. RecaptchaVerifier throws
+    // "reCAPTCHA placeholder element must be empty" if the host isn't empty, so
+    // wipe it before constructing a fresh verifier.
+    const container = document.getElementById(RECAPTCHA_CONTAINER_ID)
+    if (container) container.replaceChildren()
     recaptchaVerifier = new RecaptchaVerifier(auth, RECAPTCHA_CONTAINER_ID, {
       size: 'invisible',
     })
@@ -75,15 +85,18 @@ function toFriendlyMessage(err: unknown): string {
 
 /**
  * Send an OTP over SMS to the given 10-digit mobile number. Triggers the
- * invisible reCAPTCHA flow. Throws with friendly copy on failure.
+ * invisible reCAPTCHA flow. Returns the `verificationId` — a serialisable
+ * handle the caller persists so verification can survive a page refresh (the
+ * in-memory `ConfirmationResult` cannot). Throws with friendly copy on failure.
  */
-export async function sendOtp(mobile: string): Promise<void> {
+export async function sendOtp(mobile: string): Promise<string> {
   try {
     pendingConfirmation = await signInWithPhoneNumber(
       auth,
       toE164(mobile),
       getRecaptcha(),
     )
+    return pendingConfirmation.verificationId
   } catch (err) {
     // A failed attempt can leave the widget in a bad state — reset it so the
     // user can retry cleanly.
@@ -99,13 +112,26 @@ export interface ConfirmedIdentity {
   phoneNumber: string | null
 }
 
-/** Verify the SMS code and return the Firebase ID token for the backend exchange. */
-export async function confirmOtp(code: string): Promise<ConfirmedIdentity> {
-  if (!pendingConfirmation) {
+/**
+ * Verify the SMS code and return the Firebase ID token for the backend
+ * exchange. Prefers the in-memory `ConfirmationResult`; after a page refresh
+ * that handle is gone, so it rebuilds the credential from the persisted
+ * `verificationId` (the code itself is still valid until it actually expires).
+ */
+export async function confirmOtp(
+  code: string,
+  verificationId?: string,
+): Promise<ConfirmedIdentity> {
+  if (!pendingConfirmation && !verificationId) {
     throw new Error('Your code expired. Please request a new one.')
   }
   try {
-    const cred = await pendingConfirmation.confirm(code)
+    const cred = pendingConfirmation
+      ? await pendingConfirmation.confirm(code)
+      : await signInWithCredential(
+          auth,
+          PhoneAuthProvider.credential(verificationId as string, code),
+        )
     const idToken = await cred.user.getIdToken()
     return {
       idToken,

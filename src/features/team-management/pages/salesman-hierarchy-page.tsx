@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Minus, Network, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2, Minus, Network, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { PageHeader } from '@/components/common/page-header'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
@@ -41,6 +41,38 @@ export function SalesmanHierarchyPage() {
   const [zoom, setZoom] = useState(1)
   const clampZoom = (z: number) => Math.min(2, Math.max(0.5, Math.round(z * 10) / 10))
   const zoomBy = (delta: number) => setZoom((z) => clampZoom(z + delta * 0.1))
+
+  // Scroll the canvas so the root node (top-center of the tree) is horizontally
+  // centered in the viewport, regardless of screen size.
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const centerRoot = () => {
+    const el = canvasRef.current
+    if (!el) return
+    const rootEl = el.querySelector<HTMLElement>('[data-hierarchy-root]')
+    if (!rootEl) {
+      el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
+      el.scrollTop = 0
+      return
+    }
+    // Center the scroll on the root card's actual position — robust to the
+    // canvas padding and any asymmetry in the tree beneath it.
+    const canvas = el.getBoundingClientRect()
+    const rootRect = rootEl.getBoundingClientRect()
+    const rootCenterX = rootRect.left - canvas.left + el.scrollLeft + rootRect.width / 2
+    const rootTop = rootRect.top - canvas.top + el.scrollTop
+    el.scrollLeft = Math.max(0, rootCenterX - el.clientWidth / 2)
+    el.scrollTop = Math.max(0, rootTop - 32)
+  }
+  // Reset zoom to 100% and re-center the root.
+  const resetView = () => {
+    setZoom(1)
+    // Wait for the zoom change to lay out before measuring scroll extents.
+    requestAnimationFrame(() => requestAnimationFrame(centerRoot))
+  }
+  // Center once the tree is first rendered.
+  useEffect(() => {
+    if (root) requestAnimationFrame(() => requestAnimationFrame(centerRoot))
+  }, [root])
 
   const [rootPickerOpen, setRootPickerOpen] = useState(false)
   const [addParent, setAddParent] = useState<HierarchyNode | null>(null)
@@ -88,7 +120,7 @@ export function SalesmanHierarchyPage() {
     : ''
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader
         title="Salesman Hierarchy"
         description="Build the reporting structure — drag the canvas to pan, hover a card to add or remove reports."
@@ -107,13 +139,22 @@ export function SalesmanHierarchyPage() {
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted/20">
         {isLoading ? (
-          <div className="grid h-full place-items-center text-sm text-muted-foreground">
-            Loading hierarchy…
+          <div className="grid h-full place-items-center">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <span className="relative grid size-12 place-items-center">
+                <span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+                <span className="grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+                  <Loader2 className="size-6 animate-spin" />
+                </span>
+              </span>
+              <p className="text-sm font-medium">Loading hierarchy…</p>
+            </div>
           </div>
         ) : root ? (
           <div className="relative h-full w-full">
-            <PanCanvas className="h-full w-full" onZoomDelta={zoomBy}>
-              <div style={{ zoom }}>
+            <PanCanvas ref={canvasRef} className="h-full w-full" onZoomDelta={zoomBy}>
+              {/* Extra padding gives empty canvas room to pan around the tree. */}
+              <div style={{ zoom }} className="p-24 sm:p-48">
                 <HierarchyTree
                   root={root}
                   salesmenById={salesmenById}
@@ -126,7 +167,7 @@ export function SalesmanHierarchyPage() {
             {/* Zoom controls */}
             <div
               data-nopan
-              className="absolute right-4 top-4 flex items-center gap-1 rounded-xl border border-border bg-card/90 p-1 shadow-md backdrop-blur"
+              className="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-xl border border-border bg-card/90 p-1 shadow-md backdrop-blur"
             >
               <button
                 type="button"
@@ -140,7 +181,7 @@ export function SalesmanHierarchyPage() {
               <button
                 type="button"
                 title="Reset zoom"
-                onClick={() => setZoom(1)}
+                onClick={resetView}
                 className="min-w-12 cursor-pointer rounded-lg px-2 py-1.5 text-center text-xs font-medium tabular-nums text-foreground transition-colors hover:bg-accent"
               >
                 {Math.round(zoom * 100)}%
@@ -157,8 +198,8 @@ export function SalesmanHierarchyPage() {
               <span className="mx-0.5 h-5 w-px bg-border" />
               <button
                 type="button"
-                title="Reset zoom"
-                onClick={() => setZoom(1)}
+                title="Reset view"
+                onClick={resetView}
                 className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
               >
                 <RotateCcw className="size-4" />

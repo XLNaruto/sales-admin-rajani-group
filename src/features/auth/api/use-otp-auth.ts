@@ -19,7 +19,9 @@ export interface VerifyOtpInput {
  * Auth. No session exists yet — that happens on verify.
  */
 export function useRequestOtp() {
-  return useMutation<void, Error, RequestOtpInput>({
+  // Resolves with the Firebase `verificationId` so the caller can persist it
+  // for post-refresh verification.
+  return useMutation<string, Error, RequestOtpInput>({
     mutationFn: ({ mobile }) => sendOtp(mobile),
   })
 }
@@ -33,7 +35,11 @@ export function useVerifyOtp() {
 
   return useMutation<AuthSession, Error, VerifyOtpInput>({
     mutationFn: async ({ otp }) => {
-      const confirmed = await confirmOtp(otp)
+      // Fall back to the persisted verificationId when a refresh has dropped
+      // the in-memory ConfirmationResult.
+      const verificationId =
+        useOtpSessionStore.getState().session?.verificationId
+      const confirmed = await confirmOtp(otp, verificationId)
       return loginWithIdToken(confirmed)
     },
     onSuccess: ({ user, token, refreshToken }) => {

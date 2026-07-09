@@ -55,14 +55,14 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          'z-50 flex h-screen flex-col overflow-hidden border-r bg-sidebar text-sidebar-foreground',
+          'z-50 flex h-screen flex-col overflow-hidden border-sidebar-border bg-sidebar text-sidebar-foreground lg:border-r',
           'transition-[translate,width] duration-300 ease-in-out will-change-[translate,width]',
           // Mobile/tablet: fixed drawer sliding from the left.
-          'fixed inset-y-0 left-0 w-64 shadow-xl',
+          'fixed inset-y-0 left-0 w-72 shadow-xl',
           mobileOpen ? 'translate-x-0' : '-translate-x-full',
           // Desktop: in-flow rail with collapse.
           'lg:relative lg:translate-x-0 lg:shadow-none',
-          collapsed ? 'lg:w-16' : 'lg:w-64',
+          collapsed ? 'lg:w-16' : 'lg:w-72',
         )}
       >
         {/* Brand + controls */}
@@ -74,7 +74,7 @@ export function Sidebar() {
         >
           {!collapsed && (
             <img
-              src={asset("media/logos/logo-dark.png")}
+              src={asset("media/logos/sidebar-logo.png")}
               alt="Rajani Group"
               className="mx-auto h-12 w-auto shrink-0 object-contain"
             />
@@ -144,7 +144,8 @@ const leafClasses = (collapsed: boolean) =>
     'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
     collapsed && 'justify-center px-0',
     'text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-    '[&.active]:bg-sidebar-primary [&.active]:font-semibold [&.active]:text-sidebar-primary-foreground dark:[&.active]:text-white',
+    // Selected: soft navy highlight + white bold text; orange accent on the icon.
+    '[&.active]:bg-[#24365a] [&.active]:font-semibold [&.active]:text-white dark:[&.active]:bg-accent',
   )
 
 function NavLeaf({
@@ -166,7 +167,7 @@ function NavLeaf({
       onClick={onNavigate}
       className={leafClasses(collapsed)}
     >
-      <Icon className="size-[18px] shrink-0" />
+      <Icon className="size-[18px] shrink-0 transition-colors group-[.active]:text-sidebar-primary" />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   )

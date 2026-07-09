@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { Bell, ChevronDown, LogOut, Menu, Moon, User } from 'lucide-react'
+import { ChevronDown, LogOut, Menu, Moon, User } from 'lucide-react'
+// import { Bell } from 'lucide-react' // notifications button (hidden)
 import { Breadcrumbs } from './breadcrumbs'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,7 @@ import {
 import { useUiStore } from '@/stores/ui-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { useLogout } from '@/features/auth'
+import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
 
 const roleLabel: Record<string, string> = {
@@ -56,12 +58,22 @@ export function Topbar() {
         </div>
       </div>
 
+      {/* Centered logo — mobile only */}
+      <div className="flex flex-1 justify-center lg:hidden">
+        <img
+          src={asset('media/logos/sidebar-logo.png')}
+          alt="Rajani Group"
+          className="h-9 w-auto object-contain"
+        />
+      </div>
+
       <div className="flex items-center gap-1">
+        {/* Notifications — temporarily hidden
         <Button variant="ghost" size="icon" className="relative" title="Notifications">
           <Bell className="size-5" />
           <span className="absolute right-2 top-2 size-2 rounded-full bg-destructive" />
         </Button>
-
+        */}
         <DropdownMenu
           className="min-w-64 p-0"
           trigger={

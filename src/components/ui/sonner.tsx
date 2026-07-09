@@ -18,6 +18,7 @@ export function Toaster() {
       position="top-right"
       gap={10}
       offset={20}
+      swipeDirections={['right', 'top']}
       icons={{
         success: <IconBadge tone="success"><CheckCircle2 className="size-4" /></IconBadge>,
         error: <IconBadge tone="error"><XCircle className="size-4" /></IconBadge>,
@@ -29,13 +30,13 @@ export function Toaster() {
         unstyled: true,
         classNames: {
           toast:
-            'toast-pop group pointer-events-auto flex w-full items-center gap-3 rounded-2xl border border-black/5 bg-white/95 px-4 py-3 shadow-[0_10px_30px_-8px_rgba(15,23,42,0.28),0_2px_8px_-4px_rgba(15,23,42,0.16)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/95 dark:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.6)]',
+            'toast-pop group pointer-events-auto relative flex w-full cursor-grab touch-pan-y select-none items-center gap-3 rounded-2xl active:cursor-grabbing border border-black/5 bg-white/95 px-4 py-3 shadow-[0_10px_30px_-8px_rgba(15,23,42,0.28),0_2px_8px_-4px_rgba(15,23,42,0.16)] backdrop-blur-md dark:border-white/10 dark:bg-slate-900/95 dark:shadow-[0_10px_30px_-8px_rgba(0,0,0,0.6)]',
           icon: 'shrink-0',
           content: 'flex flex-col gap-0.5',
           title: 'font-sans text-sm font-semibold leading-tight text-slate-900 dark:text-slate-50',
           description: 'font-sans text-xs leading-snug text-slate-500 dark:text-slate-400',
           actionButton:
-            'ml-auto rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white dark:bg-white dark:text-slate-900',
+            'ml-auto cursor-pointer rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-medium text-white dark:bg-white dark:text-slate-900',
         },
       }}
     />

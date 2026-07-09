@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { cn } from '@/lib/utils'
 
 /**
@@ -10,18 +17,20 @@ import { cn } from '@/lib/utils'
  * When `onZoomDelta` is provided, Ctrl/⌘ + wheel zooms instead of scrolling
  * (delta is +1 to zoom in, -1 to zoom out).
  */
-export function PanCanvas({
-  className,
-  onZoomDelta,
-  children,
-}: {
-  className?: string
-  onZoomDelta?: (delta: number) => void
-  children: ReactNode
-}) {
+export const PanCanvas = forwardRef<
+  HTMLDivElement,
+  {
+    className?: string
+    onZoomDelta?: (delta: number) => void
+    children: ReactNode
+  }
+>(function PanCanvas({ className, onZoomDelta, children }, forwardedRef) {
   const ref = useRef<HTMLDivElement>(null)
   const origin = useRef({ x: 0, y: 0, left: 0, top: 0 })
   const [panning, setPanning] = useState(false)
+
+  // Expose the scroll container to the parent (used to re-center the tree).
+  useImperativeHandle(forwardedRef, () => ref.current as HTMLDivElement, [])
 
   // Ctrl/⌘ + wheel → zoom. Needs a non-passive listener to preventDefault.
   useEffect(() => {
@@ -67,4 +76,4 @@ export function PanCanvas({
       {children}
     </div>
   )
-}
+})

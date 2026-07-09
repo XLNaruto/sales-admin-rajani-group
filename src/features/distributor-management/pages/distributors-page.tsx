@@ -98,9 +98,9 @@ export function DistributorsPage() {
         id: "index",
         header: "#",
         enableSorting: false,
-        cell: ({ row }) => (
+        cell: ({ row, table }) => (
           <span className="text-sm text-muted-foreground tabular-nums">
-            {row.index + 1}
+            {table.getSortedRowModel().rows.findIndex((r) => r.id === row.id) + 1}
           </span>
         ),
       },
@@ -114,7 +114,7 @@ export function DistributorsPage() {
               type="button"
               title="Edit"
               onClick={() => navigate({ to: "/distributors/create" })}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-amber-500/10 text-amber-600 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
             </button>
@@ -159,7 +159,7 @@ export function DistributorsPage() {
         ),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
               <Building2 className="size-4.5" />
             </span>
             <div className="leading-tight">

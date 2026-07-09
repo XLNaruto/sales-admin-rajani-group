@@ -33,12 +33,14 @@ export function LoginPage() {
     requestOtp.mutate(
       { mobile: v.mobile },
       {
-        onSuccess: () => {
-          // Persist the pending number so the verify screen survives a refresh.
+        onSuccess: (verificationId) => {
+          // Persist the pending number + verificationId so both the verify
+          // screen and OTP confirmation survive a refresh.
           startSession({
             mobile: v.mobile,
             remember: v.remember,
             requestedAt: Date.now(),
+            verificationId,
           })
           toast.success(`Code sent to ${v.mobile}`)
           navigate({ to: '/verify' })
@@ -78,7 +80,7 @@ export function LoginPage() {
               type="text"
               inputMode="numeric"
               maxLength={10}
-              autoComplete="tel-national"
+              autoComplete="off"
               placeholder="98765 43210"
               className="h-11 border-foreground/15 bg-transparent pl-10 text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:ring-0"
               {...mobileField}

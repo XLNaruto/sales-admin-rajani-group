@@ -38,14 +38,14 @@ export function AuthLayout() {
         {/* Brand */}
         <div className="animate-auth-rise relative flex items-center">
           <img
-            src={asset('media/logos/logo.png')}
-            alt="Rajani Group"
-            className="h-20 w-auto object-contain drop-shadow-lg dark:hidden"
-          />
-          <img
             src={asset('media/logos/logo-dark.png')}
             alt="Rajani Group"
-            className="hidden h-20 w-auto object-contain drop-shadow-lg dark:block"
+            className="h-30 w-auto object-contain drop-shadow-lg dark:hidden"
+          />
+          <img
+            src={asset('media/logos/logo.png')}
+            alt="Rajani Group"
+            className="hidden h-30 w-auto object-contain drop-shadow-lg dark:block"
           />
         </div>
 
@@ -97,14 +97,14 @@ export function AuthLayout() {
             {/* Brand inside card (left panel hidden on small screens) */}
             <div className="mb-7 flex items-center justify-center lg:hidden">
               <img
-                src={asset('media/logos/logo.png')}
-                alt="Rajani Group"
-                className="h-16 w-auto object-contain dark:hidden"
-              />
-              <img
                 src={asset('media/logos/logo-dark.png')}
                 alt="Rajani Group"
-                className="hidden h-16 w-auto object-contain dark:block"
+                className="h-20 w-auto object-contain dark:hidden"
+              />
+              <img
+                src={asset('media/logos/logo.png')}
+                alt="Rajani Group"
+                className="hidden h-20 w-auto object-contain dark:block"
               />
             </div>
 
@@ -118,10 +118,13 @@ export function AuthLayout() {
       {/* ============================================================= */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 px-6 py-5 sm:px-10 lg:px-12">
         <div className="pointer-events-auto flex w-full flex-col items-center justify-between gap-2 text-sm font-medium text-muted-foreground sm:flex-row">
-          <p>
-            <span className="text-[22px]">©</span> {new Date().getFullYear()}{' '}
-            <span className="font-semibold text-foreground">Rajani Group</span>.
-            All Rights Reserved.
+          <p className="inline-flex items-center gap-1.5">
+            <span className="text-[22px] leading-none">©</span>
+            <span>
+              {new Date().getFullYear()}{' '}
+              <span className="font-semibold text-foreground">Rajani Group</span>.
+              All Rights Reserved.
+            </span>
           </p>
           <a
             href="https://www.xpertlab.com"

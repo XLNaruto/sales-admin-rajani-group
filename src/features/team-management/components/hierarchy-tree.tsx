@@ -22,8 +22,9 @@ function NodeCard({
 
   return (
     <div
+      data-hierarchy-root={isRoot ? '' : undefined}
       className={cn(
-        'group relative w-56 rounded-xl border bg-card p-4 text-center shadow-sm transition-colors',
+        'group relative w-40 rounded-xl border bg-card p-3 text-center shadow-sm transition-colors sm:w-56 sm:p-4',
         isRoot ? 'border-primary/40 ring-1 ring-primary/20' : 'border-border hover:border-ring/40',
       )}
     >
@@ -37,35 +38,35 @@ function NodeCard({
         <Avatar
           name={salesman?.name ?? '?'}
           src={salesman?.photoUrl}
-          className="size-14 text-sm"
+          className="size-11 text-xs sm:size-14 sm:text-sm"
         />
         <div className="min-w-0">
-          <p className="truncate font-semibold text-foreground">
+          <p className="truncate text-sm font-semibold text-foreground sm:text-base">
             {salesman?.name ?? 'Unknown salesman'}
           </p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+          <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
             {salesman?.designation ?? '—'}
           </p>
         </div>
       </div>
 
       {/* Actions — always visible. */}
-      <div className="mt-3 flex items-center justify-center gap-2">
+      <div className="mt-2.5 flex items-center justify-center gap-2 sm:mt-3">
         <button
           type="button"
           title="Add report"
           onClick={() => onAdd(node)}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20"
+          className="grid size-7 cursor-pointer place-items-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20 sm:size-8"
         >
-          <Plus className="size-4" />
+          <Plus className="size-3.5 sm:size-4" />
         </button>
         <button
           type="button"
           title={isRoot ? 'Remove root (clears hierarchy)' : 'Remove'}
           onClick={() => onRemove(node, isRoot)}
-          className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
+          className="grid size-7 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400 sm:size-8"
         >
-          <Trash2 className="size-4" />
+          <Trash2 className="size-3.5 sm:size-4" />
         </button>
       </div>
     </div>

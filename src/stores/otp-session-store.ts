@@ -9,6 +9,12 @@ interface OtpSession {
   remember: boolean
   /** Epoch ms of the last code request — drives the resend cooldown. */
   requestedAt: number
+  /**
+   * Firebase `verificationId` for the last code sent. Serialisable, so it lets
+   * the OTP be confirmed even after a refresh drops the in-memory
+   * `ConfirmationResult`. Useless without the SMS code the user must still type.
+   */
+  verificationId: string
 }
 
 interface OtpSessionState {

@@ -3,7 +3,6 @@ import {
   LayoutDashboard,
   UserCog,
   Network,
-  MapPinned,
   Building2,
   // Icons below are used by the temporarily-hidden nav groups — keep for restore.
   // UserPlus,

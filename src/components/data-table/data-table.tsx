@@ -107,7 +107,7 @@ export function DataTable<TData, TValue>({
           />
         ))}
 
-      <div className="rounded-xl border border-border bg-card">
+      <div className="rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px]">
         <div className={cn('overflow-hidden', hidePagination ? 'rounded-xl' : 'rounded-t-xl')}>
         <Table maxHeight={maxHeight}>
           <TableHeader>
