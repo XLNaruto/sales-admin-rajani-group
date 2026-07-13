@@ -5,8 +5,9 @@
  */
 export const endpoints = {
   AUTH: {
-    LOGIN: '/sales-admin/auth/login',
-    REFRESH_TOKEN: '/sales-admin/auth/refresh',
-    LOGOUT: '/sales-admin/auth/logout',
+    ACCOUNT_CHECK: '/sales-incharge-admin/auth/account-check',
+    LOGIN: '/sales-incharge-admin/auth/login',
+    REFRESH_TOKEN: '/sales-incharge-admin/auth/refresh',
+    LOGOUT: '/sales-incharge-admin/auth/logout',
   },
 } as const

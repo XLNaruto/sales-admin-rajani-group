@@ -10,15 +10,7 @@ import { env, isFirebaseConfigured } from '@/config/env'
  * The backend session (access/refresh tokens) is issued by our own REST API
  * after the Firebase ID token is exchanged — see `features/auth/api`.
  */
-const firebaseConfig = {
-  apiKey: env.VITE_FIREBASE_API_KEY,
-  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: env.VITE_FIREBASE_APP_ID,
-  measurementId: env.VITE_FIREBASE_MEASUREMENT_ID,
-}
+const firebaseConfig = env.VITE_FIREBASE_CONFIG
 
 // Guard against Vite HMR / double-init re-registering the default app.
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig)

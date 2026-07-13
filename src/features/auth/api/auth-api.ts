@@ -1,9 +1,13 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
+import { env } from '@/config/env'
 import { getApiErrorMessage } from '@/lib/api-error'
 import type { AuthUser } from '@/stores/auth-store'
 import type { ConfirmedIdentity } from './firebase-phone-auth'
 import type { AuthSession, TokenResponse } from '../types'
+
+/** Account type this portal signs in as; sent on account-check and login. */
+const USER_TYPE = env.VITE_APP_USER_TYPE
 
 /** Build the client user from the verified phone identity. */
 function userFromPhone(phone: ConfirmedIdentity): AuthUser {
@@ -25,15 +29,41 @@ function userFromPhone(phone: ConfirmedIdentity): AuthUser {
  * api-client interceptor (it must use a bare client to avoid recursion).
  */
 
-/** POST /sales-admin/auth/login — exchange the Firebase ID token for a session. */
+/**
+ * POST /sales-incharge-admin/auth/account-check — gate before the Firebase OTP
+ * flow: confirm the number belongs to an eligible account so we don't spend an
+ * SMS on numbers the backend would reject at login. Throws friendly copy on a
+ * non-2xx (e.g. unknown/ineligible number).
+ */
+export async function accountCheck(phone: string): Promise<void> {
+  let data: { accountExist?: boolean }
+  try {
+    data = await http.post<
+      { accountExist?: boolean },
+      { phone: string; user_type: string }
+    >(endpoints.AUTH.ACCOUNT_CHECK, { phone, user_type: USER_TYPE })
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Sign-in failed. Please try again.'))
+  }
+  // The endpoint answers 200 with a flag rather than a non-2xx for unknown
+  // numbers, so gate on the body.
+  if (!data.accountExist) {
+    throw new Error('This number isn’t registered. Please contact your admin.')
+  }
+}
+
+/** POST /sales-incharge-admin/auth/login — exchange the Firebase ID token for a session. */
 export async function loginWithIdToken(
   confirmed: ConfirmedIdentity,
 ): Promise<AuthSession> {
   try {
-    const data = await http.post<TokenResponse, { id_token: string }>(
-      endpoints.AUTH.LOGIN,
-      { id_token: confirmed.idToken },
-    )
+    const data = await http.post<
+      TokenResponse,
+      { id_token: string; user_type: string }
+    >(endpoints.AUTH.LOGIN, {
+      id_token: confirmed.idToken,
+      user_type: USER_TYPE,
+    })
     return {
       user: userFromPhone(confirmed),
       token: data.access_token,
@@ -45,7 +75,7 @@ export async function loginWithIdToken(
   }
 }
 
-/** POST /sales-admin/auth/logout — revoke the refresh token server-side. */
+/** POST /sales-incharge-admin/auth/logout — revoke the refresh token server-side. */
 export async function logoutRequest(refreshToken: string | null): Promise<void> {
   if (!refreshToken) return
   await http.post<void, { refresh_token: string }>(endpoints.AUTH.LOGOUT, {

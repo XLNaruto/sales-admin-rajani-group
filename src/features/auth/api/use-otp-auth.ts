@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOtpSessionStore } from '@/stores/otp-session-store'
 import { confirmOtp, firebaseSignOut, sendOtp } from './firebase-phone-auth'
-import { loginWithIdToken, logoutRequest } from './auth-api'
+import { accountCheck, loginWithIdToken, logoutRequest } from './auth-api'
 import type { AuthSession } from '../types'
 
 export interface RequestOtpInput {
@@ -15,14 +15,19 @@ export interface VerifyOtpInput {
 }
 
 /**
- * Step 1 of sign-in: text a one-time code to the number via Firebase Phone
- * Auth. No session exists yet — that happens on verify.
+ * Step 1 of sign-in: first ask the backend whether this number belongs to an
+ * eligible account (account-check), and only then text a one-time code via
+ * Firebase Phone Auth — so we never spend an SMS on a number login would
+ * reject. No session exists yet; that happens on verify.
  */
 export function useRequestOtp() {
   // Resolves with the Firebase `verificationId` so the caller can persist it
   // for post-refresh verification.
   return useMutation<string, Error, RequestOtpInput>({
-    mutationFn: ({ mobile }) => sendOtp(mobile),
+    mutationFn: async ({ mobile }) => {
+      await accountCheck(mobile)
+      return sendOtp(mobile)
+    },
   })
 }
 

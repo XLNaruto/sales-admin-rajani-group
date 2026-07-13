@@ -13,7 +13,7 @@ import { auth } from '@/lib/firebase'
  * Firebase Phone Authentication — the SMS-OTP mechanism behind the sign-in
  * screens. This is the OTP layer only; the backend session (access/refresh
  * tokens) is minted separately by exchanging the Firebase ID token at
- * /sales-admin/auth/login (see `auth-api.ts`).
+ * /sales-incharge-admin/auth/login (see `auth-api.ts`).
  *
  * The `<div id="recaptcha-container" />` lives in the shared AuthLayout so the
  * (invisible) reCAPTCHA survives navigation between the mobile and OTP steps,

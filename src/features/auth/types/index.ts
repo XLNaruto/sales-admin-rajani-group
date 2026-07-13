@@ -3,7 +3,7 @@ import type { AuthUser } from '@/stores/auth-store'
 export type { AuthUser }
 
 /**
- * Raw token response from POST /sales-admin/auth/login and /auth/refresh.
+ * Raw token response from POST /sales-incharge-admin/auth/login and /auth/refresh.
  * The login response carries no `user` object — the client user is built from
  * the verified phone identity (see `userFromPhone` in `api/auth-api.ts`).
  */

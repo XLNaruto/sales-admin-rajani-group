@@ -16,7 +16,7 @@ export function useRegisterPushToken() {
       const token = await requestPushToken()
       if (token && !env.VITE_USE_MOCK_API) {
         // TODO: confirm the real device-registration endpoint & payload.
-        await apiClient.post('/sales-admin/notifications/devices', { token })
+        await apiClient.post('/sales-incharge-admin/notifications/devices', { token })
       }
       return token
     },
