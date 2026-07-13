@@ -13,15 +13,9 @@ const firebaseConfigSchema = z.object({
 
 /** All environment access flows through here (zod-parsed, fail-fast). */
 const envSchema = z.object({
-  // Deploy target (dev: development, prod: production). Informational.
-  VITE_APP_ENV: z.string().default('development'),
-
-  // Human-readable app name (shown in titles/headers).
-  VITE_APP_NAME: z.string().default('Sales Admin Panel'),
-
   // API origin (e.g. http://192.168.1.20:3000); endpoint paths are appended.
   // Empty string (unset in some .env files) falls back to the default.
-  VITE_API_URL: z
+  VITE_APP_API_URL: z
     .string()
     .default('http://localhost:3000')
     .transform((v) => v || 'http://localhost:3000'),
@@ -34,7 +28,7 @@ const envSchema = z.object({
     .default('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
 
   /** Secret used to derive the key that encrypts persisted client storage. */
-  VITE_STORAGE_SECRET: z.string().default('sales-admin-storage-key'),
+  VITE_APP_ENCRYPT_KEY: z.string().default('sales-admin-storage-key'),
 
   /** Account type this portal authenticates as (account-check + login). */
   VITE_APP_USER_TYPE: z.string().default('salesInchargeAdmin'),

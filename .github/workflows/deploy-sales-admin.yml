@@ -9,34 +9,26 @@
 #        - "prod" (main only; REQUIRED reviewers = write-access collaborators)
 #   2. In EACH Environment add:
 #
-#      SECRET  AWS_DEPLOY_ROLE_ARN
-#        Full ARN from the infra outputs:
+#      SECRET  AWS_DEPLOY_ROLE_ARN   (full ARN, from infra outputs)
 #          dev:  Rajani-Dev-CiDeploy.SalesadminDeployRoleArn
 #          prod: Rajani-Prod-CiDeploy.SalesadminDeployRoleArn   (when prod exists)
 #
-#      VARIABLE  CLOUDFRONT_DISTRIBUTION_ID
-#        The distribution id (random, so it can't be derived) from:
-#          dev:  Rajani-Dev-Assets.SalesadminDistributionId
-#          prod: Rajani-Prod-Assets.SalesadminDistributionId
-#        (The S3 bucket name is NOT needed — it's derived as
-#         rajani-group-<account>-<env>-sales-admin, matching AssetsStack.)
-#
-#      App build VARIABLES (VITE_* are compiled into the public bundle):
-#          VITE_APP_ENV            dev: development           prod: production
-#          APP_BASE_PATH           dev: /                     prod: /
-#          VITE_API_URL            dev: https://api.dev.rajanigroup.in
-#          VITE_APP_NAME           Sales Admin Panel
+#      App build VARIABLES (VITE_* are compiled into the public bundle;
+#      names must match what src/config/env.ts + vite.config.ts read):
+#          VITE_APP_STAGE          dev: development           prod: production
+#          VITE_APP_BASE_URL       dev: /                     prod: /
+#          VITE_APP_API_URL        dev: https://api.dev.rajanigroup.in
+#          VITE_APP_USER_TYPE      salesInchargeAdmin
+#          VITE_USE_MOCK_API       false  (hit the real auth backend)
 #          VITE_MAP_TILE_URL       https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
 #          VITE_FIREBASE_CONFIG    single-line JSON web-app config
 #          VITE_FIREBASE_VAPID_KEY FCM Web Push (VAPID) key
 #      App build SECRET:
-#          VITE_STORAGE_SECRET     key used to encrypt persisted storage
+#          VITE_APP_ENCRYPT_KEY    key used to encrypt persisted storage
 #
-# WHAT IT DOES
-#   - Push to main       -> auto-deploys to dev.
-#   - workflow_dispatch  -> deploys to dev or prod (prod prompts approvers).
-#   - Uses ONLY S3 (sync) + CloudFront (invalidate) — no cloudformation:* — so
-#     the least-privilege CiDeploy role works unchanged.
+#   The bucket + distribution id are read from the env's Assets stack outputs at
+#   deploy time (the role has read-only cloudformation:DescribeStacks on it), so
+#   nothing else is hardcoded or needs a variable.
 
 name: Deploy
 
@@ -71,8 +63,8 @@ jobs:
 
     env:
       AWS_REGION: ap-south-1
-      # Panel key — matches the S3 bucket suffix created by AssetsStack.
-      PANEL_KEY: sales-admin
+      ASSETS_OUTPUT_BUCKET_KEY: SalesadminBucketName
+      ASSETS_OUTPUT_DISTRIBUTION_KEY: SalesadminDistributionId
 
     steps:
       - name: Checkout
@@ -81,7 +73,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
 
       - name: Install dependencies
@@ -89,24 +81,26 @@ jobs:
 
       - name: Generate .env file
         env:
-          VITE_APP_ENV: ${{ vars.VITE_APP_ENV }}
-          APP_BASE_PATH: ${{ vars.APP_BASE_PATH }}
-          VITE_API_URL: ${{ vars.VITE_API_URL }}
-          VITE_APP_NAME: ${{ vars.VITE_APP_NAME }}
+          VITE_APP_STAGE: ${{ vars.VITE_APP_STAGE }}
+          VITE_APP_BASE_URL: ${{ vars.VITE_APP_BASE_URL }}
+          VITE_APP_API_URL: ${{ vars.VITE_APP_API_URL }}
+          VITE_APP_USER_TYPE: ${{ vars.VITE_APP_USER_TYPE }}
+          VITE_USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API }}
           VITE_MAP_TILE_URL: ${{ vars.VITE_MAP_TILE_URL }}
           VITE_FIREBASE_CONFIG: ${{ vars.VITE_FIREBASE_CONFIG }}
           VITE_FIREBASE_VAPID_KEY: ${{ vars.VITE_FIREBASE_VAPID_KEY }}
-          VITE_STORAGE_SECRET: ${{ secrets.VITE_STORAGE_SECRET }}
+          VITE_APP_ENCRYPT_KEY: ${{ secrets.VITE_APP_ENCRYPT_KEY }}
         run: |
           set -euo pipefail
           ENV="${{ github.event.inputs.environment || 'dev' }}"
           if [ "$ENV" = "prod" ]; then MODE="production"; else MODE="development"; fi
           {
-            echo "VITE_APP_ENV=${VITE_APP_ENV}"
-            echo "APP_BASE_PATH=${APP_BASE_PATH}"
-            echo "VITE_STORAGE_SECRET=${VITE_STORAGE_SECRET}"
-            echo "VITE_API_URL=${VITE_API_URL}"
-            echo "VITE_APP_NAME=${VITE_APP_NAME}"
+            echo "VITE_APP_STAGE=${VITE_APP_STAGE}"
+            echo "VITE_APP_BASE_URL=${VITE_APP_BASE_URL}"
+            echo "VITE_APP_ENCRYPT_KEY=${VITE_APP_ENCRYPT_KEY}"
+            echo "VITE_APP_API_URL=${VITE_APP_API_URL}"
+            echo "VITE_APP_USER_TYPE=${VITE_APP_USER_TYPE}"
+            echo "VITE_USE_MOCK_API=${VITE_USE_MOCK_API}"
             echo "VITE_MAP_TILE_URL=${VITE_MAP_TILE_URL}"
             echo "VITE_FIREBASE_CONFIG=${VITE_FIREBASE_CONFIG}"
             echo "VITE_FIREBASE_VAPID_KEY=${VITE_FIREBASE_VAPID_KEY}"
@@ -116,7 +110,7 @@ jobs:
       - name: Build
         run: |
           ENV="${{ github.event.inputs.environment || 'dev' }}"
-          if [ "$ENV" = "prod" ]; then npm run build:prod; else npm run build:dev; fi
+          if [ "$ENV" = "prod" ]; then npm run build:prod; else npm run build; fi
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -124,21 +118,28 @@ jobs:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Resolve bucket + distribution (no CloudFormation needed)
+      - name: Resolve bucket and distribution from CFN outputs
         id: outputs
         run: |
           set -euo pipefail
           ENV="${{ github.event.inputs.environment || 'dev' }}"
-          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-          # Bucket is deterministic: AssetsStack names it
-          # rajani-group-<account>-<env>-<panel>. No CFN lookup needed.
-          BUCKET="rajani-group-${ACCOUNT}-${ENV}-${PANEL_KEY}"
-          # Distribution id is random -> comes from a GitHub Environment variable.
-          DIST="${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}"
-          if [ -z "$DIST" ]; then
-            echo "::error::Set the CLOUDFRONT_DISTRIBUTION_ID variable in this GitHub Environment (infra output Rajani-<Env>-Assets.SalesadminDistributionId)."
+          if [ "$ENV" = "prod" ]; then PREFIX="Prod"; else PREFIX="Dev"; fi
+          STACK="Rajani-${PREFIX}-Assets"
+
+          BUCKET=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='${ASSETS_OUTPUT_BUCKET_KEY}'].OutputValue" \
+            --output text)
+          DIST=$(aws cloudformation describe-stacks \
+            --stack-name "$STACK" \
+            --query "Stacks[0].Outputs[?OutputKey=='${ASSETS_OUTPUT_DISTRIBUTION_KEY}'].OutputValue" \
+            --output text)
+
+          if [ -z "$BUCKET" ] || [ "$BUCKET" = "None" ] || [ -z "$DIST" ] || [ "$DIST" = "None" ]; then
+            echo "::error::Could not resolve bucket or distribution from $STACK outputs."
             exit 1
           fi
+
           echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
           echo "distribution=$DIST" >> "$GITHUB_OUTPUT"
           echo "Bucket:       $BUCKET"
