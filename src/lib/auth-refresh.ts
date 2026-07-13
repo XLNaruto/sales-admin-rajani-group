@@ -6,7 +6,7 @@ import { useAuthStore } from '@/stores/auth-store'
 /** Proactively refresh a bit before the ~15-min access token expires. */
 export const REFRESH_INTERVAL_MS = 25 * 60 * 1000
 
-export const REFRESH_URL = `${env.VITE_APP_API_URL}${endpoints.AUTH.REFRESH_TOKEN}`
+export const REFRESH_URL = `${env.VITE_API_URL}${endpoints.AUTH.REFRESH_TOKEN}`
 
 interface RefreshResponse {
   access_token: string
@@ -16,7 +16,7 @@ interface RefreshResponse {
 // Bare client (no interceptors) so refreshing can't recurse through the 401
 // handler that calls it.
 const refreshClient = axios.create({
-  baseURL: env.VITE_APP_API_URL,
+  baseURL: env.VITE_API_URL,
   headers: { 'Content-Type': 'application/json' },
 })
 

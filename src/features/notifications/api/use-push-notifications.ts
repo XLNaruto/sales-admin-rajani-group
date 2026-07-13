@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import { env } from '@/config/env'
 import { apiClient } from '@/lib/api-client'
 import { onForegroundMessage, requestPushToken } from '../lib/messaging'
 
@@ -13,7 +14,7 @@ export function useRegisterPushToken() {
   return useMutation<string | null, Error, void>({
     mutationFn: async () => {
       const token = await requestPushToken()
-      if (token) {
+      if (token && !env.VITE_USE_MOCK_API) {
         // TODO: confirm the real device-registration endpoint & payload.
         await apiClient.post('/sales-incharge-admin/notifications/devices', { token })
       }

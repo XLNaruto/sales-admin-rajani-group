@@ -36,7 +36,7 @@ function getKey(): Promise<CryptoKey> {
     keyPromise = (async () => {
       const baseKey = await crypto.subtle.importKey(
         'raw',
-        encoder.encode(env.VITE_APP_ENCRYPT_KEY),
+        encoder.encode(env.VITE_STORAGE_SECRET),
         'PBKDF2',
         false,
         ['deriveKey'],

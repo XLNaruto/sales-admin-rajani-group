@@ -1,7 +1,7 @@
 /**
  * Centralised REST endpoint paths. Feature `api/` layers reference these
  * instead of hard-coding URL strings, so a path only ever changes in one place.
- * Paths are relative to `apiClient`'s baseURL (see `env.VITE_APP_API_URL`).
+ * Paths are relative to `apiClient`'s baseURL (see `env.VITE_API_URL`).
  */
 export const endpoints = {
   AUTH: {
