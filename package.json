@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "vite --mode development --host",
     "prod": "vite --mode production --host",
-    "build": "oxlint && tsc -b && vite build --mode development",
-    "build:prod": "oxlint && tsc -b && vite build --mode production",
+    "routes:generate": "node scripts/generate-routes.mjs",
+    "build": "npm run routes:generate && oxlint && tsc -b && vite build --mode development",
+    "build:prod": "npm run routes:generate && oxlint && tsc -b && vite build --mode production",
     "preview": "vite preview --mode development",
     "preview:prod": "vite preview --mode production",
     "lint": "oxlint",
-    "typecheck": "tsc -b",
+    "typecheck": "npm run routes:generate && tsc -b",
     "prepare": "husky"
   },
   "dependencies": {
