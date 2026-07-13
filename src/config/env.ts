@@ -19,10 +19,6 @@ const envSchema = z.object({
     .string()
     .default('http://localhost:3000')
     .transform((v) => v || 'http://localhost:3000'),
-  VITE_USE_MOCK_API: z
-    .string()
-    .default('true')
-    .transform((v) => v === 'true'),
   VITE_MAP_TILE_URL: z
     .string()
     .default('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
