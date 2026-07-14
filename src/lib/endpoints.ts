@@ -22,4 +22,16 @@ export const endpoints = {
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/distributors/documents/presign',
   },
+  /**
+   * Geography masters. A strict hierarchy — each level filters by its parent's
+   * id: State → Zone (state_id) → District (zone_id) → Taluka (district_id) →
+   * City (taluka_id).
+   */
+  LOCATION: {
+    STATES: '/sales-incharge-admin/states',
+    ZONES: '/sales-incharge-admin/zones',
+    DISTRICTS: '/sales-incharge-admin/districts',
+    TALUKAS: '/sales-incharge-admin/talukas',
+    CITIES: '/sales-incharge-admin/cities',
+  },
 } as const

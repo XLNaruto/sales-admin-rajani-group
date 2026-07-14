@@ -9,20 +9,25 @@ import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
 import { FileInput } from "../components/file-input";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import {
+  useCitySelect,
+  useDistrictSelect,
+  useStateSelect,
+  useTalukaSelect,
+  useZoneSelect,
+} from "@/features/location";
+import {
   DISTRIBUTOR_STATUSES,
   FIRM_TYPES,
   MARKET_SYSTEMS,
   MARKET_TYPES,
   PAYMENT_CONDITIONS,
-  STATES,
   YES_NO,
-  citiesByTaluka,
-  districtsByZone,
-  talukasByDistrict,
   toOptions,
   villagesByCity,
-  zonesByState,
 } from "../lib/distributor-reference";
+
+/** Parse a string form id into the numeric id the location API expects. */
+const toId = (v?: string) => (v ? Number(v) : undefined);
 
 export function DistributorCreatePage() {
   const {
@@ -41,6 +46,14 @@ export function DistributorCreatePage() {
     currentYear,
     maxBirthDate,
   } = useDistributorForm();
+
+  // Cascading geography masters — each level is a scroll-lazy, server-searched
+  // dropdown scoped to its parent's id.
+  const stateSelect = useStateSelect();
+  const zoneSelect = useZoneSelect(toId(stateId));
+  const districtSelect = useDistrictSelect(toId(zoneId));
+  const talukaSelect = useTalukaSelect(toId(districtId));
+  const citySelect = useCitySelect(toId(talukaId));
 
   return (
     <div>
@@ -276,7 +289,10 @@ export function DistributorCreatePage() {
                     setValue("villageIds", []);
                     setValue("agencyTalukaIds", []);
                   }}
-                  options={toOptions(STATES)}
+                  options={stateSelect.options}
+                  onScrollEnd={stateSelect.onScrollEnd}
+                  loading={stateSelect.loading}
+                  onSearchChange={stateSelect.onSearchChange}
                   placeholder="Select…"
                   searchPlaceholder="Search state"
                 />
@@ -298,7 +314,10 @@ export function DistributorCreatePage() {
                     setValue("cityId", "");
                     setValue("villageIds", []);
                   }}
-                  options={toOptions(zonesByState(stateId))}
+                  options={zoneSelect.options}
+                  onScrollEnd={zoneSelect.onScrollEnd}
+                  loading={zoneSelect.loading}
+                  onSearchChange={zoneSelect.onSearchChange}
                   placeholder={stateId ? "Select…" : "Select a state first"}
                   searchPlaceholder="Search zone"
                 />
@@ -319,7 +338,10 @@ export function DistributorCreatePage() {
                     setValue("cityId", "");
                     setValue("villageIds", []);
                   }}
-                  options={toOptions(districtsByZone(zoneId))}
+                  options={districtSelect.options}
+                  onScrollEnd={districtSelect.onScrollEnd}
+                  loading={districtSelect.loading}
+                  onSearchChange={districtSelect.onSearchChange}
                   placeholder={zoneId ? "Select…" : "Select a zone first"}
                   searchPlaceholder="Search district"
                 />
@@ -339,7 +361,10 @@ export function DistributorCreatePage() {
                     setValue("cityId", "");
                     setValue("villageIds", []);
                   }}
-                  options={toOptions(talukasByDistrict(districtId))}
+                  options={talukaSelect.options}
+                  onScrollEnd={talukaSelect.onScrollEnd}
+                  loading={talukaSelect.loading}
+                  onSearchChange={talukaSelect.onSearchChange}
                   placeholder={
                     districtId ? "Select…" : "Select a district first"
                   }
@@ -360,7 +385,10 @@ export function DistributorCreatePage() {
                     field.onChange(v);
                     setValue("villageIds", []);
                   }}
-                  options={toOptions(citiesByTaluka(talukaId))}
+                  options={citySelect.options}
+                  onScrollEnd={citySelect.onScrollEnd}
+                  loading={citySelect.loading}
+                  onSearchChange={citySelect.onSearchChange}
                   placeholder={talukaId ? "Select…" : "Select a taluka first"}
                   searchPlaceholder="Search city"
                 />
@@ -399,7 +427,7 @@ export function DistributorCreatePage() {
                 <MultiSelect
                   value={field.value ?? []}
                   onChange={field.onChange}
-                  options={toOptions(talukasByDistrict(districtId))}
+                  options={talukaSelect.options}
                   placeholder={
                     districtId ? "Select talukas…" : "Select a district first"
                   }

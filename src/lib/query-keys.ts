@@ -112,4 +112,17 @@ export const queryKeys = {
     list: () => [...queryKeys.notifications.all, 'list'] as const,
     greetings: () => [...queryKeys.notifications.all, 'greetings'] as const,
   },
+  location: {
+    all: ['location'] as const,
+    states: (filters?: Record<string, unknown>) =>
+      [...queryKeys.location.all, 'states', filters ?? {}] as const,
+    zones: (filters?: Record<string, unknown>) =>
+      [...queryKeys.location.all, 'zones', filters ?? {}] as const,
+    districts: (filters?: Record<string, unknown>) =>
+      [...queryKeys.location.all, 'districts', filters ?? {}] as const,
+    talukas: (filters?: Record<string, unknown>) =>
+      [...queryKeys.location.all, 'talukas', filters ?? {}] as const,
+    cities: (filters?: Record<string, unknown>) =>
+      [...queryKeys.location.all, 'cities', filters ?? {}] as const,
+  },
 } as const

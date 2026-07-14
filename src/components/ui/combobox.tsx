@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, Search, type LucideIcon } from 'lucide-react'
+import { Check, ChevronDown, Loader2, Search, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 /** Rough panel height used to decide whether to open upward. */
@@ -28,7 +28,23 @@ interface ComboboxProps {
   align?: 'start' | 'center' | 'end'
   /** Width utility for the trigger (e.g. "lg:w-44"). */
   className?: string
+  /**
+   * Called when the option list is scrolled near its end — use to fetch the
+   * next page for lazy-loaded / infinite dropdowns.
+   */
+  onScrollEnd?: () => void
+  /** Show a loading row at the bottom of the list (a fetch is in flight). */
+  loading?: boolean
+  /**
+   * When provided, filtering is delegated to the caller (server-side search):
+   * the search box value is forwarded here and `options` are shown as-is
+   * instead of being filtered locally.
+   */
+  onSearchChange?: (query: string) => void
 }
+
+/** Trigger `onScrollEnd` when scrolled within this many px of the bottom. */
+const SCROLL_END_THRESHOLD = 48
 
 interface PanelCoords {
   left: number
@@ -55,6 +71,9 @@ export function Combobox({
   searchPlaceholder = 'Search',
   align = 'start',
   className,
+  onScrollEnd,
+  loading = false,
+  onSearchChange,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -111,14 +130,31 @@ export function Combobox({
   }, [open])
 
   const selected = options.find((o) => o.value === value)
-  const filtered = query
-    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
-    : options
+  // With server-side search the parent already returns the matching page, so
+  // show options verbatim; otherwise filter the loaded options locally.
+  const filtered =
+    onSearchChange || !query
+      ? options
+      : options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+
+  const search = (q: string) => {
+    setQuery(q)
+    onSearchChange?.(q)
+  }
 
   const choose = (v: string) => {
     onChange(v)
     setOpen(false)
     setQuery('')
+    onSearchChange?.('')
+  }
+
+  const handleScroll = (e: React.UIEvent<HTMLUListElement>) => {
+    if (!onScrollEnd) return
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_END_THRESHOLD) {
+      onScrollEnd()
+    }
   }
 
   return (
@@ -171,15 +207,19 @@ export function Combobox({
                     autoFocus
                     autoComplete="off"
                     value={query}
-                    onChange={(e) => setQuery(e.target.value)}
+                    onChange={(e) => search(e.target.value)}
                     placeholder={searchPlaceholder}
                     className="h-9 w-full rounded-md bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground"
                   />
                 </div>
               ) : null}
 
-              <ul className="max-h-60 overflow-y-auto" role="listbox">
-                {filtered.length === 0 ? (
+              <ul
+                className="max-h-60 overflow-y-auto"
+                role="listbox"
+                onScroll={handleScroll}
+              >
+                {filtered.length === 0 && !loading ? (
                   <li className="px-2 py-2 text-sm text-muted-foreground">No results</li>
                 ) : (
                   filtered.map((o) => {
@@ -203,6 +243,12 @@ export function Combobox({
                     )
                   })
                 )}
+                {loading ? (
+                  <li className="flex items-center justify-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" />
+                    Loading…
+                  </li>
+                ) : null}
               </ul>
             </div>,
             document.body,
