@@ -48,7 +48,7 @@ export async function accountCheck(phone: string): Promise<void> {
   // The endpoint answers 200 with a flag rather than a non-2xx for unknown
   // numbers, so gate on the body.
   if (!data.accountExist) {
-    throw new Error('This number isn’t registered. Please contact your admin.')
+    throw new Error('This account is not authorised to access the sales admin portal.')
   }
 }
 

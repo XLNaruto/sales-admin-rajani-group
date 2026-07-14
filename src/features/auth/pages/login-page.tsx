@@ -2,7 +2,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { toastApiError } from '@/lib/api-toast'
 import { Phone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -45,7 +44,7 @@ export function LoginPage() {
           toast.success(`Code sent to ${v.mobile}`)
           navigate({ to: '/verify' })
         },
-        onError: (err) => toastApiError(err, "Couldn't send the code. Please try again."),
+        // Error is already surfaced inline via the alert below — no toast.
       },
     ),
   )
