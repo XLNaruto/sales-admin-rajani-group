@@ -10,14 +10,12 @@ import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCompact } from '@/lib/utils'
-import { useBeats, useRouteMappings } from '../api/use-beats'
-import { useTourPlans } from '../api/use-tours'
+import { useBeatTour } from '../hooks/use-beat-tour'
 import type { Beat, RouteMapping, TourPlan } from '../types'
 
 export function BeatTourPage() {
-  const beats = useBeats()
-  const tours = useTourPlans('month')
-  const routes = useRouteMappings()
+  const { beats, tours, routes, totalBeats, plannedTours, partiesMapped } =
+    useBeatTour()
 
   const beatColumns = useMemo<ColumnDef<Beat>[]>(
     () => [
@@ -63,10 +61,6 @@ export function BeatTourPage() {
     ],
     [],
   )
-
-  const totalBeats = beats.data?.length ?? 0
-  const plannedTours = tours.data?.filter((t) => t.status !== 'completed').length ?? 0
-  const partiesMapped = beats.data?.reduce((sum, b) => sum + b.parties, 0) ?? 0
 
   return (
     <div>

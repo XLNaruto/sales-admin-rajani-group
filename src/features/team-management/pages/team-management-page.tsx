@@ -8,19 +8,18 @@ import { DataTable } from '@/components/data-table/data-table'
 import { ComparisonBarChart } from '@/components/charts'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { formatCurrency, formatPercent } from '@/lib/utils'
-import { useProductivity, useSalesmen } from '../api/use-team'
+import { useTeamManagement } from '../hooks/use-team-management'
 import type { Salesman } from '../types'
 
 export function TeamPage() {
-  const { data: salesmen, isLoading } = useSalesmen()
-  const { data: productivity } = useProductivity()
-
-  const list = salesmen ?? []
-  const totalSalesmen = list.length
-  const avgProductivity = totalSalesmen
-    ? list.reduce((sum, s) => sum + s.productivity, 0) / totalSalesmen
-    : 0
-  const visitsToday = list.reduce((sum, s) => sum + s.visitsToday, 0)
+  const {
+    list,
+    productivity,
+    isLoading,
+    totalSalesmen,
+    avgProductivity,
+    visitsToday,
+  } = useTeamManagement()
 
   const columns = useMemo<ColumnDef<Salesman>[]>(
     () => [
@@ -76,7 +75,7 @@ export function TeamPage() {
         </CardHeader>
         <CardContent>
           <ComparisonBarChart
-            data={productivity ?? []}
+            data={productivity}
             xKey="beat"
             series={[
               { key: 'target', label: 'Target' },

@@ -8,15 +8,18 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMarketVisits, useMeetings, useVisitForms } from '../api/use-crm'
+import { useCrm } from '../hooks/use-crm'
 import type { MarketVisit, Meeting, VisitForm } from '../types'
 
-const TODAY = '2026-07-02'
-
 export function CrmPage() {
-  const visits = useVisitForms()
-  const meetings = useMeetings()
-  const marketVisits = useMarketVisits()
+  const {
+    visits,
+    meetings,
+    marketVisits,
+    visitsToday,
+    upcomingMeetings,
+    marketVisitsThisWeek,
+  } = useCrm()
 
   const visitColumns = useMemo<ColumnDef<VisitForm>[]>(
     () => [
@@ -62,10 +65,6 @@ export function CrmPage() {
     ],
     [],
   )
-
-  const visitsToday = visits.data?.filter((v) => v.date === TODAY).length ?? 0
-  const upcomingMeetings = meetings.data?.filter((m) => m.status === 'scheduled').length ?? 0
-  const marketVisitsThisWeek = marketVisits.data?.length ?? 0
 
   return (
     <div>

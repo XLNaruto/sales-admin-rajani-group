@@ -130,28 +130,9 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
         className,
       )}
     >
-      {/* Search — always visible, outside the panel */}
-      {search ? (
-        <div className="relative sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={search.placeholder ?? 'Search…'}
-            value={search.value}
-            onChange={(e) => search.onChange(e.target.value)}
-            className="h-10 truncate border-border/50 pl-9 pr-9"
-          />
-          {searchActive ? (
-            <button
-              type="button"
-              onClick={() => search.onChange('')}
-              aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-            >
-              <X className="size-4" />
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {/* Search — always visible, outside the panel. Debounced so list
+          queries/filtering only fire once the user pauses typing. */}
+      {search ? <SearchBox search={search} /> : null}
 
       {/* Facet chips + Filters trigger (right) */}
       <div className="flex flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-2">
@@ -264,6 +245,60 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
             document.body,
           )
         : null}
+    </div>
+  )
+}
+
+/** Debounce delay (ms) before a typed search term is propagated upward. */
+const SEARCH_DEBOUNCE = 300
+
+/**
+ * Search input with a local, instantly-responsive value that only calls
+ * `search.onChange` after the user pauses typing — so list queries and table
+ * filtering don't run on every keystroke. Syncs back when the value is changed
+ * externally (Reset / Clear all); the clear button flushes immediately.
+ */
+function SearchBox({ search }: { search: FilterSearch }) {
+  const [local, setLocal] = useState(search.value)
+  const onChangeRef = useRef(search.onChange)
+  onChangeRef.current = search.onChange
+
+  // Reflect external changes (reset / clear-all / programmatic) into the input.
+  useEffect(() => {
+    setLocal(search.value)
+  }, [search.value])
+
+  // Debounce propagation of the typed value upward.
+  useEffect(() => {
+    if (local === search.value) return
+    const t = setTimeout(() => onChangeRef.current(local), SEARCH_DEBOUNCE)
+    return () => clearTimeout(t)
+  }, [local, search.value])
+
+  const active = Boolean(local.trim())
+
+  return (
+    <div className="relative sm:w-72">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        placeholder={search.placeholder ?? 'Search…'}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        className="h-10 truncate border-border/50 pl-9 pr-9"
+      />
+      {active ? (
+        <button
+          type="button"
+          onClick={() => {
+            setLocal('')
+            onChangeRef.current('')
+          }}
+          aria-label="Clear search"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      ) : null}
     </div>
   )
 }

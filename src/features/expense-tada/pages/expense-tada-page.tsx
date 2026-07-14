@@ -8,20 +8,13 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/utils'
-import { useTadaClaims, useTadaMaster } from '../api/use-tada'
 import { TadaCalculator } from '../components/tada-calculator'
+import { useExpenseTada } from '../hooks/use-expense-tada'
 import type { TadaClaim, TadaMaster } from '../types'
 
-const THIS_MONTH = '2026-07'
-
 export function ExpenseTadaPage() {
-  const master = useTadaMaster()
-  const claims = useTadaClaims()
-
-  const claimRows = claims.data ?? []
-  const claimsThisMonth = claimRows.filter((c) => c.date.startsWith(THIS_MONTH)).length
-  const totalPayable = claimRows.reduce((sum, c) => sum + c.computedTotal, 0)
-  const pendingClaims = claimRows.filter((c) => c.status === 'pending').length
+  const { master, claims, claimRows, claimsThisMonth, totalPayable, pendingClaims } =
+    useExpenseTada()
 
   const masterColumns = useMemo<ColumnDef<TadaMaster>[]>(
     () => [

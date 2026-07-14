@@ -3,13 +3,16 @@ import { FileUploader } from 'react-drag-drop-files'
 import { UploadCloud, FileText, X } from 'lucide-react'
 
 /**
- * Compact drag-and-drop file field built on `react-drag-drop-files`. Kept to a
- * single-row height so it lines up with the text inputs in the form grid. The
- * picked file name(s) are surfaced as a plain string via `onChange` (mock
- * behaviour — no upload). Clears with the X.
+ * Compact drag-and-drop file field built on `react-drag-drop-files`.
  *
- * Image files also get a small object-URL thumbnail preview (local state only),
- * shown in the filled chip in place of the generic file icon.
+ * The picked `File` object(s) are surfaced via `onChange` as a `File[]` — the
+ * raw files are needed so the submit flow can presign + upload them and store
+ * the returned storage keys.
+ *
+ * Picked files render below the drop zone as square thumbnails; image files get
+ * an object-URL preview, everything else a generic file icon. Each thumbnail has
+ * its own close icon to remove that single file. In `multiple` mode new picks
+ * are appended; otherwise they replace the current selection.
  */
 export function FileInput({
   value,
@@ -17,27 +20,29 @@ export function FileInput({
   accept,
   multiple = false,
 }: {
-  value: string
-  onChange: (v: string) => void
+  value: File[]
+  onChange: (v: File[]) => void
   accept?: string
   multiple?: boolean
 }) {
   // Map an `accept` mime pattern to the extension list the library expects.
   const types = accept?.startsWith('image/')
-    ? ['JPG', 'JPEG', 'PNG', 'WEBP', 'GIF']
+    ? ['JPG', 'PNG', 'JPEG', 'PDF']
     : undefined
 
-  // Object-URL previews for the most recently picked image files. Revoked on
-  // replace/clear/unmount so we don't leak blob URLs.
-  const [previews, setPreviews] = useState<string[]>([])
+  // Human-readable list of allowed formats shown as a hint.
+  const formatHint = types ? types.join(', ') : undefined
 
-  const revoke = (urls: string[]) => urls.forEach((u) => URL.revokeObjectURL(u))
+  // Object-URL previews, one per file (null for non-image files). Regenerated
+  // and revoked whenever the selection changes so we never leak blob URLs.
+  const [previews, setPreviews] = useState<(string | null)[]>([])
 
-  useEffect(() => () => revoke(previews), [previews])
-
-  // If the value is cleared externally, drop any stale previews.
   useEffect(() => {
-    if (!value) setPreviews((prev) => (revoke(prev), []))
+    const urls = value.map((f) =>
+      f.type.startsWith('image/') ? URL.createObjectURL(f) : null,
+    )
+    setPreviews(urls)
+    return () => urls.forEach((u) => u && URL.revokeObjectURL(u))
   }, [value])
 
   const handleChange = (file: File | FileList | File[]) => {
@@ -48,21 +53,14 @@ export function FileInput({
           ? file
           : [file]
 
-    setPreviews((prev) => {
-      revoke(prev)
-      return files
-        .filter((f) => f.type.startsWith('image/'))
-        .map((f) => URL.createObjectURL(f))
-    })
-    onChange(files.map((f) => f.name).join(', '))
+    onChange(multiple ? [...value, ...files] : files)
   }
 
+  const removeAt = (index: number) =>
+    onChange(value.filter((_, i) => i !== index))
+
   return (
-    // `relative` so the clear button can sit OUTSIDE the FileUploader's label.
-    // The library binds a native `click` listener on the label that opens the
-    // browse dialog; a button rendered as its child can't reliably stop that,
-    // so we overlay the button as a sibling instead.
-    <div className="relative">
+    <div className="space-y-2">
       <FileUploader
         handleChange={handleChange}
         name="file"
@@ -71,44 +69,67 @@ export function FileInput({
         hoverTitle=" "
         classes="sa-file-drop"
       >
-        {value ? (
-          <div className="flex h-9 cursor-pointer items-center gap-2 overflow-hidden rounded-md border-2 border-dashed border-primary/40 bg-muted/40 py-1 pr-9 pl-3 text-sm transition-colors hover:border-primary/60">
-            {previews.length > 0 ? (
-              <span className="flex shrink-0 items-center -space-x-2">
-                {previews.slice(0, 3).map((url, i) => (
-                  <img
-                    key={url}
-                    src={url}
-                    alt=""
-                    className="size-6 shrink-0 rounded border border-background bg-background object-cover shadow-sm"
-                    style={{ zIndex: previews.length - i }}
-                  />
-                ))}
+        <div className="group flex min-h-9 cursor-pointer items-center gap-2.5 rounded-md border border-input bg-transparent px-2 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50">
+          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-primary/10 text-primary transition-transform group-hover:scale-110">
+            <UploadCloud className="size-3.5" />
+          </span>
+          <span className="flex-1 truncate leading-tight">
+            {value.length > 0 ? (
+              <span className="block truncate">
+                <span className="font-medium text-foreground">
+                  {multiple ? 'Add more' : 'Replace file'}
+                </span>
+                <span className="text-muted-foreground">
+                  {' '}
+                  · {value.length} selected
+                </span>
               </span>
             ) : (
-              <FileText className="size-4 shrink-0 text-primary" />
+              <span className="block truncate">
+                <span className="font-medium text-foreground">Click to upload</span>
+                <span className="text-muted-foreground"> or drag &amp; drop</span>
+              </span>
             )}
-            <span className="flex-1 truncate">{value}</span>
-          </div>
-        ) : (
-          <div className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md border-2 border-dashed border-input px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/50 hover:bg-muted/40">
-            <UploadCloud className="size-4 shrink-0" />
-            <span className="flex-1 truncate">
-              <span className="font-medium text-primary">Click to upload</span> or drag &amp; drop
-            </span>
-          </div>
-        )}
+            {formatHint && (
+              <span className="block truncate text-xs text-muted-foreground/70">
+                {formatHint}
+              </span>
+            )}
+          </span>
+        </div>
       </FileUploader>
 
-      {value && (
-        <button
-          type="button"
-          title="Clear"
-          onClick={() => onChange('')}
-          className="absolute top-1/2 right-2 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-        >
-          <X className="size-4" />
-        </button>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {value.map((file, i) => (
+            <div
+              key={`${file.name}-${i}`}
+              title={file.name}
+              className="group/thumb relative size-10 shrink-0 overflow-hidden rounded-md border border-primary/30 bg-muted/30"
+            >
+              {previews[i] ? (
+                <img
+                  src={previews[i] as string}
+                  alt={file.name}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span className="flex size-full items-center justify-center text-primary">
+                  <FileText className="size-4" />
+                </span>
+              )}
+
+              <button
+                type="button"
+                title="Remove"
+                onClick={() => removeAt(i)}
+                className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
+              >
+                <X className="size-3" />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )

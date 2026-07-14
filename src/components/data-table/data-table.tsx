@@ -95,6 +95,8 @@ export function DataTable<TData, TValue>({
   })
 
   const showSearch = searchColumn != null || searchPlaceholder != null
+  // Hide the pagination footer when there's nothing to page through.
+  const hasRows = table.getRowModel().rows.length > 0
 
   return (
     <div className={cn('w-full space-y-4', className)}>
@@ -108,7 +110,7 @@ export function DataTable<TData, TValue>({
         ))}
 
       <div className="rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px]">
-        <div className={cn('overflow-hidden', hidePagination ? 'rounded-xl' : 'rounded-t-xl')}>
+        <div className={cn('overflow-hidden', hidePagination || !hasRows ? 'rounded-xl' : 'rounded-t-xl')}>
         <Table maxHeight={maxHeight}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
@@ -164,7 +166,7 @@ export function DataTable<TData, TValue>({
         </Table>
         </div>
 
-        {!hidePagination && (
+        {!hidePagination && hasRows && (
           <div className="border-t border-border px-4 py-3">
             <DataTablePagination
               table={table}

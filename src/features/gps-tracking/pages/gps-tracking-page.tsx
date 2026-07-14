@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { MapPin, Radio, ShieldAlert, WifiOff } from 'lucide-react'
 import { PageHeader } from '@/components/common/page-header'
@@ -7,11 +6,10 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { EmptyState } from '@/components/common/empty-state'
 import { DataTable } from '@/components/data-table/data-table'
 import { SalesmanMap } from '@/components/maps/salesman-map'
-import type { MapPoint } from '@/components/maps/salesman-map'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useFakeLocationAlerts, useLivePositions } from '../api/use-gps'
+import { useGpsTracking } from '../hooks/use-gps-tracking'
 import type { FakeLocationAlert, GpsPing } from '../types'
 
 const positionColumns: ColumnDef<GpsPing>[] = [
@@ -81,29 +79,8 @@ const alertColumns: ColumnDef<FakeLocationAlert>[] = [
 ]
 
 export function GpsTrackingPage() {
-  const { data: pings, isLoading } = useLivePositions()
-  const { data: alerts, isLoading: alertsLoading } = useFakeLocationAlerts()
-
-  const points = useMemo<MapPoint[]>(
-    () =>
-      (pings ?? []).map((p) => ({
-        id: p.id,
-        lat: p.lat,
-        lng: p.lng,
-        label: `${p.salesmanName} • ${p.speedKmh} km/h`,
-        status: p.status,
-      })),
-    [pings],
-  )
-
-  const counts = useMemo(() => {
-    const source = pings ?? []
-    return {
-      online: source.filter((p) => p.status === 'online').length,
-      offline: source.filter((p) => p.status === 'offline').length,
-      suspicious: source.filter((p) => p.status === 'suspicious').length,
-    }
-  }, [pings])
+  const { pings, isLoading, alerts, alertsLoading, points, counts } =
+    useGpsTracking()
 
   return (
     <div>

@@ -1,8 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useNavigate } from "@tanstack/react-router";
 import { Pencil, Plus, Trash2, UserRound, UsersRound } from "lucide-react";
-import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -10,66 +8,38 @@ import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format, parseISO } from "date-fns";
-import { formatCurrency } from "@/lib/utils";
+import { SalesmanToolbar } from "../components/salesman-toolbar";
+import { useSalesInchargeList } from "../hooks/use-sales-incharge-list";
+import type { SalesIncharge } from "../types";
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
-function formatDate(value: string) {
+function formatDate(value: string | null) {
+  if (!value) return "—";
   try {
     return format(parseISO(value), "dd-MM-yyyy");
   } catch {
     return value;
   }
 }
-import { useDeleteSalesman, useSalesmen } from "../api/use-sales-incharge";
-import {
-  INITIAL_FILTERS,
-  SalesmanToolbar,
-  type SalesmanFilters,
-} from "../components/salesman-toolbar";
-import type { Salesman } from "../types";
 
 export function SalesInchargePage() {
-  const navigate = useNavigate();
-  const { data, isLoading } = useSalesmen();
-  const deleteSalesman = useDeleteSalesman();
+  const {
+    filters,
+    patchFilters,
+    resetFilters,
+    rows,
+    isLoading,
+    isError,
+    hasActiveFilters,
+    goToCreate,
+    goToEdit,
+    pendingDelete,
+    setPendingDelete,
+    confirmDelete,
+    isDeleting,
+  } = useSalesInchargeList();
 
-  const [filters, setFilters] = useState<SalesmanFilters>(INITIAL_FILTERS);
-  const patchFilters = (patch: Partial<SalesmanFilters>) =>
-    setFilters((f) => ({ ...f, ...patch }));
-
-  const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase();
-    return (data ?? []).filter((s) => {
-      const matchesSearch =
-        !q ||
-        s.name.toLowerCase().includes(q) ||
-        s.email.toLowerCase().includes(q) ||
-        s.mobile.includes(q);
-      const matchesDesignation =
-        filters.designation === "all" || s.designation === filters.designation;
-      const matchesStatus =
-        filters.status === "all" || s.status === filters.status;
-      return matchesSearch && matchesDesignation && matchesStatus;
-    });
-  }, [data, filters]);
-
-  const hasActiveFilters =
-    filters.search !== "" ||
-    filters.designation !== "all" ||
-    filters.status !== "all";
-
-  const [pendingDelete, setPendingDelete] = useState<Salesman | null>(null);
-
-  const confirmDelete = () => {
-    if (!pendingDelete) return;
-    const s = pendingDelete;
-    deleteSalesman.mutate(s.id, {
-      onSuccess: () => toast.success(`${s.name} removed`),
-      onError: () => toast.error("Couldn't remove the salesman."),
-    });
-  };
-
-  const columns = useMemo<ColumnDef<Salesman>[]>(
+  const columns = useMemo<ColumnDef<SalesIncharge>[]>(
     () => [
       {
         id: "index",
@@ -77,7 +47,8 @@ export function SalesInchargePage() {
         enableSorting: false,
         cell: ({ row, table }) => (
           <span className="text-sm text-muted-foreground tabular-nums">
-            {table.getSortedRowModel().rows.findIndex((r) => r.id === row.id) + 1}
+            {table.getSortedRowModel().rows.findIndex((r) => r.id === row.id) +
+              1}
           </span>
         ),
       },
@@ -90,7 +61,7 @@ export function SalesInchargePage() {
             <button
               type="button"
               title="Edit"
-              onClick={() => navigate({ to: "/sales-incharge/create" })}
+              onClick={goToEdit}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
@@ -99,7 +70,7 @@ export function SalesInchargePage() {
               type="button"
               title="Delete"
               onClick={() => setPendingDelete(row.original)}
-              disabled={deleteSalesman.isPending}
+              disabled={isDeleting}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
             >
               <Trash2 className="size-4" />
@@ -108,9 +79,9 @@ export function SalesInchargePage() {
         ),
       },
       {
-        accessorKey: "name",
+        accessorKey: "displayName",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Salesman" />
+          <DataTableColumnHeader column={column} title="Sales Incharge" />
         ),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
@@ -118,18 +89,25 @@ export function SalesInchargePage() {
               <UserRound className="size-4.5" />
             </span>
             <div className="leading-tight">
-              <p className="font-medium text-foreground">{row.original.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {row.original.email}
+              <p className="font-medium text-foreground">
+                {row.original.displayName}
+              </p>
+              <p className="text-xs text-muted-foreground tabular-nums">
+                {row.original.phone ?? "—"}
               </p>
             </div>
           </div>
         ),
       },
       {
-        accessorKey: "employerCompany",
+        accessorKey: "employeeCode",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Employer Company" />
+          <DataTableColumnHeader column={column} title="Employee Code" />
+        ),
+        cell: ({ row }) => (
+          <span className="tabular-nums">
+            {row.original.employeeCode ?? "—"}
+          </span>
         ),
       },
       {
@@ -137,20 +115,21 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Designation" />
         ),
-        cell: ({ row }) => (
-          <Badge variant="outline" className="font-medium">
-            {row.original.designation}
-          </Badge>
-        ),
+        cell: ({ row }) =>
+          row.original.designation ? (
+            <Badge variant="outline" className="font-medium">
+              {row.original.designation}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       {
-        accessorKey: "mobile",
+        accessorKey: "territory",
         header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Mobile" />
+          <DataTableColumnHeader column={column} title="Territory" />
         ),
-        cell: ({ row }) => (
-          <span className="tabular-nums">{row.original.mobile}</span>
-        ),
+        cell: ({ row }) => row.original.territory ?? "—",
       },
       {
         accessorKey: "dateOfJoining",
@@ -158,18 +137,8 @@ export function SalesInchargePage() {
           <DataTableColumnHeader column={column} title="Date Of Joining" />
         ),
         cell: ({ row }) => (
-          <span className="tabular-nums">{formatDate(row.original.dateOfJoining)}</span>
-        ),
-      },
-      {
-        id: "salary",
-        accessorFn: (s) => s.basicSalary + s.allowance,
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Salary" />
-        ),
-        cell: ({ row }) => (
           <span className="tabular-nums">
-            {formatCurrency(row.original.basicSalary + row.original.allowance)}
+            {formatDate(row.original.dateOfJoining)}
           </span>
         ),
       },
@@ -181,35 +150,32 @@ export function SalesInchargePage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deleteSalesman.isPending],
+    [isDeleting],
   );
 
   return (
     <div>
       <PageHeader
         title="Sales Incharge"
-        description="Manage the salesman team and onboard new members."
+        description="Manage the sales-incharge team and onboard new members."
         actions={
-          <Button
-            className="cursor-pointer"
-            onClick={() => navigate({ to: "/sales-incharge/create" })}
-          >
+          <Button className="cursor-pointer" onClick={goToCreate}>
             <Plus /> Create Sales
           </Button>
         }
       />
       <DataTable
         columns={columns}
-        data={filtered}
+        data={rows}
         isLoading={isLoading}
-        itemName="salesmen"
+        itemName="sales incharges"
         maxHeight="70vh"
         pageSizeOptions={[5, 10, 25, 50]}
         toolbar={
           <SalesmanToolbar
             filters={filters}
             onChange={patchFilters}
-            onReset={() => setFilters(INITIAL_FILTERS)}
+            onReset={resetFilters}
           />
         }
         emptyState={
@@ -218,18 +184,21 @@ export function SalesInchargePage() {
               <UsersRound className="size-6" />
             </span>
             <div>
-              <p className="font-medium text-foreground">No salesmen found</p>
+              <p className="font-medium text-foreground">
+                {isError
+                  ? "Couldn't load sales incharges"
+                  : "No sales incharges found"}
+              </p>
               <p className="text-sm text-muted-foreground">
-                {hasActiveFilters
-                  ? "Try adjusting your filters."
-                  : "Add your first salesman to get started."}
+                {isError
+                  ? "Something went wrong. Please try again."
+                  : hasActiveFilters
+                    ? "Try adjusting your filters."
+                    : "Add your first sales incharge to get started."}
               </p>
             </div>
-            {!hasActiveFilters && (
-              <Button
-                className="cursor-pointer"
-                onClick={() => navigate({ to: "/sales-incharge/create" })}
-              >
+            {!hasActiveFilters && !isError && (
+              <Button className="cursor-pointer" onClick={goToCreate}>
                 <Plus /> Create Sales
               </Button>
             )}
@@ -242,12 +211,12 @@ export function SalesInchargePage() {
         onOpenChange={(open) => !open && setPendingDelete(null)}
         variant="destructive"
         icon={Trash2}
-        title="Delete this salesman?"
+        title="Delete this sales incharge?"
         description={
           pendingDelete ? (
             <>
               <span className="font-medium text-foreground">
-                {pendingDelete.name}
+                {pendingDelete.displayName}
               </span>{" "}
               will be permanently removed. This action cannot be undone.
             </>
@@ -255,7 +224,7 @@ export function SalesInchargePage() {
         }
         confirmLabel="Yes, delete"
         cancelLabel="Cancel"
-        loading={deleteSalesman.isPending}
+        loading={isDeleting}
         onConfirm={confirmDelete}
       />
     </div>

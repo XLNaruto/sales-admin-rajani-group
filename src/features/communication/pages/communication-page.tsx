@@ -4,15 +4,13 @@ import { PageHeader } from '@/components/common/page-header'
 import { StatusBadge } from '@/components/common/status-badge'
 import { DataTable } from '@/components/data-table/data-table'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { useThreads } from '../api/use-communication'
-import { useWhatsAppLog } from '../api/use-whatsapp'
 import { ThreadList } from '../components/thread-list'
 import { WhatsAppComposer } from '../components/whatsapp-composer'
+import { useCommunicationPage } from '../hooks/use-communication-page'
 import type { WhatsAppMessage } from '../types'
 
 export function CommunicationPage() {
-  const { data: threads, isLoading: threadsLoading } = useThreads()
-  const { data: log, isLoading: logLoading } = useWhatsAppLog()
+  const { threads, threadsLoading, log, logLoading } = useCommunicationPage()
 
   const logColumns = useMemo<ColumnDef<WhatsAppMessage>[]>(
     () => [
@@ -41,7 +39,7 @@ export function CommunicationPage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ThreadList threads={threads ?? []} isLoading={threadsLoading} />
+        <ThreadList threads={threads} isLoading={threadsLoading} />
         <WhatsAppComposer />
       </div>
 
@@ -52,7 +50,7 @@ export function CommunicationPage() {
         <CardContent>
           <DataTable
             columns={logColumns}
-            data={log ?? []}
+            data={log}
             isLoading={logLoading}
             searchPlaceholder="Search WhatsApp log…"
           />

@@ -1,27 +1,13 @@
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import {
-  ArrowLeft,
-  Store,
-  MapPin,
-  Briefcase,
-  Landmark,
-} from "lucide-react";
+import { Controller } from "react-hook-form";
+import { ArrowLeft, Store, MapPin, Briefcase, Landmark } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
-import { useCreateDistributor } from "../api/use-distributors";
 import { FileInput } from "../components/file-input";
-import {
-  distributorSchema,
-  distributorDefaults,
-  type DistributorFormValues,
-} from "../lib/distributor-form";
+import { useDistributorForm } from "../hooks/use-distributor-form";
 import {
   DISTRIBUTOR_STATUSES,
   FIRM_TYPES,
@@ -38,101 +24,23 @@ import {
   zonesByState,
 } from "../lib/distributor-reference";
 
-const CURRENT_YEAR = new Date().getFullYear();
-
-/** Parse an optional numeric-text field into a number (or undefined when blank). */
-const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
-/** Trim an optional text field, collapsing blanks to undefined. */
-const str = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
-
 export function DistributorCreatePage() {
-  const navigate = useNavigate();
-  const createDistributor = useCreateDistributor();
-
   const {
     register,
     control,
-    handleSubmit,
-    watch,
+    errors,
     setValue,
-    formState: { errors },
-  } = useForm<DistributorFormValues>({
-    resolver: zodResolver(distributorSchema),
-    mode: "onTouched",
-    defaultValues: distributorDefaults as DistributorFormValues,
-  });
-
-  // Cascading territory selection — watch parents to build child options.
-  const stateId = watch("stateId");
-  const zoneId = watch("zoneId");
-  const districtId = watch("districtId");
-  const talukaId = watch("talukaId");
-  const cityId = watch("cityId");
-
-  const onSubmit = handleSubmit((values) => {
-    createDistributor.mutate(
-      {
-        // Firm & owner
-        firmName: values.firmName,
-        firmType: values.firmType,
-        ownerName: values.ownerName,
-        ownerMobile: values.ownerMobile,
-        ownerBirthDate: str(values.ownerBirthDate),
-        ownerAnniversaryDate: str(values.ownerAnniversaryDate),
-        communicationMobile: str(values.communicationMobile),
-        multipleLogin: values.multipleLogin,
-        email: values.email,
-        code: values.code ?? "",
-        status: values.status,
-        // Location & coverage
-        officeAddress: values.officeAddress,
-        godownAddress: str(values.godownAddress),
-        homeAddress: str(values.homeAddress),
-        stateId: values.stateId,
-        zoneId: values.zoneId,
-        districtId: values.districtId,
-        talukaId: values.talukaId,
-        cityId: values.cityId,
-        pincode: str(values.pincode),
-        deliveryRoute: str(values.deliveryRoute),
-        agencyTalukaIds: values.agencyTalukaIds ?? [],
-        marketType: values.marketType,
-        villageIds: values.villageIds ?? [],
-        retailersLocal: num(values.retailersLocal),
-        retailersRural: num(values.retailersRural),
-        marketSystem: values.marketSystem,
-        weeklyOff: str(values.weeklyOff),
-        geoLocation: str(values.geoLocation),
-        officeGodownImages: str(values.officeGodownImages),
-        // Business details
-        otherAgencies: str(values.otherAgencies),
-        similarAgencies: str(values.similarAgencies),
-        assignedProducts: str(values.assignedProducts),
-        productTargets: str(values.productTargets),
-        deliveryVehicle: values.deliveryVehicle,
-        deliveryVehicleDetail: str(values.deliveryVehicleDetail),
-        godownSize: num(values.godownSize),
-        yearOfEst: str(values.yearOfEst),
-        // Legal & financial
-        panNumber: str(values.panNumber),
-        panPhoto: str(values.panPhoto),
-        gstNumber: str(values.gstNumber),
-        gstPhoto: str(values.gstPhoto),
-        advanceChequeNumbers: str(values.advanceChequeNumbers),
-        advanceChequePhoto: str(values.advanceChequePhoto),
-        paymentCondition: values.paymentCondition,
-        bankDetails: str(values.bankDetails),
-      },
-      {
-        onSuccess: () => {
-          toast.success(`${values.firmName} created`);
-          navigate({ to: "/distributors" });
-        },
-        onError: () =>
-          toast.error("Couldn't create the distributor. Please try again."),
-      },
-    );
-  });
+    stateId,
+    zoneId,
+    districtId,
+    talukaId,
+    cityId,
+    onSubmit,
+    isPending,
+    goBack,
+    currentYear,
+    maxBirthDate,
+  } = useDistributorForm();
 
   return (
     <div>
@@ -140,11 +48,7 @@ export function DistributorCreatePage() {
         title="Add Distributor"
         description="Create a new distributor record with firm, coverage, business and financial details."
         actions={
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => navigate({ to: "/distributors" })}
-          >
+          <Button variant="outline" className="cursor-pointer" onClick={goBack}>
             <ArrowLeft /> Back to list
           </Button>
         }
@@ -153,9 +57,9 @@ export function DistributorCreatePage() {
       <form
         onSubmit={onSubmit}
         autoComplete="off"
-        className="mt-4 rounded-xl border border-border bg-card dark:bg-transparent"
+        className="mt-4 rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent"
       >
-        <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {/* ------------------------ Firm & owner ------------------------ */}
           <FormSection
             icon={Store}
@@ -224,7 +128,8 @@ export function DistributorCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={1940}
-                  toYear={CURRENT_YEAR}
+                  toYear={currentYear}
+                  maxDate={maxBirthDate}
                 />
               )}
             />
@@ -243,7 +148,7 @@ export function DistributorCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={1960}
-                  toYear={CURRENT_YEAR}
+                  toYear={currentYear}
                 />
               )}
             />
@@ -320,11 +225,7 @@ export function DistributorCreatePage() {
             description="Addresses, territory and the markets served."
           />
 
-          <Field
-            label="Office Address"
-            className="md:col-span-2"
-            error={errors.officeAddress?.message}
-          >
+          <Field label="Office Address" error={errors.officeAddress?.message}>
             <textarea
               rows={2}
               placeholder="Office Address"
@@ -335,7 +236,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Godown Address"
-            className="md:col-span-2"
             optional
             error={errors.godownAddress?.message}
           >
@@ -349,7 +249,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Home Address"
-            className="md:col-span-2"
             optional
             error={errors.homeAddress?.message}
           >
@@ -612,16 +511,35 @@ export function DistributorCreatePage() {
           </Field>
 
           <Field
-            label="Images Of Office & Godown"
+            label="Images Of Office"
             optional
-            error={errors.officeGodownImages?.message}
+            error={errors.officeImages?.message}
           >
             <Controller
               control={control}
-              name="officeGodownImages"
+              name="officeImages"
               render={({ field }) => (
                 <FileInput
-                  value={field.value ?? ""}
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  accept="image/*"
+                  multiple
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Images Of Godown"
+            optional
+            error={errors.godownImages?.message}
+          >
+            <Controller
+              control={control}
+              name="godownImages"
+              render={({ field }) => (
+                <FileInput
+                  value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
                   multiple
@@ -639,7 +557,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Details Of Other Agencies"
-            className="md:col-span-2"
             optional
             error={errors.otherAgencies?.message}
           >
@@ -653,7 +570,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Agencies Of Similar Category Of Rajani Product"
-            className="md:col-span-2"
             optional
             error={errors.similarAgencies?.message}
           >
@@ -667,7 +583,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Assigned Rajani Products"
-            className="md:col-span-2"
             optional
             error={errors.assignedProducts?.message}
           >
@@ -681,7 +596,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Target Of Every Product"
-            className="md:col-span-2"
             optional
             error={errors.productTargets?.message}
           >
@@ -773,7 +687,7 @@ export function DistributorCreatePage() {
               name="panPhoto"
               render={({ field }) => (
                 <FileInput
-                  value={field.value ?? ""}
+                  value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
                 />
@@ -791,7 +705,7 @@ export function DistributorCreatePage() {
               name="gstPhoto"
               render={({ field }) => (
                 <FileInput
-                  value={field.value ?? ""}
+                  value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
                 />
@@ -801,7 +715,6 @@ export function DistributorCreatePage() {
 
           <Field
             label="Advance Cheque Numbers"
-            className="md:col-span-2"
             optional
             error={errors.advanceChequeNumbers?.message}
           >
@@ -821,7 +734,7 @@ export function DistributorCreatePage() {
               name="advanceChequePhoto"
               render={({ field }) => (
                 <FileInput
-                  value={field.value ?? ""}
+                  value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
                   multiple
@@ -850,19 +763,59 @@ export function DistributorCreatePage() {
             />
           </Field>
 
-          <Field
-            label="Bank Details"
-            className="md:col-span-2"
-            optional
-            error={errors.bankDetails?.message}
-          >
-            <textarea
-              rows={2}
-              placeholder="Bank Details"
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
-              {...register("bankDetails")}
+          {/* Bank details */}
+          <div className="col-span-full">
+            <FormSection
+              icon={Landmark}
+              title="Bank Details"
+              description="Account used for payments and settlements."
+              className="mb-4"
             />
-          </Field>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              <Field
+                label="Account Holder Name"
+                optional
+                error={errors.bankAccountName?.message}
+              >
+                <Input
+                  placeholder="As per bank records"
+                  {...register("bankAccountName")}
+                />
+              </Field>
+              <Field
+                label="Account Number"
+                optional
+                error={errors.bankAccountNumber?.message}
+              >
+                <Input
+                  inputMode="numeric"
+                  placeholder="Account number"
+                  {...register("bankAccountNumber")}
+                />
+              </Field>
+              <Field
+                label="IFSC Code"
+                optional
+                error={errors.bankIfsc?.message}
+              >
+                <Input
+                  placeholder="e.g. HDFC0001234"
+                  className="uppercase"
+                  {...register("bankIfsc")}
+                />
+              </Field>
+              <Field
+                label="Bank Name"
+                optional
+                error={errors.bankName?.message}
+              >
+                <Input
+                  placeholder="e.g. HDFC Bank"
+                  {...register("bankName")}
+                />
+              </Field>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center justify-end gap-3 border-t border-border px-6 py-4">
@@ -870,16 +823,16 @@ export function DistributorCreatePage() {
             type="button"
             variant="outline"
             className="cursor-pointer"
-            onClick={() => navigate({ to: "/distributors" })}
+            onClick={goBack}
           >
             Cancel
           </Button>
           <Button
             type="submit"
             className="cursor-pointer text-white"
-            disabled={createDistributor.isPending}
+            disabled={isPending}
           >
-            {createDistributor.isPending ? "Saving…" : "Save Distributor"}
+            {isPending ? "Saving…" : "Save Distributor"}
           </Button>
         </div>
       </form>

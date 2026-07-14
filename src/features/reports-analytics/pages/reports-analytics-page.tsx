@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Download } from 'lucide-react'
 import { PageHeader } from '@/components/common/page-header'
@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ComparisonBarChart, TrendLineChart } from '@/components/charts'
 import { formatCurrency, formatPercent } from '@/lib/utils'
-import { useReport } from '../api/use-reports'
+import { useReportsAnalytics } from '../hooks/use-reports-analytics'
 import type { ReportColumn, ReportRow, ReportType } from '../types'
 
 const REPORT_TYPES: { type: ReportType; label: string }[] = [
@@ -27,23 +27,9 @@ function renderCell(col: ReportColumn, value: string | number) {
   return String(value)
 }
 
-function exportCsv(columns: ReportColumn[], rows: ReportRow[], type: string) {
-  const header = columns.map((c) => c.header).join(',')
-  const body = rows
-    .map((r) => columns.map((c) => JSON.stringify(r[c.key] ?? '')).join(','))
-    .join('\n')
-  const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${type}-report.csv`
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
 export function ReportsPage() {
-  const [active, setActive] = useState<ReportType>('sales')
-  const { data, isLoading } = useReport(active)
+  const { active, setActive, data, isLoading, exportReport } =
+    useReportsAnalytics()
 
   const columns = useMemo<ColumnDef<ReportRow>[]>(() => {
     if (!data) return []
@@ -60,11 +46,7 @@ export function ReportsPage() {
         title="Reports & Analytics"
         description="Sales, target, attendance, visit, expense & performance reports."
         actions={
-          <Button
-            variant="outline"
-            disabled={!data}
-            onClick={() => data && exportCsv(data.columns, data.rows, active)}
-          >
+          <Button variant="outline" disabled={!data} onClick={exportReport}>
             <Download /> Export CSV
           </Button>
         }

@@ -9,22 +9,23 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/utils'
-import { useApproveLeave, useLeaves } from '../api/use-leaves'
-import { useExpenses } from '../api/use-expenses'
-import { useTasks } from '../api/use-tasks'
+import { useEmployeeManagement } from '../hooks/use-employee-management'
 import type { EmployeeTask, ExpenseClaim, LeaveRequest } from '../types'
 
 export function EmployeesPage() {
-  const { data: leaves, isLoading: leavesLoading } = useLeaves()
-  const { data: expenses, isLoading: expensesLoading } = useExpenses()
-  const { data: tasks, isLoading: tasksLoading } = useTasks()
-  const approveLeave = useApproveLeave()
-
-  const pendingLeaves = (leaves ?? []).filter((l) => l.status === 'pending').length
-  const pendingExpenses = (expenses ?? []).filter((e) => e.status === 'pending').length
-  const openTasks = (tasks ?? []).filter(
-    (t) => t.status === 'open' || t.status === 'in-progress',
-  ).length
+  const {
+    leaves,
+    leavesLoading,
+    expenses,
+    expensesLoading,
+    tasks,
+    tasksLoading,
+    pendingLeaves,
+    pendingExpenses,
+    openTasks,
+    isApprovingLeave,
+    setLeaveStatus,
+  } = useEmployeeManagement()
 
   const leaveColumns = useMemo<ColumnDef<LeaveRequest>[]>(
     () => [
@@ -50,20 +51,16 @@ export function EmployeesPage() {
               <Button
                 size="sm"
                 variant="outline"
-                disabled={approveLeave.isPending}
-                onClick={() =>
-                  approveLeave.mutate({ id: row.original.id, status: 'approved' })
-                }
+                disabled={isApprovingLeave}
+                onClick={() => setLeaveStatus(row.original.id, 'approved')}
               >
                 <CheckCircle2 /> Approve
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
-                disabled={approveLeave.isPending}
-                onClick={() =>
-                  approveLeave.mutate({ id: row.original.id, status: 'rejected' })
-                }
+                disabled={isApprovingLeave}
+                onClick={() => setLeaveStatus(row.original.id, 'rejected')}
               >
                 <X /> Reject
               </Button>
@@ -73,7 +70,7 @@ export function EmployeesPage() {
           ),
       },
     ],
-    [approveLeave],
+    [isApprovingLeave, setLeaveStatus],
   )
 
   const expenseColumns = useMemo<ColumnDef<ExpenseClaim>[]>(

@@ -12,6 +12,8 @@ const MAP: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 's
   'in-progress': 'warning',
   'in-review': 'warning',
   scheduled: 'default',
+  invited: 'warning',
+  suspended: 'destructive',
   draft: 'secondary',
   inactive: 'secondary',
   offline: 'secondary',

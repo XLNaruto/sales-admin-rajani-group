@@ -1,14 +1,10 @@
-import { useForm, Controller } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
+import { Controller } from "react-hook-form";
 import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
 import { PageHeader } from "@/components/common/page-header";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { useCreateSalesman } from "../api/use-sales-incharge";
 import {
   Field,
   Textarea,
@@ -16,63 +12,19 @@ import {
   ImageUpload,
   AvatarUpload,
 } from "../components/form-fields";
-import {
-  salesInchargeSchema,
-  salesInchargeDefaults,
-  DESIGNATIONS,
-  type SalesInchargeFormValues,
-} from "../lib/incharge-form";
-
-const CURRENT_YEAR = new Date().getFullYear();
+import { DESIGNATIONS } from "../lib/incharge-form";
+import { useSalesInchargeForm } from "../hooks/use-sales-incharge-form";
 
 export function SalesInchargeCreatePage() {
-  const navigate = useNavigate();
-  const createSalesman = useCreateSalesman();
-
   const {
     register,
     control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<SalesInchargeFormValues>({
-    resolver: zodResolver(salesInchargeSchema),
-    mode: "onTouched",
-    defaultValues: salesInchargeDefaults as SalesInchargeFormValues,
-  });
-
-  const onSubmit = handleSubmit((values) => {
-    createSalesman.mutate(
-      {
-        name: values.name,
-        employerCompany: values.employerCompany,
-        address: values.address,
-        dateOfBirth: values.dateOfBirth,
-        marriageAnniversary: values.marriageAnniversary || undefined,
-        mobile: values.mobile,
-        alternateMobile: values.alternateMobile || undefined,
-        dateOfJoining: values.dateOfJoining,
-        dateOfExit: values.dateOfExit || undefined,
-        email: values.email,
-        basicSalary: Number(values.basicSalary),
-        allowance: Number(values.allowance),
-        designation: values.designation,
-        photoUrl: values.photoUrl || undefined,
-        bankDetails: values.bankDetails,
-        aadharNumber: values.aadharNumber,
-        aadharFrontUrl: values.aadharFrontUrl || undefined,
-        aadharBackUrl: values.aadharBackUrl || undefined,
-        status: values.dateOfExit ? "inactive" : "active",
-      },
-      {
-        onSuccess: () => {
-          toast.success(`${values.name} added to the sales team`);
-          navigate({ to: "/sales-incharge" });
-        },
-        onError: () =>
-          toast.error("Couldn't create the sales incharge. Please try again."),
-      },
-    );
-  });
+    errors,
+    onSubmit,
+    isPending,
+    goBack,
+    currentYear,
+  } = useSalesInchargeForm();
 
   return (
     <div>
@@ -83,7 +35,7 @@ export function SalesInchargeCreatePage() {
           <Button
             variant="outline"
             className="cursor-pointer"
-            onClick={() => navigate({ to: "/sales-incharge" })}
+            onClick={goBack}
           >
             <ArrowLeft /> Back to list
           </Button>
@@ -93,15 +45,9 @@ export function SalesInchargeCreatePage() {
       <form
         onSubmit={onSubmit}
         autoComplete="off"
-        className="mt-4 rounded-xl border border-border bg-card dark:bg-transparent"
+        className="mt-4 rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent"
       >
-        <div className="flex items-center gap-4 border-b border-border px-6 py-4">
-          <h2 className="text-base font-semibold text-foreground">
-            Sales incharge details
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 p-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           <FormSection
             icon={User}
             title="Basic Details"
@@ -112,7 +58,7 @@ export function SalesInchargeCreatePage() {
           <Field
             label="Profile Photo"
             error={errors.photoUrl?.message}
-            className="md:col-span-3 xl:col-span-4"
+            className="col-span-full"
           >
             <Controller
               control={control}
@@ -165,7 +111,7 @@ export function SalesInchargeCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={1950}
-                  toYear={CURRENT_YEAR}
+                  toYear={currentYear}
                 />
               )}
             />
@@ -184,7 +130,7 @@ export function SalesInchargeCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={1970}
-                  toYear={CURRENT_YEAR}
+                  toYear={currentYear}
                 />
               )}
             />
@@ -229,7 +175,7 @@ export function SalesInchargeCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={2000}
-                  toYear={CURRENT_YEAR + 1}
+                  toYear={currentYear + 1}
                 />
               )}
             />
@@ -248,7 +194,7 @@ export function SalesInchargeCreatePage() {
                   value={field.value ?? ""}
                   onChange={field.onChange}
                   fromYear={2000}
-                  toYear={CURRENT_YEAR + 5}
+                  toYear={currentYear + 5}
                 />
               )}
             />
@@ -276,7 +222,7 @@ export function SalesInchargeCreatePage() {
           <Field
             label="Address"
             error={errors.address?.message}
-            className="md:col-span-3 xl:col-span-4"
+            className="col-span-full"
           >
             <Textarea
               placeholder="Full residential address"
@@ -285,64 +231,64 @@ export function SalesInchargeCreatePage() {
           </Field>
 
           {/* Bank details */}
-          <div className="md:col-span-3 xl:col-span-4">
+          <div className="col-span-full">
             <FormSection
               icon={Landmark}
               title="Bank Details"
               description="Salary account for payouts."
               className="mb-4"
             />
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               <Field
                 label="Account Holder Name"
-                error={errors.bankDetails?.accountName?.message}
+                error={errors.bankAccountName?.message}
               >
                 <Input
                   placeholder="As per bank records"
-                  {...register("bankDetails.accountName")}
+                  {...register("bankAccountName")}
                 />
               </Field>
               <Field
                 label="Account Number"
-                error={errors.bankDetails?.accountNumber?.message}
+                error={errors.bankAccountNumber?.message}
               >
                 <Input
                   inputMode="numeric"
                   placeholder="Account number"
-                  {...register("bankDetails.accountNumber")}
+                  {...register("bankAccountNumber")}
                 />
               </Field>
               <Field
                 label="IFSC Code"
-                error={errors.bankDetails?.ifsc?.message}
+                error={errors.bankIfsc?.message}
               >
                 <Input
                   placeholder="e.g. HDFC0001234"
                   className="uppercase"
-                  {...register("bankDetails.ifsc")}
+                  {...register("bankIfsc")}
                 />
               </Field>
               <Field
                 label="Bank Name"
-                error={errors.bankDetails?.bankName?.message}
+                error={errors.bankName?.message}
               >
                 <Input
                   placeholder="e.g. HDFC Bank"
-                  {...register("bankDetails.bankName")}
+                  {...register("bankName")}
                 />
               </Field>
             </div>
           </div>
 
           {/* Aadhaar */}
-          <div className="md:col-span-3 xl:col-span-4">
+          <div className="col-span-full">
             <FormSection
               icon={IdCard}
               title="Aadhaar Card"
               description="Identity proof — number and photos."
               className="mb-4"
             />
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               <Field
                 label="Aadhaar Number"
                 error={errors.aadharNumber?.message}
@@ -395,16 +341,16 @@ export function SalesInchargeCreatePage() {
             type="button"
             variant="outline"
             className="cursor-pointer"
-            onClick={() => navigate({ to: "/sales-incharge" })}
+            onClick={goBack}
           >
             Cancel
           </Button>
           <Button
             type="submit"
             className="cursor-pointer text-white"
-            disabled={createSalesman.isPending}
+            disabled={isPending}
           >
-            {createSalesman.isPending ? "Saving…" : "Create sales incharge"}
+            {isPending ? "Saving…" : "Create sales incharge"}
           </Button>
         </div>
       </form>

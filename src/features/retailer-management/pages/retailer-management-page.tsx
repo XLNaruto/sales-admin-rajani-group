@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Download, Store, CheckCircle2, TrendingUp } from 'lucide-react'
 import { PageHeader } from '@/components/common/page-header'
@@ -11,31 +11,21 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency } from '@/lib/utils'
-import { useRetailers, useRetailerAnalytics } from '../api/use-retailers'
-import { useImportRetailers } from '../api/use-import-retailers'
+import { useRetailerManagement } from '../hooks/use-retailer-management'
 import type { Retailer } from '../types'
 
 export function RetailersPage() {
-  const { data, isLoading } = useRetailers()
-  const analytics = useRetailerAnalytics()
-  const importRetailers = useImportRetailers()
-  const [importMessage, setImportMessage] = useState<string | null>(null)
-
-  const retailers = data ?? []
-  const total = retailers.length
-  const active = retailers.filter((r) => r.status === 'active').length
-  const avgMonthlySales = total
-    ? Math.round(retailers.reduce((sum, r) => sum + r.monthlySales, 0) / total)
-    : 0
-
-  const handleImport = () => {
-    importRetailers.mutate(undefined, {
-      onSuccess: (result) =>
-        setImportMessage(
-          `Imported ${result.imported} retailer(s), skipped ${result.skipped} invalid row(s).`,
-        ),
-    })
-  }
+  const {
+    retailers,
+    isLoading,
+    analytics,
+    isImporting,
+    importMessage,
+    total,
+    active,
+    avgMonthlySales,
+    handleImport,
+  } = useRetailerManagement()
 
   const columns = useMemo<ColumnDef<Retailer>[]>(
     () => [
@@ -68,8 +58,8 @@ export function RetailersPage() {
         title="Retailer Management"
         description="Onboarding, distributor mapping, performance & retailer-wise analytics."
         actions={
-          <Button onClick={handleImport} disabled={importRetailers.isPending}>
-            <Download /> {importRetailers.isPending ? 'Importing…' : 'Import from Field Assist'}
+          <Button onClick={handleImport} disabled={isImporting}>
+            <Download /> {isImporting ? 'Importing…' : 'Import from Field Assist'}
           </Button>
         }
       />

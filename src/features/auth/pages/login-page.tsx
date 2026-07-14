@@ -1,53 +1,14 @@
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
-import { toast } from 'sonner'
-import { Phone } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useOtpSessionStore } from '@/stores/otp-session-store'
-import { useRequestOtp } from '../api/use-otp-auth'
-import { mobileSchema, type MobileValues } from '../schemas'
+import { Phone } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useLogin } from "../hooks/use-login";
 
 /** Step 1 of sign-in: collect a mobile number and request an OTP via Firebase. */
 export function LoginPage() {
-  const navigate = useNavigate()
-  const requestOtp = useRequestOtp()
-  const startSession = useOtpSessionStore((s) => s.startSession)
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<MobileValues>({
-    resolver: zodResolver(mobileSchema),
-    defaultValues: { mobile: '', remember: false },
-  })
-
-  const mobileField = register('mobile')
-
-  const onSubmit = handleSubmit((v) =>
-    requestOtp.mutate(
-      { mobile: v.mobile },
-      {
-        onSuccess: (verificationId) => {
-          // Persist the pending number + verificationId so both the verify
-          // screen and OTP confirmation survive a refresh.
-          startSession({
-            mobile: v.mobile,
-            remember: v.remember,
-            requestedAt: Date.now(),
-            verificationId,
-          })
-          toast.success(`Code sent to ${v.mobile}`)
-          navigate({ to: '/verify' })
-        },
-        // Error is already surfaced inline via the alert below — no toast.
-      },
-    ),
-  )
+  const { register, errors, mobileField, onSubmit, isPending, isError, error } =
+    useLogin();
 
   return (
     <div>
@@ -59,12 +20,12 @@ export function LoginPage() {
       </p>
 
       <form onSubmit={onSubmit} className="mt-8 space-y-5">
-        {requestOtp.isError && (
+        {isError && (
           <p
             role="alert"
             className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
           >
-            {requestOtp.error.message}
+            {error?.message}
           </p>
         )}
 
@@ -84,8 +45,8 @@ export function LoginPage() {
               className="h-11 border-foreground/15 bg-transparent pl-10 text-foreground shadow-none placeholder:text-muted-foreground/60 focus-visible:border-primary/60 focus-visible:ring-0"
               {...mobileField}
               onChange={(e) => {
-                e.target.value = e.target.value.replace(/\D/g, '')
-                mobileField.onChange(e)
+                e.target.value = e.target.value.replace(/\D/g, "");
+                mobileField.onChange(e);
               }}
             />
           </div>
@@ -98,7 +59,7 @@ export function LoginPage() {
           <Checkbox
             id="remember"
             className="border-foreground/15 bg-transparent shadow-none"
-            {...register('remember')}
+            {...register("remember")}
           />
           <Label
             htmlFor="remember"
@@ -111,11 +72,11 @@ export function LoginPage() {
         <Button
           type="submit"
           className="group h-11 w-full text-sm font-semibold text-white"
-          disabled={requestOtp.isPending}
+          disabled={isPending}
         >
-          {requestOtp.isPending ? 'Sending code…' : 'Send code'}
+          {isPending ? "Sending code…" : "Send code"}
         </Button>
       </form>
     </div>
-  )
+  );
 }

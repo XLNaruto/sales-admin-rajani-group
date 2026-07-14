@@ -52,57 +52,61 @@ export function DataTablePagination<TData>({
       {/* Controls + page size share one row on mobile; `contents` restores the
           3-column grid on sm+ so each lands in its own column. */}
       <div className="flex items-center justify-between sm:contents">
-      {/* Center: page controls */}
-      <div className="flex items-center gap-1 sm:justify-self-center">
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-8 cursor-pointer rounded-sm border-border/50"
-          onClick={() => table.previousPage()}
-          disabled={!table.getCanPreviousPage()}
-          aria-label="Previous page"
-        >
-          <ChevronLeft className="size-4" />
-        </Button>
+      {/* Center: page controls — hidden when everything fits on one page. */}
+      {pageCount > 1 ? (
+        <div className="flex items-center gap-1 sm:justify-self-center">
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8 cursor-pointer rounded-sm border-border/50"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="size-4" />
+          </Button>
 
-        {pageList(pageIndex + 1, pageCount).map((p, i) =>
-          p === 'ellipsis' ? (
-            <span
-              key={`e-${i}`}
-              className="px-1.5 text-sm text-muted-foreground"
-              aria-hidden="true"
-            >
-              …
-            </span>
-          ) : (
-            <Button
-              key={p}
-              variant={p === pageIndex + 1 ? 'default' : 'outline'}
-              size="icon"
-              className={cn(
-                'size-8 cursor-pointer rounded-sm border-border/50 text-xs tabular-nums',
-                p !== pageIndex + 1 && 'font-normal',
-              )}
-              onClick={() => table.setPageIndex(p - 1)}
-              aria-label={`Page ${p}`}
-              aria-current={p === pageIndex + 1 ? 'page' : undefined}
-            >
-              {p}
-            </Button>
-          ),
-        )}
+          {pageList(pageIndex + 1, pageCount).map((p, i) =>
+            p === 'ellipsis' ? (
+              <span
+                key={`e-${i}`}
+                className="px-1.5 text-sm text-muted-foreground"
+                aria-hidden="true"
+              >
+                …
+              </span>
+            ) : (
+              <Button
+                key={p}
+                variant={p === pageIndex + 1 ? 'default' : 'outline'}
+                size="icon"
+                className={cn(
+                  'size-8 cursor-pointer rounded-sm border-border/50 text-xs tabular-nums',
+                  p !== pageIndex + 1 && 'font-normal',
+                )}
+                onClick={() => table.setPageIndex(p - 1)}
+                aria-label={`Page ${p}`}
+                aria-current={p === pageIndex + 1 ? 'page' : undefined}
+              >
+                {p}
+              </Button>
+            ),
+          )}
 
-        <Button
-          variant="outline"
-          size="icon"
-          className="size-8 cursor-pointer rounded-sm border-border/50"
-          onClick={() => table.nextPage()}
-          disabled={!table.getCanNextPage()}
-          aria-label="Next page"
-        >
-          <ChevronRight className="size-4" />
-        </Button>
-      </div>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8 cursor-pointer rounded-sm border-border/50"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            aria-label="Next page"
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      ) : (
+        <div aria-hidden="true" />
+      )}
 
       {/* Right: page size */}
       {pageSizeOptions?.length ? (

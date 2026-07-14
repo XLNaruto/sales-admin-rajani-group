@@ -24,7 +24,7 @@ export function FormSection({
   className,
 }: FormSectionProps) {
   return (
-    <div className={cn("mt-6 md:col-span-3 xl:col-span-4", className)}>
+    <div className={cn("col-span-full mt-6", className)}>
       <div className="flex items-center gap-3 border-b-2 border-primary/30 pb-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
           <Icon className="size-5" />

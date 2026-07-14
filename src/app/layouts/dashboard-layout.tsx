@@ -1,16 +1,16 @@
 import { useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
-import { useForegroundPush, useRegisterPushToken } from '@/features/notifications'
+import { useForegroundPush } from '@/features/notifications'
 import { asset } from '@/lib/asset'
 import { Sidebar } from './components/sidebar'
 import { Topbar } from './components/topbar'
 
 /** Register this device for FCM push once, and toast foreground messages. */
 function usePushBootstrap() {
-  const register = useRegisterPushToken()
+  // const register = useRegisterPushToken()
   useForegroundPush()
   useEffect(() => {
-    register.mutate()
+    // register.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }
@@ -22,8 +22,8 @@ export function DashboardLayout() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex flex-1 flex-col overflow-y-auto p-6">
-          <div className="min-h-0 flex-1">
+        <main className="flex flex-1 flex-col overflow-y-auto overflow-x-hidden p-6">
+          <div className="min-w-0 flex-1">
             <Outlet />
           </div>
           <footer className="mt-6 border-t pt-4">

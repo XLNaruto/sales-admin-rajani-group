@@ -7,6 +7,10 @@ const optNum = (msg = 'Enter a valid number') =>
     .optional()
     .refine((v) => !v || (!Number.isNaN(Number(v)) && v.trim() !== ''), msg)
 
+// A list of picked files (optional). The raw `File`s are presigned + uploaded
+// on submit; the returned storage keys are what get persisted.
+const fileList = () => z.array(z.instanceof(File)).optional()
+
 export const distributorSchema = z.object({
   // --- Firm & owner details ---
   firmName: z.string().min(2, "Enter the firm's name"),
@@ -27,7 +31,7 @@ export const distributorSchema = z.object({
   status: z.enum(['active', 'pending', 'suspended']),
 
   // --- Location & coverage ---
-  officeAddress: z.string().min(4, 'Enter the office address'),
+  officeAddress: z.string().trim().min(1, 'Enter the office address'),
   godownAddress: z.string().optional(),
   homeAddress: z.string().optional(),
   stateId: z.string().min(1, 'Select a state'),
@@ -48,7 +52,8 @@ export const distributorSchema = z.object({
   marketSystem: z.enum(['ready_stock', 'booking']).optional(),
   weeklyOff: z.string().optional(),
   geoLocation: z.string().optional(),
-  officeGodownImages: z.string().optional(),
+  officeImages: fileList(),
+  godownImages: fileList(),
 
   // --- Business details ---
   otherAgencies: z.string().optional(),
@@ -62,13 +67,16 @@ export const distributorSchema = z.object({
 
   // --- Legal & financial ---
   panNumber: z.string().optional(),
-  panPhoto: z.string().optional(),
+  panPhoto: fileList(),
   gstNumber: z.string().optional(),
-  gstPhoto: z.string().optional(),
+  gstPhoto: fileList(),
   advanceChequeNumbers: z.string().optional(),
-  advanceChequePhoto: z.string().optional(),
+  advanceChequePhoto: fileList(),
   paymentCondition: z.enum(['same_day_cheque', 'due_date_neft_rtgs', 'advance']).optional(),
-  bankDetails: z.string().optional(),
+  bankAccountName: z.string().optional(),
+  bankAccountNumber: z.string().optional(),
+  bankIfsc: z.string().optional(),
+  bankName: z.string().optional(),
 })
 
 export type DistributorFormValues = z.infer<typeof distributorSchema>
@@ -99,7 +107,8 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   retailersRural: '',
   weeklyOff: '',
   geoLocation: '',
-  officeGodownImages: '',
+  officeImages: [],
+  godownImages: [],
   otherAgencies: '',
   similarAgencies: '',
   assignedProducts: '',
@@ -108,10 +117,13 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   godownSize: '',
   yearOfEst: '',
   panNumber: '',
-  panPhoto: '',
+  panPhoto: [],
   gstNumber: '',
-  gstPhoto: '',
+  gstPhoto: [],
   advanceChequeNumbers: '',
-  advanceChequePhoto: '',
-  bankDetails: '',
+  advanceChequePhoto: [],
+  bankAccountName: '',
+  bankAccountNumber: '',
+  bankIfsc: '',
+  bankName: '',
 }

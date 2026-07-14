@@ -39,6 +39,8 @@ export const queryKeys = {
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.salesIncharge.all, 'list', filters ?? {}] as const,
     salesmen: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'salesmen', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.salesIncharge.all, 'detail', id] as const,

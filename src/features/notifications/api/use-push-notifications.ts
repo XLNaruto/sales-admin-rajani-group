@@ -9,6 +9,11 @@ import { onForegroundMessage, requestPushToken } from '../lib/messaging'
  * Register this device for FCM push: request permission, obtain the token, and
  * (when a real backend is wired) hand it to the server. Safe to call once after
  * sign-in — no-ops where notifications are unsupported or denied.
+ *
+ * Called from: `usePushBootstrap()` in `src/app/layouts/dashboard-layout.tsx`,
+ * which fires `register.mutate()` once on mount of the authenticated shell — so
+ * the POST below runs a single time per session after the user reaches the
+ * dashboard (and only when `VITE_USE_MOCK_API` is false).
  */
 export function useRegisterPushToken() {
   return useMutation<string | null, Error, void>({

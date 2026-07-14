@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { Bell, CalendarClock, Send, Sparkles } from 'lucide-react'
 import { PageHeader } from '@/components/common/page-header'
@@ -9,12 +9,9 @@ import { DataTable } from '@/components/data-table/data-table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useGreetings, useNotifications, useSendNotification } from '../api/use-notifications'
 import { GreetingCard } from '../components/greeting-card'
+import { useNotificationsConsole } from '../hooks/use-notifications-console'
 import type { AppNotification, NotificationType } from '../types'
-
-const TODAY = '2026-07-02'
-const THIS_MONTH = '2026-07'
 
 const TYPE_VARIANT: Record<NotificationType, 'default' | 'warning' | 'success'> = {
   push: 'default',
@@ -23,26 +20,17 @@ const TYPE_VARIANT: Record<NotificationType, 'default' | 'warning' | 'success'> 
 }
 
 export function NotificationsPage() {
-  const notifications = useNotifications()
-  const greetings = useGreetings()
-  const sendNotification = useSendNotification()
-  const [composeMessage, setComposeMessage] = useState<string | null>(null)
-
-  const notificationRows = notifications.data ?? []
-  const greetingRows = greetings.data ?? []
-
-  const sentToday = notificationRows.filter(
-    (n) => n.status === 'sent' && n.sentOn.startsWith(TODAY),
-  ).length
-  const scheduled = notificationRows.filter((n) => n.status === 'scheduled').length
-  const greetingsThisMonth = greetingRows.filter((g) => g.date.startsWith(THIS_MONTH)).length
-
-  const handleCompose = () => {
-    sendNotification.mutate(
-      { title: 'Broadcast Notification', body: 'Composed from the notifications console.', type: 'push' },
-      { onSuccess: () => setComposeMessage('Notification sent to all recipients.') },
-    )
-  }
+  const {
+    notifications,
+    sendNotification,
+    composeMessage,
+    notificationRows,
+    greetingRows,
+    sentToday,
+    scheduled,
+    greetingsThisMonth,
+    handleCompose,
+  } = useNotificationsConsole()
 
   const columns = useMemo<ColumnDef<AppNotification>[]>(
     () => [

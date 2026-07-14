@@ -1,14 +1,12 @@
-import { BadgeCheck, ToggleLeft } from 'lucide-react'
+import { ToggleLeft } from 'lucide-react'
 import { FilterBar, type FilterFacet } from '@/components/common/filter-bar'
-import { DESIGNATIONS } from '../lib/incharge-form'
 
 export interface SalesmanFilters {
   search: string
-  designation: string
   status: string
 }
 
-export const INITIAL_FILTERS: SalesmanFilters = { search: '', designation: 'all', status: 'all' }
+export const INITIAL_FILTERS: SalesmanFilters = { search: '', status: 'all' }
 
 interface SalesmanToolbarProps {
   filters: SalesmanFilters
@@ -16,21 +14,9 @@ interface SalesmanToolbarProps {
   onReset: () => void
 }
 
-/** Filter card above the salesman table — driven by the shared FilterBar. */
+/** Filter card above the sales-incharge table — driven by the shared FilterBar. */
 export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarProps) {
   const facets: FilterFacet[] = [
-    {
-      key: 'designation',
-      label: 'Designation',
-      icon: BadgeCheck,
-      value: filters.designation,
-      onChange: (v) => onChange({ designation: v }),
-      searchPlaceholder: 'Search designation',
-      options: [
-        { label: 'All Designations', value: 'all' },
-        ...DESIGNATIONS.map((d) => ({ label: d, value: d })),
-      ],
-    },
     {
       key: 'status',
       label: 'Status',
@@ -41,6 +27,8 @@ export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarP
       options: [
         { label: 'All Status', value: 'all' },
         { label: 'Active', value: 'active' },
+        { label: 'Invited', value: 'invited' },
+        { label: 'Suspended', value: 'suspended' },
         { label: 'Inactive', value: 'inactive' },
       ],
     },
@@ -51,7 +39,7 @@ export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarP
       search={{
         value: filters.search,
         onChange: (v) => onChange({ search: v }),
-        placeholder: 'Search by name, email or mobile…',
+        placeholder: 'Search by name or phone…',
       }}
       facets={facets}
       onReset={onReset}

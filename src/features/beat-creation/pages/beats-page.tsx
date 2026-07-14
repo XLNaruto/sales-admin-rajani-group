@@ -1,8 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useNavigate } from '@tanstack/react-router'
 import { MapPinned, Pencil, Plus, Route, Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageHeader } from '@/components/common/page-header'
@@ -10,10 +8,9 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { useSalesmen } from '@/features/sales-incharge'
-import { useBeats, useDeleteBeat } from '../api/use-beats'
-import { BeatToolbar, INITIAL_FILTERS, type BeatFilters } from '../components/beat-toolbar'
+import { BeatToolbar } from '../components/beat-toolbar'
 import { cityName, distributorName, labelFor } from '../lib/beat-reference'
+import { useBeatsList } from '../hooks/use-beats-list'
 import type { Beat } from '../types'
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
@@ -26,43 +23,21 @@ function formatDate(value: string) {
 }
 
 export function BeatsPage() {
-  const navigate = useNavigate()
-  const { data, isLoading } = useBeats()
-  const { data: salesmen } = useSalesmen()
-  const deleteBeat = useDeleteBeat()
-
-  const salesmanName = useMemo(() => {
-    const map = new Map((salesmen ?? []).map((s) => [s.id, s.name]))
-    return (id: string) => map.get(id) ?? '—'
-  }, [salesmen])
-
-  const [filters, setFilters] = useState<BeatFilters>(INITIAL_FILTERS)
-  const patchFilters = (patch: Partial<BeatFilters>) => setFilters((f) => ({ ...f, ...patch }))
-
-  const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase()
-    return (data ?? []).filter((b) => {
-      const matchesSearch =
-        !q || b.beatName.toLowerCase().includes(q) || b.beatCode.toLowerCase().includes(q)
-      const matchesMarket = filters.marketType === 'all' || b.marketType === filters.marketType
-      const matchesStatus = filters.status === 'all' || b.status === filters.status
-      return matchesSearch && matchesMarket && matchesStatus
-    })
-  }, [data, filters])
-
-  const hasActiveFilters =
-    filters.search !== '' || filters.marketType !== 'all' || filters.status !== 'all'
-
-  const [pendingDelete, setPendingDelete] = useState<Beat | null>(null)
-
-  const confirmDelete = () => {
-    if (!pendingDelete) return
-    const b = pendingDelete
-    deleteBeat.mutate(b.id, {
-      onSuccess: () => toast.success(`${b.beatName} removed`),
-      onError: () => toast.error("Couldn't remove the beat."),
-    })
-  }
+  const {
+    filters,
+    patchFilters,
+    resetFilters,
+    filtered,
+    isLoading,
+    hasActiveFilters,
+    salesmanName,
+    pendingDelete,
+    setPendingDelete,
+    confirmDelete,
+    deleteIsPending,
+    goToCreate,
+    goToEdit,
+  } = useBeatsList()
 
   const columns = useMemo<ColumnDef<Beat>[]>(
     () => [
@@ -85,7 +60,7 @@ export function BeatsPage() {
             <button
               type="button"
               title="Edit"
-              onClick={() => navigate({ to: '/beats/create' })}
+              onClick={goToEdit}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
@@ -94,7 +69,7 @@ export function BeatsPage() {
               type="button"
               title="Delete"
               onClick={() => setPendingDelete(row.original)}
-              disabled={deleteBeat.isPending}
+              disabled={deleteIsPending}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
             >
               <Trash2 className="size-4" />
@@ -182,7 +157,7 @@ export function BeatsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deleteBeat.isPending, salesmanName],
+    [deleteIsPending, salesmanName],
   )
 
   return (
@@ -191,7 +166,7 @@ export function BeatsPage() {
         title="Beat Creation"
         description="Create and manage beats — the ordered route a salesman covers."
         actions={
-          <Button className="cursor-pointer" onClick={() => navigate({ to: '/beats/create' })}>
+          <Button className="cursor-pointer" onClick={goToCreate}>
             <Plus /> Create Beat
           </Button>
         }
@@ -207,7 +182,7 @@ export function BeatsPage() {
           <BeatToolbar
             filters={filters}
             onChange={patchFilters}
-            onReset={() => setFilters(INITIAL_FILTERS)}
+            onReset={resetFilters}
           />
         }
         emptyState={
@@ -224,7 +199,7 @@ export function BeatsPage() {
               </p>
             </div>
             {!hasActiveFilters && (
-              <Button className="cursor-pointer" onClick={() => navigate({ to: '/beats/create' })}>
+              <Button className="cursor-pointer" onClick={goToCreate}>
                 <Plus /> Create Beat
               </Button>
             )}
@@ -248,7 +223,7 @@ export function BeatsPage() {
         }
         confirmLabel="Yes, delete"
         cancelLabel="Cancel"
-        loading={deleteBeat.isPending}
+        loading={deleteIsPending}
         onConfirm={confirmDelete}
       />
     </div>
