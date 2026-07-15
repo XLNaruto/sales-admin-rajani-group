@@ -2,20 +2,25 @@ import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
+  distributorDetailSchema,
   distributorListResponseSchema,
   presignResponseSchema,
   type DistributorListResponse,
   type DistributorRow,
 } from '../schemas'
+import type { DistributorFormValues } from '../lib/distributor-form'
 import type {
   Distributor,
   DistributorCreateInput,
+  DistributorExistingFiles,
   DistributorListParams,
   DistributorListResult,
   DistributorMarketType,
   DistributorStatus,
+  DistributorUpdateInput,
   FirmType,
   MarketSystem,
+  PaymentCondition,
 } from '../types'
 
 /** Map a validated API row to the client-facing (camelCase) `Distributor`. */
@@ -184,6 +189,98 @@ function toId(value?: string): number | string | undefined {
 /** Collapse a blank/whitespace-only string to undefined so it's dropped from the body. */
 const str = (v?: string) => (v && v.trim() !== '' ? v.trim() : undefined)
 
+/** Normalise a "lat, lng" string to clean comma-separated "lat,lng" (no spaces). */
+const geo = (v?: string) => {
+  const s = str(v)
+  return s ? s.replace(/\s+/g, '') : undefined
+}
+
+/** Upload every image category for a submission and return the fresh keys. */
+async function uploadAllImages(input: DistributorCreateInput): Promise<{
+  officeKeys: string[]
+  godownKeys: string[]
+  docKeys: Record<DocType, string[]>
+}> {
+  const D = endpoints.DISTRIBUTOR
+  // PAN / GST / cheque photos are uploaded together in one tagged call.
+  const docs: DocFile[] = [
+    ...(input.panPhoto ?? []).map((file) => ({ file, docType: 'pan_card' as const })),
+    ...(input.gstPhoto ?? []).map((file) => ({ file, docType: 'gst' as const })),
+    ...(input.advanceChequePhoto ?? []).map((file) => ({
+      file,
+      docType: 'advance_cheque' as const,
+    })),
+  ]
+  const [officeKeys, godownKeys, docKeys] = await Promise.all([
+    uploadImages(D.OFFICE_IMAGES_PRESIGN, input.officeImages ?? []),
+    uploadImages(D.GODOWN_IMAGES_PRESIGN, input.godownImages ?? []),
+    uploadDocuments(docs),
+  ])
+  return { officeKeys, godownKeys, docKeys }
+}
+
+/** Join a retained single-string photo path with any newly-uploaded keys. */
+const mergePath = (existing: string | undefined, fresh: string[]): string | undefined =>
+  [existing, ...fresh].filter(Boolean).join(',') || undefined
+
+/**
+ * Build the non-file portion of the create/update body — shared by both.
+ * The five image/path fields are filled in by the caller once uploads resolve.
+ */
+function buildScalarBody(input: DistributorCreateInput) {
+  return {
+    distributor_code: str(input.code),
+    status: input.status,
+    firm_name: input.firmName,
+    firm_type: input.firmType,
+    owner_name: input.ownerName,
+    owner_mobile: input.ownerMobile,
+    owner_birth_date: str(input.ownerBirthDate),
+    owner_marriage_anniversary: str(input.ownerAnniversaryDate),
+    communication_mobile: str(input.communicationMobile),
+    multiple_login_allowed: input.multipleLogin === 'yes',
+    email: input.email,
+    office_address: input.officeAddress,
+    godown_address: str(input.godownAddress),
+    home_address: str(input.homeAddress),
+    state_id: toId(input.stateId),
+    zone_id: toId(input.zoneId),
+    district_id: toId(input.districtId),
+    taluka_id: toId(input.talukaId),
+    city_id: toId(input.cityId),
+    pincode: str(input.pincode),
+    delivery_route: str(input.deliveryRoute),
+    taluka_of_agency_ids: (input.agencyTalukaIds ?? [])
+      .map(toId)
+      .filter((n): n is number | string => n != null),
+    market_type: input.marketType,
+    village_ids: (input.villageIds ?? [])
+      .map(toId)
+      .filter((n): n is number | string => n != null),
+    retailers_local_market: input.retailersLocal,
+    retailers_rural_market: input.retailersRural,
+    market_system: input.marketSystem,
+    weekly_off: str(input.weeklyOff),
+    geo_location: geo(input.geoLocation),
+    other_agencies_details: str(input.otherAgencies),
+    similar_category_agencies: str(input.similarAgencies),
+    assigned_products: str(input.assignedProducts),
+    target_per_product: str(input.productTargets),
+    delivery_vehicle: input.deliveryVehicle === 'yes',
+    delivery_vehicle_detail: str(input.deliveryVehicleDetail),
+    godown_size_sqft: input.godownSize,
+    year_established: input.yearOfEst ? Number(input.yearOfEst) : undefined,
+    pan: str(input.panNumber),
+    gstin: str(input.gstNumber),
+    advance_cheque_numbers: str(input.advanceChequeNumbers),
+    payment_condition: input.paymentCondition,
+    bank_account_name: str(input.bankAccountName),
+    bank_account_number: str(input.bankAccountNumber),
+    bank_ifsc: str(input.bankIfsc),
+    bank_name: str(input.bankName),
+  }
+}
+
 /**
  * POST /sales-incharge-admin/distributors — presign + upload every image
  * category, then create the record with the returned storage keys.
@@ -194,81 +291,122 @@ const str = (v?: string) => (v && v.trim() !== '' ? v.trim() : undefined)
  */
 export async function createDistributor(input: DistributorCreateInput): Promise<void> {
   try {
-    const D = endpoints.DISTRIBUTOR
-    // PAN / GST / cheque photos are uploaded together in one tagged call.
-    const docs: DocFile[] = [
-      ...(input.panPhoto ?? []).map((file) => ({ file, docType: 'pan_card' as const })),
-      ...(input.gstPhoto ?? []).map((file) => ({ file, docType: 'gst' as const })),
-      ...(input.advanceChequePhoto ?? []).map((file) => ({
-        file,
-        docType: 'advance_cheque' as const,
-      })),
-    ]
-    const [officeKeys, godownKeys, docKeys] = await Promise.all([
-      uploadImages(D.OFFICE_IMAGES_PRESIGN, input.officeImages ?? []),
-      uploadImages(D.GODOWN_IMAGES_PRESIGN, input.godownImages ?? []),
-      uploadDocuments(docs),
-    ])
-
+    const { officeKeys, godownKeys, docKeys } = await uploadAllImages(input)
     const body = {
-      distributor_code: str(input.code),
-      status: input.status,
-      firm_name: input.firmName,
-      firm_type: input.firmType,
-      owner_name: input.ownerName,
-      owner_mobile: input.ownerMobile,
-      owner_birth_date: str(input.ownerBirthDate),
-      owner_marriage_anniversary: str(input.ownerAnniversaryDate),
-      communication_mobile: str(input.communicationMobile),
-      multiple_login_allowed: input.multipleLogin === 'yes',
-      email: input.email,
-      office_address: input.officeAddress,
-      godown_address: str(input.godownAddress),
-      home_address: str(input.homeAddress),
-      state_id: toId(input.stateId),
-      zone_id: toId(input.zoneId),
-      district_id: toId(input.districtId),
-      taluka_id: toId(input.talukaId),
-      city_id: toId(input.cityId),
-      pincode: str(input.pincode),
-      delivery_route: str(input.deliveryRoute),
-      taluka_of_agency_ids: (input.agencyTalukaIds ?? [])
-        .map(toId)
-        .filter((n): n is number | string => n != null),
-      market_type: input.marketType,
-      village_ids: (input.villageIds ?? [])
-        .map(toId)
-        .filter((n): n is number | string => n != null),
-      retailers_local_market: input.retailersLocal,
-      retailers_rural_market: input.retailersRural,
-      market_system: input.marketSystem,
-      weekly_off: str(input.weeklyOff),
-      geo_location: str(input.geoLocation),
+      ...buildScalarBody(input),
       office_image_paths: officeKeys,
       godown_image_paths: godownKeys,
-      other_agencies_details: str(input.otherAgencies),
-      similar_category_agencies: str(input.similarAgencies),
-      assigned_products: str(input.assignedProducts),
-      target_per_product: str(input.productTargets),
-      delivery_vehicle: input.deliveryVehicle === 'yes',
-      delivery_vehicle_detail: str(input.deliveryVehicleDetail),
-      godown_size_sqft: input.godownSize,
-      year_established: input.yearOfEst ? Number(input.yearOfEst) : undefined,
-      pan: str(input.panNumber),
-      gstin: str(input.gstNumber),
       pan_card_photo_path: docKeys.pan_card.join(',') || undefined,
       gst_photo_path: docKeys.gst.join(',') || undefined,
-      advance_cheque_numbers: str(input.advanceChequeNumbers),
       advance_cheque_photo_path: docKeys.advance_cheque.join(',') || undefined,
-      payment_condition: input.paymentCondition,
-      bank_account_name: str(input.bankAccountName),
-      bank_account_number: str(input.bankAccountNumber),
-      bank_ifsc: str(input.bankIfsc),
-      bank_name: str(input.bankName),
     }
-
-    await http.post<unknown>(D.CREATE, body)
+    await http.post<unknown>(endpoints.DISTRIBUTOR.CREATE, body)
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to create the distributor.'))
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/distributors/{id} — load a full record and map it
+ * into form-ready values (all scalar/select fields as strings, file inputs
+ * left empty) plus the storage paths already saved, so the edit form can seed
+ * itself and retain existing images the user doesn't re-pick.
+ */
+export async function fetchDistributor(id: string): Promise<{
+  id: string
+  values: DistributorFormValues
+  existing: DistributorExistingFiles
+}> {
+  try {
+    const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.GET(id))
+    const r = distributorDetailSchema.parse(raw)
+    const idStr = (v: number | null | undefined) => (v != null ? String(v) : '')
+    const values: DistributorFormValues = {
+      firmName: r.firm_name,
+      firmType: (r.firm_type ?? '') as FirmType,
+      ownerName: r.owner_name ?? '',
+      ownerMobile: r.owner_mobile ?? '',
+      ownerBirthDate: r.owner_birth_date ?? '',
+      ownerAnniversaryDate: r.owner_marriage_anniversary ?? '',
+      communicationMobile: r.communication_mobile ?? '',
+      multipleLogin: r.multiple_login_allowed == null ? undefined : r.multiple_login_allowed ? 'yes' : 'no',
+      email: r.email ?? '',
+      code: r.distributor_code ?? '',
+      status: r.status as DistributorFormValues['status'],
+      officeAddress: r.office_address ?? '',
+      godownAddress: r.godown_address ?? '',
+      homeAddress: r.home_address ?? '',
+      stateId: idStr(r.state_id),
+      zoneId: idStr(r.zone_id),
+      districtId: idStr(r.district_id),
+      talukaId: idStr(r.taluka_id),
+      cityId: idStr(r.city_id),
+      pincode: r.pincode ?? '',
+      deliveryRoute: r.delivery_route ?? '',
+      agencyTalukaIds: (r.taluka_of_agency_ids ?? []).map(String),
+      marketType: (r.market_type ?? undefined) as DistributorMarketType | undefined,
+      villageIds: (r.village_ids ?? []).map(String),
+      retailersLocal: r.retailers_local_market != null ? String(r.retailers_local_market) : '',
+      retailersRural: r.retailers_rural_market != null ? String(r.retailers_rural_market) : '',
+      marketSystem: (r.market_system ?? undefined) as MarketSystem | undefined,
+      weeklyOff: r.weekly_off ?? '',
+      geoLocation: r.geo_location ?? '',
+      officeImages: [],
+      godownImages: [],
+      otherAgencies: r.other_agencies_details ?? '',
+      similarAgencies: r.similar_category_agencies ?? '',
+      assignedProducts: r.assigned_products ?? '',
+      productTargets: r.target_per_product ?? '',
+      deliveryVehicle: r.delivery_vehicle == null ? undefined : r.delivery_vehicle ? 'yes' : 'no',
+      deliveryVehicleDetail: r.delivery_vehicle_detail ?? '',
+      godownSize: r.godown_size_sqft != null ? String(r.godown_size_sqft) : '',
+      yearOfEst: r.year_established != null ? String(r.year_established) : '',
+      panNumber: r.pan ?? '',
+      panPhoto: [],
+      gstNumber: r.gstin ?? '',
+      gstPhoto: [],
+      advanceChequeNumbers: r.advance_cheque_numbers ?? '',
+      advanceChequePhoto: [],
+      paymentCondition: (r.payment_condition ?? undefined) as PaymentCondition | undefined,
+      bankAccountName: r.bank_account_name ?? '',
+      bankAccountNumber: r.bank_account_number ?? '',
+      bankIfsc: r.bank_ifsc ?? '',
+      bankName: r.bank_name ?? '',
+    }
+    const existing: DistributorExistingFiles = {
+      officeImagePaths: r.office_image_paths ?? [],
+      godownImagePaths: r.godown_image_paths ?? [],
+      panCardPhotoPath: r.pan_card_photo_path ?? '',
+      gstPhotoPath: r.gst_photo_path ?? '',
+      advanceChequePhotoPath: r.advance_cheque_photo_path ?? '',
+    }
+    return { id: r.id, values, existing }
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to load the distributor.'))
+  }
+}
+
+/**
+ * PATCH /sales-incharge-admin/distributors/{id} — same body as create. Any
+ * newly-picked files are uploaded and their keys merged with the paths already
+ * on the record, so images the user leaves untouched are preserved.
+ */
+export async function updateDistributor(input: DistributorUpdateInput): Promise<void> {
+  try {
+    const { officeKeys, godownKeys, docKeys } = await uploadAllImages(input)
+    const body = {
+      ...buildScalarBody(input),
+      office_image_paths: [...input.existing.officeImagePaths, ...officeKeys],
+      godown_image_paths: [...input.existing.godownImagePaths, ...godownKeys],
+      pan_card_photo_path: mergePath(input.existing.panCardPhotoPath, docKeys.pan_card),
+      gst_photo_path: mergePath(input.existing.gstPhotoPath, docKeys.gst),
+      advance_cheque_photo_path: mergePath(
+        input.existing.advanceChequePhotoPath,
+        docKeys.advance_cheque,
+      ),
+    }
+    await http.patch<unknown>(endpoints.DISTRIBUTOR.UPDATE(input.id), body)
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to update the distributor.'))
   }
 }

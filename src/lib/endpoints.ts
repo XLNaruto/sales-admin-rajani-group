@@ -17,6 +17,8 @@ export const endpoints = {
   DISTRIBUTOR: {
     LIST: '/sales-incharge-admin/distributors',
     CREATE: '/sales-incharge-admin/distributors',
+    GET: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     DELETE: (id: number) => `/sales-incharge-admin/distributors/${id}`,
     OFFICE_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/office-images/presign',
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',

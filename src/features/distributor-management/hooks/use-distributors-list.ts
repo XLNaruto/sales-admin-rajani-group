@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { encryptParams } from "@/lib/crypto";
 import {
   useDistributors,
   useDeleteDistributor,
@@ -88,7 +89,13 @@ export function useDistributorsList() {
   };
 
   const goToCreate = () => navigate({ to: "/distributors/create" });
-  const goToEdit = () => navigate({ to: "/distributors/create" });
+  // Edit reuses the create page; the raw id is encrypted into `?data=` so it's
+  // never exposed in the address bar.
+  const goToEdit = (id: string) =>
+    navigate({
+      to: "/distributors/create",
+      search: { data: encryptParams({ id }) },
+    });
 
   return {
     filters,

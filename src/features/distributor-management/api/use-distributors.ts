@@ -6,12 +6,18 @@ import {
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { mockDelay } from "@/lib/utils";
-import { createDistributor, fetchDistributors } from "./distributor-api";
+import {
+  createDistributor,
+  fetchDistributor,
+  fetchDistributors,
+  updateDistributor,
+} from "./distributor-api";
 import type {
   Distributor,
   DistributorCreateInput,
   DistributorListParams,
   DistributorStatus,
+  DistributorUpdateInput,
 } from "../types";
 
 /** In-memory mock store — replace with real API calls when the backend lands. */
@@ -106,6 +112,15 @@ export function useDistributors(params: DistributorListParams = {}) {
   });
 }
 
+/** GET /sales-incharge-admin/distributors/{id} — full record for the edit form. */
+export function useDistributor(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.distributors.detail(id ?? ""),
+    queryFn: () => fetchDistributor(id as string),
+    enabled: !!id,
+  });
+}
+
 /** POST /sales-incharge-admin/distributors — presign + upload images, then create. */
 export function useCreateDistributor() {
   const qc = useQueryClient();
@@ -113,6 +128,20 @@ export function useCreateDistributor() {
     mutationFn: (input: DistributorCreateInput) => createDistributor(input),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
+  });
+}
+
+/** PATCH /sales-incharge-admin/distributors/{id} — upload new images, then update. */
+export function useUpdateDistributor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DistributorUpdateInput) => updateDistributor(input),
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.distributors.all });
+      qc.invalidateQueries({
+        queryKey: queryKeys.distributors.detail(input.id),
+      });
+    },
   });
 }
 

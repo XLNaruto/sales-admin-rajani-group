@@ -27,6 +27,11 @@ const envSchema = z.object({
     .string()
     .default('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
 
+  /** Google Maps JavaScript API key — powers geo-location pickers. */
+  VITE_GOOGLE_MAPS_KEY: z
+    .string()
+    .default('AIzaSyCR5dRbUjEWxxxDsHbmWd76vBzLgunN8io'),
+
   /** Secret used to derive the key that encrypts persisted client storage. */
   VITE_APP_ENCRYPT_KEY: z.string().default('sales-admin-storage-key'),
 

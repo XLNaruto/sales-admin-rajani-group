@@ -57,7 +57,7 @@ export function DistributorsPage() {
             <button
               type="button"
               title="Edit"
-              onClick={goToEdit}
+              onClick={() => goToEdit(row.original.id)}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
@@ -144,11 +144,14 @@ export function DistributorsPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Type" />
         ),
-        cell: ({ row }) => (
-          <Badge variant="outline" className="font-medium">
-            {labelFor(row.original.firmType)}
-          </Badge>
-        ),
+        cell: ({ row }) =>
+          row.original.firmType ? (
+            <Badge variant="outline" className="font-medium">
+              {labelFor(row.original.firmType)}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">—</span>
+          ),
       },
       {
         id: "city",

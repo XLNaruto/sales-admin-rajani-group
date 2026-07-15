@@ -28,7 +28,8 @@ export const distributorSchema = z.object({
   multipleLogin: z.enum(['yes', 'no']).optional(),
   email: z.string().email('Enter a valid email address'),
   code: z.string().optional(),
-  status: z.enum(['active', 'pending', 'suspended']),
+  // API accepts only these three (see /sales-incharge-admin/docs → POST /distributors).
+  status: z.enum(['active', 'inactive', 'suspended']),
 
   // --- Location & coverage ---
   officeAddress: z.string().trim().min(1, 'Enter the office address'),

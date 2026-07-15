@@ -1,11 +1,13 @@
 import { Controller } from "react-hook-form";
 import { ArrowLeft, Store, MapPin, Briefcase, Landmark } from "lucide-react";
+import { decryptParams } from "@/lib/crypto";
 import { PageHeader } from "@/components/common/page-header";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
+import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "../components/file-input";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import {
@@ -21,6 +23,7 @@ import {
   MARKET_SYSTEMS,
   MARKET_TYPES,
   PAYMENT_CONDITIONS,
+  WEEKLY_OFF_DAYS,
   YES_NO,
   toOptions,
   villagesByCity,
@@ -29,7 +32,19 @@ import {
 /** Parse a string form id into the numeric id the location API expects. */
 const toId = (v?: string) => (v ? Number(v) : undefined);
 
-export function DistributorCreatePage() {
+interface DistributorCreatePageProps {
+  /**
+   * Encrypted distributor id from the `?data=` search param. When present the
+   * page switches to edit mode (GET to seed, PATCH to save); otherwise it's a
+   * fresh create. The same page and form handle both.
+   */
+  data?: string;
+}
+
+export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
+  // Decrypt the params from the URL; missing/malformed → create mode.
+  const id = data ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "") : "";
+
   const {
     register,
     control,
@@ -41,11 +56,20 @@ export function DistributorCreatePage() {
     talukaId,
     cityId,
     onSubmit,
+    isEdit,
     isPending,
+    isLoading,
+    isError,
     goBack,
     currentYear,
     maxBirthDate,
-  } = useDistributorForm();
+  } = useDistributorForm(id || undefined);
+
+  const title = isEdit ? "Edit Distributor" : "Add Distributor";
+  const description = isEdit
+    ? "Update the distributor's firm, coverage, business and financial details."
+    : "Create a new distributor record with firm, coverage, business and financial details.";
+  const submitLabel = isEdit ? "Update Distributor" : "Save Distributor";
 
   // Cascading geography masters — each level is a scroll-lazy, server-searched
   // dropdown scoped to its parent's id.
@@ -55,11 +79,33 @@ export function DistributorCreatePage() {
   const talukaSelect = useTalukaSelect(toId(districtId));
   const citySelect = useCitySelect(toId(talukaId));
 
+  // Edit-mode load / error states before the form is seeded.
+  if (isEdit && (isLoading || isError)) {
+    return (
+      <div>
+        <PageHeader
+          title={title}
+          description={description}
+          actions={
+            <Button variant="outline" className="cursor-pointer" onClick={goBack}>
+              <ArrowLeft /> Back to list
+            </Button>
+          }
+        />
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-10 text-center text-sm text-muted-foreground">
+          {isError
+            ? "Couldn't load this distributor. Please go back and try again."
+            : "Loading distributor…"}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader
-        title="Add Distributor"
-        description="Create a new distributor record with firm, coverage, business and financial details."
+        title={title}
+        description={description}
         actions={
           <Button variant="outline" className="cursor-pointer" onClick={goBack}>
             <ArrowLeft /> Back to list
@@ -201,11 +247,7 @@ export function DistributorCreatePage() {
           </Field>
 
           <Field label="E-mail Id" error={errors.email?.message}>
-            <Input
-              type="email"
-              placeholder="E-mail Id"
-              {...register("email")}
-            />
+            <Input type="email" placeholder="E-mail Id" {...register("email")} />
           </Field>
 
           <Field label="Distributor Code" optional error={errors.code?.message}>
@@ -524,17 +566,36 @@ export function DistributorCreatePage() {
           </Field>
 
           <Field label="Weekly Off" optional error={errors.weeklyOff?.message}>
-            <Input placeholder="e.g. Sunday" {...register("weeklyOff")} />
+            <Controller
+              control={control}
+              name="weeklyOff"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={WEEKLY_OFF_DAYS}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
+            />
           </Field>
 
           <Field
             label="Geo Location Of Distributor"
             optional
             error={errors.geoLocation?.message}
+            className="sm:col-span-2"
           >
-            <Input
-              placeholder="Latitude, Longitude"
-              {...register("geoLocation")}
+            <Controller
+              control={control}
+              name="geoLocation"
+              render={({ field }) => (
+                <GeoLocationPicker
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                />
+              )}
             />
           </Field>
 
@@ -678,11 +739,7 @@ export function DistributorCreatePage() {
             />
           </Field>
 
-          <Field
-            label="Year Of Est."
-            optional
-            error={errors.yearOfEst?.message}
-          >
+          <Field label="Year Of Est." optional error={errors.yearOfEst?.message}>
             <Input
               inputMode="numeric"
               placeholder="e.g. 2015"
@@ -860,7 +917,7 @@ export function DistributorCreatePage() {
             className="cursor-pointer text-white"
             disabled={isPending}
           >
-            {isPending ? "Saving…" : "Save Distributor"}
+            {isPending ? "Saving…" : submitLabel}
           </Button>
         </div>
       </form>

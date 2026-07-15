@@ -92,8 +92,19 @@ export const PAYMENT_CONDITIONS: ComboboxOption[] = [
 
 export const DISTRIBUTOR_STATUSES: ComboboxOption[] = [
   { value: 'active', label: 'Active' },
-  { value: 'pending', label: 'Pending' },
+  { value: 'inactive', label: 'Inactive' },
   { value: 'suspended', label: 'Suspended' },
+]
+
+export const WEEKLY_OFF_DAYS: ComboboxOption[] = [
+  { value: 'none', label: 'None' },
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+  { value: 'saturday', label: 'Saturday' },
+  { value: 'sunday', label: 'Sunday' },
 ]
 
 /* ---------------------- Cascade filter helpers -------------------- */

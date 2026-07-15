@@ -1,6 +1,12 @@
 export { DistributorsPage } from './pages/distributors-page'
 export { DistributorCreatePage } from './pages/distributor-create-page'
-export { useDistributors, useCreateDistributor, useDeleteDistributor } from './api/use-distributors'
+export {
+  useDistributors,
+  useDistributor,
+  useCreateDistributor,
+  useUpdateDistributor,
+  useDeleteDistributor,
+} from './api/use-distributors'
 export type {
   Distributor,
   DistributorInput,

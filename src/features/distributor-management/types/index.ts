@@ -1,4 +1,4 @@
-export type DistributorStatus = 'active' | 'pending' | 'suspended' | 'rejected'
+export type DistributorStatus = 'active' | 'inactive' | 'pending' | 'suspended' | 'rejected'
 export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
@@ -132,6 +132,29 @@ export interface DistributorCreateInput {
   bankAccountNumber?: string
   bankIfsc?: string
   bankName?: string
+}
+
+/**
+ * Storage keys/paths already persisted on a record. On update these are kept
+ * as-is and merged with any newly-uploaded files, so editing a distributor
+ * without re-picking images doesn't wipe the existing ones.
+ */
+export interface DistributorExistingFiles {
+  officeImagePaths: string[]
+  godownImagePaths: string[]
+  panCardPhotoPath: string
+  gstPhotoPath: string
+  advanceChequePhotoPath: string
+}
+
+/**
+ * Payload the edit form produces: the same shape as create plus the record id
+ * and the paths already saved, so newly-picked files can be appended rather
+ * than replacing what's there.
+ */
+export interface DistributorUpdateInput extends DistributorCreateInput {
+  id: string
+  existing: DistributorExistingFiles
 }
 
 // --- Live list API (GET /sales-incharge-admin/distributors) -----------------

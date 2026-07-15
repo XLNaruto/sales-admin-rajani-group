@@ -84,6 +84,52 @@ export async function decryptString(payload: string): Promise<string> {
   return decoder.decode(plain)
 }
 
+/* --------------------------- Route-params codec -------------------------- *
+ * Reversible, URL-safe obfuscation for the params carried in a route's
+ * `?data=` token, so raw ids/values never show in the address bar. Any object
+ * (one or several params) is JSON-encoded, XORed against a repeating key
+ * derived from the app secret, then base64url-encoded. Kept synchronous so
+ * navigation and route parsing don't have to await. Obfuscation-grade only —
+ * it hides values from casual inspection, not a determined attacker.
+ * -------------------------------------------------------------------------- */
+
+const PARAMS_KEY = encoder.encode(`${NAMESPACE}:params:${env.VITE_APP_ENCRYPT_KEY}`)
+
+function toBase64Url(bytes: Uint8Array): string {
+  return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+}
+
+function fromBase64Url(value: string): Uint8Array {
+  const pad = value.length % 4 === 0 ? '' : '='.repeat(4 - (value.length % 4))
+  return fromBase64(value.replace(/-/g, '+').replace(/_/g, '/') + pad)
+}
+
+function xorWithKey(bytes: Uint8Array): Uint8Array {
+  const out = new Uint8Array(bytes.length)
+  for (let i = 0; i < bytes.length; i++) out[i] = bytes[i] ^ PARAMS_KEY[i % PARAMS_KEY.length]
+  return out
+}
+
+/**
+ * Encrypt a params object into a single URL-safe token — pass any number of
+ * key/values, e.g. `encryptParams({ id })` or `encryptParams({ id, mode, tab })`.
+ */
+export function encryptParams(params: Record<string, unknown>): string {
+  return toBase64Url(xorWithKey(encoder.encode(JSON.stringify(params))))
+}
+
+/**
+ * Decrypt a token produced by {@link encryptParams} back into its object.
+ * Returns `null` if the token is missing or malformed.
+ */
+export function decryptParams<T = Record<string, unknown>>(token: string): T | null {
+  try {
+    return JSON.parse(decoder.decode(xorWithKey(fromBase64Url(token)))) as T
+  } catch {
+    return null
+  }
+}
+
 /**
  * Deterministically obfuscate a name (store / key) with FNV-1a. Synchronous so
  * it can be used where a storage key is needed up front.
