@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -54,6 +55,34 @@ export function useDesignations(params: DesignationListParams = {}) {
       params as Record<string, unknown>,
     ),
     queryFn: () => fetchDesignations({ pageSize: 100, sortBy: "name", ...params }),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Page size for the lazy-loaded designation dropdown. */
+export const DESIGNATION_PAGE_SIZE = 20;
+
+/**
+ * GET /sales-incharge-admin/designations — server-searched, paged designation
+ * list for the onboarding form's dropdown. The `search` term is sent to the
+ * endpoint (not filtered client-side) and pages load on scroll.
+ */
+export function useDesignationsInfinite(search?: string) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.salesIncharge.designations({
+      search: search ?? "",
+      infinite: true,
+    }),
+    queryFn: ({ pageParam }) =>
+      fetchDesignations({
+        page: pageParam,
+        pageSize: DESIGNATION_PAGE_SIZE,
+        search: search || undefined,
+        sortBy: "name",
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     staleTime: 5 * 60 * 1000,
   });
 }

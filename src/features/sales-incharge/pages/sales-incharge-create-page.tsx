@@ -14,7 +14,7 @@ import {
   ImageUpload,
   AvatarUpload,
 } from "../components/form-fields";
-import { useDesignations } from "../api/use-sales-incharge";
+import { useDesignationSelect } from "../hooks/use-designation-select";
 import { useSalesInchargeForm } from "../hooks/use-sales-incharge-form";
 
 interface SalesInchargeCreatePageProps {
@@ -48,15 +48,12 @@ export function SalesInchargeCreatePage({
     goBack,
     currentYear,
     maxBirthDate,
+    designationName,
   } = useSalesInchargeForm(id || undefined);
 
-  // Designation options come from the live master (GET …/designations).
-  const { data: designations, isLoading: isLoadingDesignations } =
-    useDesignations();
-  const designationOptions = (designations?.items ?? []).map((d) => ({
-    value: String(d.id),
-    label: d.name,
-  }));
+  // Designation options are server-searched + paged (GET …/designations): the
+  // search box query is sent to the API, not filtered client-side.
+  const designationSelect = useDesignationSelect();
 
   const title = isEdit ? "Edit Sales Incharge" : "Create Sales Incharge";
   const description = isEdit
@@ -160,19 +157,31 @@ export function SalesInchargeCreatePage({
             <Controller
               control={control}
               name="designation"
-              render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  options={designationOptions}
-                  placeholder={
-                    isLoadingDesignations
-                      ? "Loading designations…"
-                      : "Select designation"
-                  }
-                  searchPlaceholder="Search designation"
-                />
-              )}
+              render={({ field }) => {
+                // Ensure the seeded designation (edit mode) is selectable/shown
+                // even before its page loads in the server-searched dropdown.
+                const options =
+                  field.value &&
+                  designationName &&
+                  !designationSelect.options.some((o) => o.value === field.value)
+                    ? [
+                        { value: field.value, label: designationName },
+                        ...designationSelect.options,
+                      ]
+                    : designationSelect.options;
+                return (
+                  <Combobox
+                    value={field.value ?? ""}
+                    onChange={field.onChange}
+                    options={options}
+                    onScrollEnd={designationSelect.onScrollEnd}
+                    loading={designationSelect.loading}
+                    onSearchChange={designationSelect.onSearchChange}
+                    placeholder="Select designation"
+                    searchPlaceholder="Search designation"
+                  />
+                );
+              }}
             />
           </Field>
 

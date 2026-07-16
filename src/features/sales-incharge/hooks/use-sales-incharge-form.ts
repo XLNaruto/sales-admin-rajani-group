@@ -131,6 +131,9 @@ export function useSalesInchargeForm(id?: string) {
     goBack,
     currentYear: new Date().getFullYear(),
     maxBirthDate: MAX_BIRTH_DATE,
+    /** Seeded designation label (edit mode) so its option shows before its
+     *  page loads in the lazy dropdown. */
+    designationName: detail.data?.designationName ?? null,
   };
 }
 

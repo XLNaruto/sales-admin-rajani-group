@@ -271,6 +271,9 @@ export async function fetchSalesIncharge(id: string): Promise<{
   values: SalesInchargeFormValues
   existing: SalesInchargeExistingFiles
   preserved: SalesInchargePreservedFields
+  /** Designation label for the current record — lets the edit form show the
+   *  selected designation even before its page is loaded in the dropdown. */
+  designationName: string | null
 }> {
   try {
     const raw = await http.get<unknown>(endpoints.SALES_INCHARGE.GET(id))
@@ -318,7 +321,7 @@ export async function fetchSalesIncharge(id: string): Promise<{
       territory: r.territory ?? null,
       salary: r.salary ?? null,
     }
-    return { id: String(r.id), values, existing, preserved }
+    return { id: String(r.id), values, existing, preserved, designationName: r.designation_name ?? null }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load the sales incharge.'))
   }
