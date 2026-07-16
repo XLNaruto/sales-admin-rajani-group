@@ -23,8 +23,23 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
+/**
+ * Clear the session and bounce to sign-in. The interceptor runs outside React,
+ * so the router's `beforeLoad` guards won't fire until the next navigation —
+ * we redirect here so a 401 can't leave the app sitting on a page in a
+ * signed-out (tokenless) state, which would make every following request 401.
+ * A hard redirect (not a router push) guarantees all in-memory state is reset,
+ * and we guard against a redirect loop when already on the login screen.
+ */
+function forceSignOut() {
+  useAuthStore.getState().logout()
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.assign('/login')
+  }
+}
+
 // On 401: refresh once (single-flight, in auth-refresh.ts) and replay the
-// original request; if refresh fails, clear the session so the router redirects.
+// original request. If the refresh fails — or on any 401 that can't be retried
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -43,13 +58,13 @@ apiClient.interceptors.response.use(
         original.headers.Authorization = `Bearer ${token}`
         return apiClient(original)
       } catch {
-        useAuthStore.getState().logout()
+        forceSignOut()
         return Promise.reject(error)
       }
     }
 
     if (status === 401) {
-      useAuthStore.getState().logout()
+      forceSignOut()
     }
     return Promise.reject(error)
   },

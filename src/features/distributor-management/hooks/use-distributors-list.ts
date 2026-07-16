@@ -11,7 +11,7 @@ import {
   INITIAL_FILTERS,
   type DistributorFilters,
 } from "../components/distributor-toolbar";
-import type { Distributor } from "../types";
+import type { Distributor, DistributorLifecycleStatus } from "../types";
 
 /**
  * Orchestrates the distributor list screen: filter state, the list query,
@@ -32,7 +32,7 @@ export function useDistributorsList() {
   const { data, isLoading, isError } = useDistributors({
     search: filters.search.trim() || undefined,
     status: filters.status !== "all" ? filters.status : undefined,
-    limit: 100,
+    pageSize: 100,
   });
 
   const deleteDistributor = useDeleteDistributor();
@@ -55,11 +55,25 @@ export function useDistributorsList() {
   );
   const [pendingReject, setPendingReject] = useState<Distributor | null>(null);
 
+  // Inline status change from the list toggle — PATCH the record's status.
+  const changeStatus = (id: string, status: DistributorLifecycleStatus) => {
+    setStatus.mutate(
+      { id, status },
+      {
+        onSuccess: () => toast.success("Status updated"),
+        onError: () => toast.error("Couldn't update the status."),
+      },
+    );
+  };
+
   const confirmDelete = () => {
     if (!pendingDelete) return;
     const d = pendingDelete;
     deleteDistributor.mutate(d.id, {
-      onSuccess: () => toast.success(`${d.firmName} removed`),
+      onSuccess: () => {
+        toast.success(`${d.firmName} removed`);
+        setPendingDelete(null);
+      },
       onError: () => toast.error("Couldn't remove the distributor."),
     });
   };
@@ -79,8 +93,9 @@ export function useDistributorsList() {
   const confirmReject = () => {
     if (!pendingReject) return;
     const d = pendingReject;
+    // The API has no 'rejected' state — a rejected distributor is set inactive.
     setStatus.mutate(
-      { id: d.id, status: "rejected" },
+      { id: d.id, status: "inactive" },
       {
         onSuccess: () => toast.success(`${d.firmName} rejected`),
         onError: () => toast.error("Couldn't reject the distributor."),
@@ -114,6 +129,7 @@ export function useDistributorsList() {
     confirmDelete,
     confirmApprove,
     confirmReject,
+    changeStatus,
     isDeleting: deleteDistributor.isPending,
     isSettingStatus: setStatus.isPending,
     goToCreate,

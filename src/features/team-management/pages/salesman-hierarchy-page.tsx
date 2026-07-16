@@ -1,7 +1,6 @@
-import { Loader2, Minus, Network, Plus, RotateCcw, Trash2, UserPlus } from 'lucide-react'
+import { Loader2, Minus, Network, Plus, RotateCcw, Trash2 } from 'lucide-react'
 import { PageHeader } from '@/components/common/page-header'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
-import { Button } from '@/components/ui/button'
 import { HierarchyTree } from '../components/hierarchy-tree'
 import { PanCanvas } from '../components/pan-canvas'
 import { SalesmanPickerDialog } from '../components/salesman-picker-dialog'
@@ -9,24 +8,19 @@ import { useSalesmanHierarchy } from '../hooks/use-salesman-hierarchy'
 
 export function SalesmanHierarchyPage() {
   const {
-    root,
+    roots,
     isLoading,
-    salesmenById,
     availableOptions,
     zoom,
     zoomBy,
     resetView,
     canvasRef,
-    setRoot,
-    addNode,
+    addReport,
     removeNode,
-    rootPickerOpen,
-    setRootPickerOpen,
     addParent,
     setAddParent,
     pendingRemove,
     setPendingRemove,
-    handleSetRoot,
     handleAdd,
     confirmRemove,
     removedName,
@@ -36,18 +30,7 @@ export function SalesmanHierarchyPage() {
     <div className="flex h-[calc(100dvh-11rem)] min-h-0 flex-col">
       <PageHeader
         title="Salesman Hierarchy"
-        description="Build the reporting structure — drag the canvas to pan, hover a card to add or remove reports."
-        actions={
-          root ? (
-            <Button
-              variant="outline"
-              className="cursor-pointer"
-              onClick={() => setPendingRemove({ node: root, isRoot: true })}
-            >
-              <Trash2 /> Clear hierarchy
-            </Button>
-          ) : undefined
-        }
+        description="Build the reporting structure — drag the canvas to pan, hover a card to add or detach reports."
       />
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted/20">
@@ -63,14 +46,13 @@ export function SalesmanHierarchyPage() {
               <p className="text-sm font-medium">Loading hierarchy…</p>
             </div>
           </div>
-        ) : root ? (
+        ) : roots.length > 0 ? (
           <div className="relative h-full w-full">
             <PanCanvas ref={canvasRef} className="h-full w-full" onZoomDelta={zoomBy}>
               {/* Extra padding gives empty canvas room to pan around the tree. */}
               <div style={{ zoom }} className="p-24 sm:p-48">
                 <HierarchyTree
-                  root={root}
-                  salesmenById={salesmenById}
+                  roots={roots}
                   onAdd={(node) => setAddParent(node)}
                   onRemove={(node, isRoot) => setPendingRemove({ node, isRoot })}
                 />
@@ -128,29 +110,15 @@ export function SalesmanHierarchyPage() {
               <div>
                 <p className="font-medium text-foreground">No hierarchy yet</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Pick a salesman as the root, then add reports beneath them to
-                  build out the tree.
+                  Once sales incharges are onboarded they appear here as roots.
+                  Use the <span className="font-medium">+</span> on a card to set
+                  who reports to whom.
                 </p>
               </div>
-              <Button className="cursor-pointer" onClick={() => setRootPickerOpen(true)}>
-                <UserPlus /> Select root salesman
-              </Button>
             </div>
           </div>
         )}
       </div>
-
-      {/* Root picker */}
-      <SalesmanPickerDialog
-        open={rootPickerOpen}
-        onOpenChange={setRootPickerOpen}
-        title="Select root salesman"
-        description="This person sits at the top of the reporting structure."
-        options={availableOptions}
-        confirmLabel="Set as root"
-        loading={setRoot.isPending}
-        onConfirm={handleSetRoot}
-      />
 
       {/* Add-report picker */}
       <SalesmanPickerDialog
@@ -158,13 +126,11 @@ export function SalesmanHierarchyPage() {
         onOpenChange={(open) => !open && setAddParent(null)}
         title="Add a report"
         description={
-          addParent
-            ? `Reports to ${salesmenById.get(addParent.salesmanId)?.name ?? 'this salesman'}.`
-            : undefined
+          addParent ? `Reports to ${addParent.name || 'this salesman'}.` : undefined
         }
         options={availableOptions}
         confirmLabel="Add report"
-        loading={addNode.isPending}
+        loading={addReport.isPending}
         onConfirm={handleAdd}
       />
 
@@ -173,18 +139,17 @@ export function SalesmanHierarchyPage() {
         onOpenChange={(open) => !open && setPendingRemove(null)}
         variant="destructive"
         icon={Trash2}
-        title={pendingRemove?.isRoot ? 'Clear the hierarchy?' : 'Remove from hierarchy?'}
+        title="Detach from hierarchy?"
         description={
           pendingRemove ? (
             <>
-              <span className="font-medium text-foreground">{removedName}</span>{' '}
-              {pendingRemove.isRoot
-                ? 'is the root — removing them clears the entire hierarchy.'
-                : 'and all of their reports will be removed from the tree.'}
+              <span className="font-medium text-foreground">{removedName}</span> and
+              all of their reports will be detached from the hierarchy (they become
+              unassigned roots).
             </>
           ) : undefined
         }
-        confirmLabel="Yes, remove"
+        confirmLabel="Yes, detach"
         cancelLabel="Cancel"
         loading={removeNode.isPending}
         onConfirm={confirmRemove}

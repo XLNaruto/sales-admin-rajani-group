@@ -4,6 +4,10 @@
  * Paths are relative to `apiClient`'s baseURL (see `env.VITE_APP_API_URL`).
  */
 export const endpoints = {
+  /** Client-facing app config (media base URL, etc.). */
+  CONFIG: {
+    GET: '/sales-incharge-admin/config',
+  },
   AUTH: {
     ACCOUNT_CHECK: '/sales-incharge-admin/auth/account-check',
     LOGIN: '/sales-incharge-admin/auth/login',
@@ -12,14 +16,31 @@ export const endpoints = {
   },
   SALES_INCHARGE: {
     LIST: '/sales-incharge-admin/sales-incharges',
-    DELETE: (id: number) => `/sales-incharge-admin/sales-incharges/${id}`,
+    CREATE: '/sales-incharge-admin/sales-incharges',
+    GET: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
+    STATUS: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/status`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
+    DOCUMENTS_PRESIGN: '/sales-incharge-admin/sales-incharges/documents/presign',
+    /** GET the reporting hierarchy tree (root nodes with nested reports). */
+    HIERARCHY: '/sales-incharge-admin/sales-incharges/hierarchy',
+    /** PATCH who a sales incharge reports to (`reports_to` id, or null → root). */
+    REPORTING_MANAGER: (id: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/reporting-manager`,
+    /** DELETE a sales incharge's hierarchy links (the node + its whole subtree). */
+    HIERARCHY_CLEAR: (id: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/hierarchy`,
+  },
+  DESIGNATION: {
+    LIST: '/sales-incharge-admin/designations',
   },
   DISTRIBUTOR: {
     LIST: '/sales-incharge-admin/distributors',
     CREATE: '/sales-incharge-admin/distributors',
     GET: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
-    DELETE: (id: number) => `/sales-incharge-admin/distributors/${id}`,
+    STATUS: (id: string | number) => `/sales-incharge-admin/distributors/${id}/status`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     OFFICE_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/office-images/presign',
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/distributors/documents/presign',

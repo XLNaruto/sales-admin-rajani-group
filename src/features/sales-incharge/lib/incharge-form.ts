@@ -1,13 +1,5 @@
 import { z } from 'zod'
 
-/** Designations for the sales incharge. */
-export const DESIGNATIONS = [
-  'Sales Officer',
-  'Senior Sales Officer',
-  'Area Sales Manager',
-  'Regional Sales Manager',
-] as const
-
 // Numeric inputs stay strings so the schema's input and output types match
 // (react-hook-form types `useForm` against the resolver's input type).
 const reqNum = (msg = 'Enter a valid amount') =>
@@ -21,8 +13,9 @@ const phone = (msg = 'Enter a valid 10-digit number') => z.string().regex(/^\d{1
 export const salesInchargeSchema = z
   .object({
     name: z.string().min(2, 'Enter the name'),
-    employerCompany: z.string().min(2, 'Enter the employer company'),
-    address: z.string().min(4, 'Enter the address'),
+    // No API field maps to this — kept for the UI only, not persisted.
+    employerCompany: z.string().optional(),
+    address: z.string().min(2, 'Enter the address'),
     dateOfBirth: z.string().min(1, 'Select date of birth'),
     marriageAnniversary: z.string().optional(),
     mobile: phone(),
@@ -32,15 +25,18 @@ export const salesInchargeSchema = z
     email: z.string().email('Enter a valid email'),
     basicSalary: reqNum('Enter the basic salary'),
     allowance: reqNum('Enter the allowance'),
-    designation: z.enum(DESIGNATIONS, { message: 'Select a designation' }),
-    photoUrl: z.string().min(1, 'Upload a photo'),
+    // Display-only: there's no designations master to resolve an id from, so a
+    // selected value isn't sent; the record's existing designation is preserved.
+    designation: z.string().optional(),
+    // Newly-picked files (edit mode also keeps the already-saved paths).
+    profilePhoto: z.instanceof(File).optional(),
     bankAccountName: z.string().min(2, 'Enter the account holder name'),
     bankAccountNumber: z.string().regex(/^\d{9,18}$/, 'Enter a valid account number'),
     bankIfsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC code'),
     bankName: z.string().min(2, 'Enter the bank name'),
     aadharNumber: z.string().regex(/^\d{12}$/, 'Enter a valid 12-digit Aadhaar number'),
-    aadharFrontUrl: z.string().optional(),
-    aadharBackUrl: z.string().optional(),
+    aadharFront: z.instanceof(File).optional(),
+    aadharBack: z.instanceof(File).optional(),
   })
   .refine((v) => !v.dateOfExit || v.dateOfExit >= v.dateOfJoining, {
     message: 'Exit date must be after the joining date',
@@ -62,12 +58,13 @@ export const salesInchargeDefaults: Partial<SalesInchargeFormValues> = {
   email: '',
   basicSalary: '',
   allowance: '',
-  photoUrl: '',
+  designation: '',
+  profilePhoto: undefined,
   bankAccountName: '',
   bankAccountNumber: '',
   bankIfsc: '',
   bankName: '',
   aadharNumber: '',
-  aadharFrontUrl: '',
-  aadharBackUrl: '',
+  aadharFront: undefined,
+  aadharBack: undefined,
 }

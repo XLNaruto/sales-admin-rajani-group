@@ -1,5 +1,7 @@
 import { Controller } from "react-hook-form";
 import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
+import { decryptParams } from "@/lib/crypto";
+import { mediaUrl } from "@/lib/media";
 import { PageHeader } from "@/components/common/page-header";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
@@ -12,31 +14,91 @@ import {
   ImageUpload,
   AvatarUpload,
 } from "../components/form-fields";
-import { DESIGNATIONS } from "../lib/incharge-form";
+import { useDesignations } from "../api/use-sales-incharge";
 import { useSalesInchargeForm } from "../hooks/use-sales-incharge-form";
 
-export function SalesInchargeCreatePage() {
+interface SalesInchargeCreatePageProps {
+  /**
+   * Encrypted sales-incharge id from the `?data=` search param. When present the
+   * page switches to edit mode (GET to seed, PUT to save); otherwise it's a
+   * fresh create. The same page and form handle both.
+   */
+  data?: string;
+}
+
+export function SalesInchargeCreatePage({
+  data,
+}: SalesInchargeCreatePageProps) {
+  // Decrypt the params from the URL; missing/malformed → create mode.
+  const id = data
+    ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "")
+    : "";
+
   const {
     register,
     control,
     errors,
+    existingImages,
+    removeExistingImage,
     onSubmit,
+    isEdit,
     isPending,
+    isLoading,
+    isError,
     goBack,
     currentYear,
-  } = useSalesInchargeForm();
+    maxBirthDate,
+  } = useSalesInchargeForm(id || undefined);
+
+  // Designation options come from the live master (GET …/designations).
+  const { data: designations, isLoading: isLoadingDesignations } =
+    useDesignations();
+  const designationOptions = (designations?.items ?? []).map((d) => ({
+    value: String(d.id),
+    label: d.name,
+  }));
+
+  const title = isEdit ? "Edit Sales Incharge" : "Create Sales Incharge";
+  const description = isEdit
+    ? "Update this sales incharge's personal, employment, bank and identity details."
+    : "Add a new sales incharge to the team.";
+  const submitLabel = isEdit
+    ? "Update sales incharge"
+    : "Create sales incharge";
+
+  // Edit-mode load / error states before the form is seeded.
+  if (isEdit && (isLoading || isError)) {
+    return (
+      <div>
+        <PageHeader
+          title={title}
+          description={description}
+          actions={
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={goBack}
+            >
+              <ArrowLeft /> Back to list
+            </Button>
+          }
+        />
+        <div className="mt-8 rounded-xl border border-border/50 bg-card p-10 text-center text-sm text-muted-foreground">
+          {isError
+            ? "Couldn't load this sales incharge. Please go back and try again."
+            : "Loading sales incharge…"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
       <PageHeader
-        title="Create Sales Incharge"
-        description="Add a new sales incharge to the team."
+        title={title}
+        description={description}
         actions={
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={goBack}
-          >
+          <Button variant="outline" className="cursor-pointer" onClick={goBack}>
             <ArrowLeft /> Back to list
           </Button>
         }
@@ -57,16 +119,19 @@ export function SalesInchargeCreatePage() {
 
           <Field
             label="Profile Photo"
-            error={errors.photoUrl?.message}
+            optional
+            error={errors.profilePhoto?.message}
             className="col-span-full"
           >
             <Controller
               control={control}
-              name="photoUrl"
+              name="profilePhoto"
               render={({ field }) => (
                 <AvatarUpload
-                  value={field.value ?? ""}
+                  value={field.value}
                   onChange={field.onChange}
+                  existingUrl={mediaUrl(existingImages.profile)}
+                  onRemoveExisting={() => removeExistingImage("profile")}
                 />
               )}
             />
@@ -78,6 +143,7 @@ export function SalesInchargeCreatePage() {
 
           <Field
             label="Employer Company"
+            optional
             error={errors.employerCompany?.message}
           >
             <Input
@@ -86,7 +152,11 @@ export function SalesInchargeCreatePage() {
             />
           </Field>
 
-          <Field label="Designation" error={errors.designation?.message}>
+          <Field
+            label="Designation"
+            optional
+            error={errors.designation?.message}
+          >
             <Controller
               control={control}
               name="designation"
@@ -94,8 +164,12 @@ export function SalesInchargeCreatePage() {
                 <Combobox
                   value={field.value ?? ""}
                   onChange={field.onChange}
-                  options={DESIGNATIONS.map((d) => ({ value: d, label: d }))}
-                  placeholder="Select designation"
+                  options={designationOptions}
+                  placeholder={
+                    isLoadingDesignations
+                      ? "Loading designations…"
+                      : "Select designation"
+                  }
                   searchPlaceholder="Search designation"
                 />
               )}
@@ -112,6 +186,7 @@ export function SalesInchargeCreatePage() {
                   onChange={field.onChange}
                   fromYear={1950}
                   toYear={currentYear}
+                  maxDate={maxBirthDate}
                 />
               )}
             />
@@ -258,24 +333,15 @@ export function SalesInchargeCreatePage() {
                   {...register("bankAccountNumber")}
                 />
               </Field>
-              <Field
-                label="IFSC Code"
-                error={errors.bankIfsc?.message}
-              >
+              <Field label="IFSC Code" error={errors.bankIfsc?.message}>
                 <Input
                   placeholder="e.g. HDFC0001234"
                   className="uppercase"
                   {...register("bankIfsc")}
                 />
               </Field>
-              <Field
-                label="Bank Name"
-                error={errors.bankName?.message}
-              >
-                <Input
-                  placeholder="e.g. HDFC Bank"
-                  {...register("bankName")}
-                />
+              <Field label="Bank Name" error={errors.bankName?.message}>
+                <Input placeholder="e.g. HDFC Bank" {...register("bankName")} />
               </Field>
             </div>
           </div>
@@ -303,15 +369,19 @@ export function SalesInchargeCreatePage() {
               <Field
                 label="Aadhaar Card — Front"
                 optional
-                error={errors.aadharFrontUrl?.message}
+                error={errors.aadharFront?.message}
               >
                 <Controller
                   control={control}
-                  name="aadharFrontUrl"
+                  name="aadharFront"
                   render={({ field }) => (
                     <ImageUpload
-                      value={field.value ?? ""}
+                      value={field.value}
                       onChange={field.onChange}
+                      existingUrl={mediaUrl(existingImages.aadharFront)}
+                      onRemoveExisting={() =>
+                        removeExistingImage("aadharFront")
+                      }
                     />
                   )}
                 />
@@ -319,15 +389,17 @@ export function SalesInchargeCreatePage() {
               <Field
                 label="Aadhaar Card — Back"
                 optional
-                error={errors.aadharBackUrl?.message}
+                error={errors.aadharBack?.message}
               >
                 <Controller
                   control={control}
-                  name="aadharBackUrl"
+                  name="aadharBack"
                   render={({ field }) => (
                     <ImageUpload
-                      value={field.value ?? ""}
+                      value={field.value}
                       onChange={field.onChange}
+                      existingUrl={mediaUrl(existingImages.aadharBack)}
+                      onRemoveExisting={() => removeExistingImage("aadharBack")}
                     />
                   )}
                 />
@@ -350,7 +422,7 @@ export function SalesInchargeCreatePage() {
             className="cursor-pointer text-white"
             disabled={isPending}
           >
-            {isPending ? "Saving…" : "Create sales incharge"}
+            {isPending ? "Saving…" : submitLabel}
           </Button>
         </div>
       </form>

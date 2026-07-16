@@ -4,6 +4,10 @@
  * they infer as readonly tuples for stable cache identity.
  */
 export const queryKeys = {
+  config: {
+    all: ['config'] as const,
+    app: () => [...queryKeys.config.all, 'app'] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
     kpis: () => [...queryKeys.dashboard.all, 'kpis'] as const,
@@ -20,22 +24,11 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.distributors.all, 'list', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.distributors.all, 'detail', id] as const,
+    detailView: (id: string) =>
+      [...queryKeys.distributors.all, 'detail-view', id] as const,
     performance: (id: string) =>
       [...queryKeys.distributors.all, 'performance', id] as const,
     pendingApproval: () => [...queryKeys.distributors.all, 'pending-approval'] as const,
-  },
-  employees: {
-    all: ['employees'] as const,
-    list: (filters?: Record<string, unknown>) =>
-      [...queryKeys.employees.all, 'list', filters ?? {}] as const,
-    leaves: () => [...queryKeys.employees.all, 'leaves'] as const,
-    expenses: () => [...queryKeys.employees.all, 'expenses'] as const,
-    tasks: () => [...queryKeys.employees.all, 'tasks'] as const,
-  },
-  communication: {
-    all: ['communication'] as const,
-    threads: () => [...queryKeys.communication.all, 'threads'] as const,
-    whatsappLog: () => [...queryKeys.communication.all, 'whatsapp-log'] as const,
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,
@@ -44,6 +37,11 @@ export const queryKeys = {
     salesmen: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'salesmen', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.salesIncharge.all, 'detail', id] as const,
+    detailView: (id: string) =>
+      [...queryKeys.salesIncharge.all, 'detail-view', id] as const,
+    designations: (filters?: Record<string, unknown>) =>
+      [...queryKeys.salesIncharge.all, 'designations', filters ?? {}] as const,
+    hierarchy: () => [...queryKeys.salesIncharge.all, 'hierarchy'] as const,
   },
   team: {
     all: ['team'] as const,
@@ -58,54 +56,6 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.beats.all, 'list', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.beats.all, 'detail', id] as const,
-  },
-  beatAllocations: {
-    all: ['beat-allocations'] as const,
-    list: (filters?: Record<string, unknown>) =>
-      [...queryKeys.beatAllocations.all, 'list', filters ?? {}] as const,
-    detail: (id: string) => [...queryKeys.beatAllocations.all, 'detail', id] as const,
-  },
-  beatTour: {
-    all: ['beat-tour'] as const,
-    beats: () => [...queryKeys.beatTour.all, 'beats'] as const,
-    tourPlans: (period?: string) =>
-      [...queryKeys.beatTour.all, 'tour-plans', period ?? 'month'] as const,
-    routeMapping: () => [...queryKeys.beatTour.all, 'route-mapping'] as const,
-    partyMapping: () => [...queryKeys.beatTour.all, 'party-mapping'] as const,
-  },
-  crm: {
-    all: ['crm'] as const,
-    visitForms: () => [...queryKeys.crm.all, 'visit-forms'] as const,
-    routes: () => [...queryKeys.crm.all, 'routes'] as const,
-    meetings: () => [...queryKeys.crm.all, 'meetings'] as const,
-    marketVisits: () => [...queryKeys.crm.all, 'market-visits'] as const,
-  },
-  approvals: {
-    all: ['approvals'] as const,
-    inbox: (type?: string) => [...queryKeys.approvals.all, 'inbox', type ?? 'all'] as const,
-  },
-  gps: {
-    all: ['gps'] as const,
-    livePositions: () => [...queryKeys.gps.all, 'live-positions'] as const,
-    route: (salesmanId: string) => [...queryKeys.gps.all, 'route', salesmanId] as const,
-    alerts: () => [...queryKeys.gps.all, 'fake-location-alerts'] as const,
-  },
-  reports: {
-    all: ['reports'] as const,
-    byType: (type: string, filters?: Record<string, unknown>) =>
-      [...queryKeys.reports.all, type, filters ?? {}] as const,
-  },
-  retailers: {
-    all: ['retailers'] as const,
-    list: (filters?: Record<string, unknown>) =>
-      [...queryKeys.retailers.all, 'list', filters ?? {}] as const,
-    detail: (id: string) => [...queryKeys.retailers.all, 'detail', id] as const,
-    analytics: () => [...queryKeys.retailers.all, 'analytics'] as const,
-  },
-  expenseTada: {
-    all: ['expense-tada'] as const,
-    master: () => [...queryKeys.expenseTada.all, 'master'] as const,
-    claims: () => [...queryKeys.expenseTada.all, 'claims'] as const,
   },
   notifications: {
     all: ['notifications'] as const,

@@ -1,18 +1,20 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
+import { mediaUrl } from '@/lib/media'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
   distributorDetailSchema,
   distributorListResponseSchema,
   presignResponseSchema,
-  type DistributorListResponse,
   type DistributorRow,
 } from '../schemas'
 import type { DistributorFormValues } from '../lib/distributor-form'
 import type {
   Distributor,
   DistributorCreateInput,
+  DistributorDetailView,
   DistributorExistingFiles,
+  DistributorLifecycleStatus,
   DistributorListParams,
   DistributorListResult,
   DistributorMarketType,
@@ -46,19 +48,11 @@ function toDistributor(row: DistributorRow): Distributor {
   }
 }
 
-/** Pull rows + total out of whichever envelope the backend returned. */
-function unwrap(res: DistributorListResponse): { rows: DistributorRow[]; total?: number } {
-  if (Array.isArray(res)) return { rows: res }
-  if ('data' in res) return { rows: res.data, total: res.total ?? res.count }
-  if ('items' in res) return { rows: res.items, total: res.total ?? res.count }
-  return { rows: res.results, total: res.total ?? res.count }
-}
-
 /** Translate camelCase params into the endpoint's snake_case query string. */
 function toQuery(params: DistributorListParams): Record<string, string | number> {
   const q: Record<string, string | number> = {}
-  if (params.limit != null) q.limit = params.limit
-  if (params.offset != null) q.offset = params.offset
+  if (params.page != null) q.page = params.page
+  if (params.pageSize != null) q.page_size = params.pageSize
   if (params.search) q.search = params.search
   if (params.status) q.status = params.status
   if (params.sortBy) q.sort_by = params.sortBy
@@ -66,7 +60,7 @@ function toQuery(params: DistributorListParams): Record<string, string | number>
   return q
 }
 
-/** GET /sales-incharge-admin/distributors — live, server-filtered list. */
+/** GET /sales-incharge-admin/distributors — one page of the server-filtered list. */
 export async function fetchDistributors(
   params: DistributorListParams = {},
 ): Promise<DistributorListResult> {
@@ -74,9 +68,15 @@ export async function fetchDistributors(
     const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.LIST, {
       params: toQuery(params),
     })
-    const { rows, total } = unwrap(distributorListResponseSchema.parse(raw))
-    const items = rows.map(toDistributor)
-    return { items, total: total ?? items.length }
+    const res = distributorListResponseSchema.parse(raw)
+    const items = res.distributors.map(toDistributor)
+    return {
+      items,
+      total: res.total ?? items.length,
+      page: res.page ?? 1,
+      pageSize: res.page_size ?? items.length,
+      totalPages: res.total_pages ?? 1,
+    }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load distributors.'))
   }
@@ -387,6 +387,75 @@ export async function fetchDistributor(id: string): Promise<{
 }
 
 /**
+ * GET /sales-incharge-admin/distributors/{id} — load a record and map it to a
+ * read-only, display-oriented view (camelCase, image paths resolved to full
+ * media URLs). Powers the "view details" modal on the list screen.
+ */
+export async function fetchDistributorDetail(id: string): Promise<DistributorDetailView> {
+  try {
+    const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.GET(id))
+    const r = distributorDetailSchema.parse(raw)
+    const idStr = (v: number | null | undefined) => (v != null ? String(v) : null)
+    return {
+      id: r.id,
+      code: r.distributor_code ?? null,
+      status: r.status as DistributorStatus,
+
+      firmName: r.firm_name,
+      firmType: (r.firm_type ?? null) as FirmType | null,
+      legalName: r.legal_name ?? null,
+      ownerName: r.owner_name ?? null,
+      ownerMobile: r.owner_mobile ?? null,
+      ownerBirthDate: r.owner_birth_date ?? null,
+      ownerAnniversaryDate: r.owner_marriage_anniversary ?? null,
+      communicationMobile: r.communication_mobile ?? null,
+      multipleLogin: r.multiple_login_allowed ?? null,
+      email: r.email ?? null,
+
+      officeAddress: r.office_address ?? null,
+      godownAddress: r.godown_address ?? null,
+      homeAddress: r.home_address ?? null,
+      stateId: idStr(r.state_id),
+      cityId: idStr(r.city_id),
+      talukaId: idStr(r.taluka_id),
+      pincode: r.pincode ?? null,
+      deliveryRoute: r.delivery_route ?? null,
+      marketType: r.market_type ?? null,
+      marketSystem: r.market_system ?? null,
+      weeklyOff: r.weekly_off ?? null,
+      geoLocation: r.geo_location ?? null,
+      retailersLocal: r.retailers_local_market ?? null,
+      retailersRural: r.retailers_rural_market ?? null,
+      officeImageUrls: (r.office_image_paths ?? []).map((p) => mediaUrl(p)),
+      godownImageUrls: (r.godown_image_paths ?? []).map((p) => mediaUrl(p)),
+
+      otherAgencies: r.other_agencies_details ?? null,
+      similarAgencies: r.similar_category_agencies ?? null,
+      assignedProducts: r.assigned_products ?? null,
+      productTargets: r.target_per_product ?? null,
+      deliveryVehicle: r.delivery_vehicle ?? null,
+      deliveryVehicleDetail: r.delivery_vehicle_detail ?? null,
+      godownSize: r.godown_size_sqft ?? null,
+      yearOfEst: r.year_established ?? null,
+
+      panNumber: r.pan ?? null,
+      panPhotoUrl: mediaUrl(r.pan_card_photo_path),
+      gstNumber: r.gstin ?? null,
+      gstPhotoUrl: mediaUrl(r.gst_photo_path),
+      advanceChequeNumbers: r.advance_cheque_numbers ?? null,
+      advanceChequePhotoUrl: mediaUrl(r.advance_cheque_photo_path),
+      paymentCondition: r.payment_condition ?? null,
+      bankAccountName: r.bank_account_name ?? null,
+      bankAccountNumber: r.bank_account_number ?? null,
+      bankIfsc: r.bank_ifsc ?? null,
+      bankName: r.bank_name ?? null,
+    }
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to load the distributor.'))
+  }
+}
+
+/**
  * PATCH /sales-incharge-admin/distributors/{id} — same body as create. Any
  * newly-picked files are uploaded and their keys merged with the paths already
  * on the record, so images the user leaves untouched are preserved.
@@ -408,5 +477,26 @@ export async function updateDistributor(input: DistributorUpdateInput): Promise<
     await http.patch<unknown>(endpoints.DISTRIBUTOR.UPDATE(input.id), body)
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to update the distributor.'))
+  }
+}
+
+/** DELETE /sales-incharge-admin/distributors/{id} — permanently remove a record. */
+export async function deleteDistributor(id: string): Promise<void> {
+  try {
+    await http.delete<unknown>(endpoints.DISTRIBUTOR.DELETE(id))
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to delete the distributor.'))
+  }
+}
+
+/** PATCH /sales-incharge-admin/distributors/{id}/status — change the lifecycle status. */
+export async function setDistributorStatus(
+  id: string,
+  status: DistributorLifecycleStatus,
+): Promise<void> {
+  try {
+    await http.patch<unknown>(endpoints.DISTRIBUTOR.STATUS(id), { status })
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to update the status.'))
   }
 }

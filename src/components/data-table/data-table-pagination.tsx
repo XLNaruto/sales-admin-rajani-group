@@ -35,7 +35,9 @@ export function DataTablePagination<TData>({
   pageSizeOptions,
 }: DataTablePaginationProps<TData>) {
   const { pageIndex, pageSize } = table.getState().pagination
-  const total = table.getFilteredRowModel().rows.length
+  // Total rows across all pages — respects server-side (`rowCount`) pagination
+  // and falls back to the filtered client row count otherwise.
+  const total = table.getRowCount()
   const pageCount = table.getPageCount() || 1
   const from = total === 0 ? 0 : pageIndex * pageSize + 1
   const to = Math.min(total, (pageIndex + 1) * pageSize)

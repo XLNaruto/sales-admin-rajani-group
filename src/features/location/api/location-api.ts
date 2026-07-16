@@ -31,8 +31,8 @@ import type {
 /** Common camelCase → snake_case query params shared by every master. */
 function baseQuery(params: BaseLocationParams): Record<string, string | number> {
   const q: Record<string, string | number> = {}
-  if (params.limit != null) q.limit = params.limit
-  if (params.offset != null) q.offset = params.offset
+  if (params.page != null) q.page = params.page
+  if (params.pageSize != null) q.page_size = params.pageSize
   if (params.id != null) q.id = params.id
   if (params.search) q.search = params.search
   if (params.sortBy) q.sort_by = params.sortBy
@@ -90,9 +90,9 @@ export async function fetchStates(
     const raw = await http.get<unknown>(endpoints.LOCATION.STATES, {
       params: baseQuery(params),
     })
-    const { items, total } = stateListResponseSchema.parse(raw)
-    const mapped = items.map(toState)
-    return { items: mapped, total: total ?? mapped.length }
+    const { items, total, page, pageSize, totalPages } =
+      stateListResponseSchema.parse(raw)
+    return { items: items.map(toState), total, page, pageSize, totalPages }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load states.'))
   }
@@ -106,9 +106,9 @@ export async function fetchZones(
     const q = baseQuery(params)
     if (params.stateId != null) q.state_id = params.stateId
     const raw = await http.get<unknown>(endpoints.LOCATION.ZONES, { params: q })
-    const { items, total } = zoneListResponseSchema.parse(raw)
-    const mapped = items.map(toZone)
-    return { items: mapped, total: total ?? mapped.length }
+    const { items, total, page, pageSize, totalPages } =
+      zoneListResponseSchema.parse(raw)
+    return { items: items.map(toZone), total, page, pageSize, totalPages }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load zones.'))
   }
@@ -122,9 +122,9 @@ export async function fetchDistricts(
     const q = baseQuery(params)
     if (params.zoneId != null) q.zone_id = params.zoneId
     const raw = await http.get<unknown>(endpoints.LOCATION.DISTRICTS, { params: q })
-    const { items, total } = districtListResponseSchema.parse(raw)
-    const mapped = items.map(toDistrict)
-    return { items: mapped, total: total ?? mapped.length }
+    const { items, total, page, pageSize, totalPages } =
+      districtListResponseSchema.parse(raw)
+    return { items: items.map(toDistrict), total, page, pageSize, totalPages }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load districts.'))
   }
@@ -138,9 +138,9 @@ export async function fetchTalukas(
     const q = baseQuery(params)
     if (params.districtId != null) q.district_id = params.districtId
     const raw = await http.get<unknown>(endpoints.LOCATION.TALUKAS, { params: q })
-    const { items, total } = talukaListResponseSchema.parse(raw)
-    const mapped = items.map(toTaluka)
-    return { items: mapped, total: total ?? mapped.length }
+    const { items, total, page, pageSize, totalPages } =
+      talukaListResponseSchema.parse(raw)
+    return { items: items.map(toTaluka), total, page, pageSize, totalPages }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load talukas.'))
   }
@@ -154,9 +154,9 @@ export async function fetchCities(
     const q = baseQuery(params)
     if (params.talukaId != null) q.taluka_id = params.talukaId
     const raw = await http.get<unknown>(endpoints.LOCATION.CITIES, { params: q })
-    const { items, total } = cityListResponseSchema.parse(raw)
-    const mapped = items.map(toCity)
-    return { items: mapped, total: total ?? mapped.length }
+    const { items, total, page, pageSize, totalPages } =
+      cityListResponseSchema.parse(raw)
+    return { items: items.map(toCity), total, page, pageSize, totalPages }
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load cities.'))
   }

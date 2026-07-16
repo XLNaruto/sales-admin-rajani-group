@@ -4,7 +4,8 @@ import { z } from 'zod'
  * Zod schemas for the geography masters
  * (GET /sales-incharge-admin/{states,zones,districts,talukas,cities}).
  *
- * Every endpoint answers with the same `{ items, total }` envelope. Parent
+ * Every endpoint answers with a `{ <key>, total, page, page_size, total_pages }`
+ * envelope (the array key matches the master name). Parent
  * name/id fields are nullable — a row can be returned before its lineage is
  * fully populated — so they're all `nullish()` to keep validation forgiving.
  */
@@ -60,18 +61,37 @@ export const cityRowSchema = z.object({
   ...timestamps,
 })
 
-/** Build the `{ items, total }` list envelope for a given row schema. */
-const listResponseSchema = <T extends z.ZodTypeAny>(row: T) =>
-  z.object({
-    items: z.array(row),
-    total: z.number().optional(),
-  })
+/**
+ * Build the list envelope for a master. Each endpoint wraps its rows under its
+ * own key (`states`, `zones`, `districts`, `talukas`, `cities`) alongside the
+ * shared `total`/`page`/`page_size`/`total_pages` pagination fields; this
+ * normalises them all to a common `{ items, total, page, pageSize, totalPages }`.
+ */
+const listResponseSchema = <T extends z.ZodTypeAny>(key: string, row: T) =>
+  z
+    .object({
+      total: z.number().optional(),
+      page: z.number().optional(),
+      page_size: z.number().optional(),
+      total_pages: z.number().optional(),
+    })
+    .passthrough()
+    .transform((res) => {
+      const items = z.array(row).parse((res as Record<string, unknown>)[key])
+      return {
+        items,
+        total: res.total ?? items.length,
+        page: res.page ?? 1,
+        pageSize: res.page_size ?? items.length,
+        totalPages: res.total_pages ?? 1,
+      }
+    })
 
-export const stateListResponseSchema = listResponseSchema(stateRowSchema)
-export const zoneListResponseSchema = listResponseSchema(zoneRowSchema)
-export const districtListResponseSchema = listResponseSchema(districtRowSchema)
-export const talukaListResponseSchema = listResponseSchema(talukaRowSchema)
-export const cityListResponseSchema = listResponseSchema(cityRowSchema)
+export const stateListResponseSchema = listResponseSchema('states', stateRowSchema)
+export const zoneListResponseSchema = listResponseSchema('zones', zoneRowSchema)
+export const districtListResponseSchema = listResponseSchema('districts', districtRowSchema)
+export const talukaListResponseSchema = listResponseSchema('talukas', talukaRowSchema)
+export const cityListResponseSchema = listResponseSchema('cities', cityRowSchema)
 
 export type StateRow = z.infer<typeof stateRowSchema>
 export type ZoneRow = z.infer<typeof zoneRowSchema>

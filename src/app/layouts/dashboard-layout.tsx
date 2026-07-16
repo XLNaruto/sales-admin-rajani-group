@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
 import { useForegroundPush } from '@/features/notifications'
+import { useAppConfig } from '@/features/config'
 import { asset } from '@/lib/asset'
 import { Sidebar } from './components/sidebar'
 import { Topbar } from './components/topbar'
@@ -17,6 +18,9 @@ function usePushBootstrap() {
 
 export function DashboardLayout() {
   usePushBootstrap()
+  // Load the media base URL once, globally, so `mediaUrl()` can resolve image
+  // paths on every page inside the authenticated shell.
+  useAppConfig()
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />

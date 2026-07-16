@@ -220,7 +220,7 @@ export function Combobox({
                 onScroll={handleScroll}
               >
                 {filtered.length === 0 && !loading ? (
-                  <li className="px-2 py-2 text-sm text-muted-foreground">No results</li>
+                  <li className="px-2 py-2 text-center text-sm text-muted-foreground">No results</li>
                 ) : (
                   filtered.map((o) => {
                     const active = o.value === value

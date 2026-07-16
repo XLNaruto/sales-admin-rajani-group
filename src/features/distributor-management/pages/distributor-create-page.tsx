@@ -50,6 +50,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     control,
     errors,
     setValue,
+    existingImages,
+    removeExistingImage,
     stateId,
     zoneId,
     districtId,
@@ -613,6 +615,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   onChange={field.onChange}
                   accept="image/*"
                   multiple
+                  existing={existingImages.office}
+                  onRemoveExisting={(i) => removeExistingImage("office", i)}
                 />
               )}
             />
@@ -632,6 +636,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   onChange={field.onChange}
                   accept="image/*"
                   multiple
+                  existing={existingImages.godown}
+                  onRemoveExisting={(i) => removeExistingImage("godown", i)}
                 />
               )}
             />
@@ -775,6 +781,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
+                  existing={existingImages.pan}
+                  onRemoveExisting={(i) => removeExistingImage("pan", i)}
                 />
               )}
             />
@@ -793,6 +801,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   value={field.value ?? []}
                   onChange={field.onChange}
                   accept="image/*"
+                  existing={existingImages.gst}
+                  onRemoveExisting={(i) => removeExistingImage("gst", i)}
                 />
               )}
             />
@@ -823,6 +833,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   onChange={field.onChange}
                   accept="image/*"
                   multiple
+                  existing={existingImages.cheque}
+                  onRemoveExisting={(i) => removeExistingImage("cheque", i)}
                 />
               )}
             />

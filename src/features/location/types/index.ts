@@ -9,10 +9,12 @@
 export type LocationSortBy = 'name' | 'created_at' | 'updated_at'
 export type SortOrder = 'asc' | 'desc'
 
-/** Params common to all five endpoints. */
+/** Params common to all five endpoints (page-based pagination). */
 export interface BaseLocationParams {
-  limit?: number
-  offset?: number
+  /** 1-based page number. */
+  page?: number
+  /** Rows per page. */
+  pageSize?: number
   id?: number
   search?: string
   sortBy?: LocationSortBy
@@ -74,8 +76,15 @@ export interface CityItem {
   name: string
 }
 
-/** Normalised list result (rows + total for pagination). */
+/** Normalised list result: a page of rows plus its pagination metadata. */
 export interface LocationListResult<T> {
   items: T[]
+  /** Total rows across all pages. */
   total: number
+  /** Current page (1-based). */
+  page: number
+  /** Rows per page. */
+  pageSize: number
+  /** Total number of pages. */
+  totalPages: number
 }

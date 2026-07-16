@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
@@ -20,6 +20,47 @@ import type {
 
 const CURRENT_YEAR = new Date().getFullYear();
 
+/** Image fields that can carry already-saved storage paths in edit mode. */
+export type ExistingImageField = "office" | "godown" | "pan" | "gst" | "cheque";
+
+/** Per-field arrays of the paths already saved on the record (display + edit). */
+export type ExistingImages = Record<ExistingImageField, string[]>;
+
+const EMPTY_EXISTING: ExistingImages = {
+  office: [],
+  godown: [],
+  pan: [],
+  gst: [],
+  cheque: [],
+};
+
+/** Split a comma-joined path string into a clean array. */
+const splitPaths = (s?: string) =>
+  s
+    ? s
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean)
+    : [];
+
+/** Normalise the API's existing-file record into per-field path arrays. */
+const toExistingImages = (e: DistributorExistingFiles): ExistingImages => ({
+  office: e.officeImagePaths,
+  godown: e.godownImagePaths,
+  pan: splitPaths(e.panCardPhotoPath),
+  gst: splitPaths(e.gstPhotoPath),
+  cheque: splitPaths(e.advanceChequePhotoPath),
+});
+
+/** Collapse per-field path arrays back into the update payload's shape. */
+const fromExistingImages = (e: ExistingImages): DistributorExistingFiles => ({
+  officeImagePaths: e.office,
+  godownImagePaths: e.godown,
+  panCardPhotoPath: e.pan.join(","),
+  gstPhotoPath: e.gst.join(","),
+  advanceChequePhotoPath: e.cheque.join(","),
+});
+
 /** Latest allowed birth date — today shifted back 18 years, so anyone younger
  *  than 18 can't be selected. */
 const MAX_BIRTH_DATE = (() => {
@@ -32,6 +73,25 @@ const MAX_BIRTH_DATE = (() => {
 const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
 /** Trim an optional text field, collapsing blanks to undefined. */
 const str = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
+
+/**
+ * On an invalid submit, bring the topmost errored field into view and focus its
+ * control. Targets the `[data-error]` message the shared `Field` renders, so it
+ * works for native inputs and custom controls (Combobox/DatePicker) alike.
+ */
+function scrollToFirstError() {
+  requestAnimationFrame(() => {
+    const message = document.querySelector<HTMLElement>("[data-error]");
+    if (!message) return;
+    message.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Focus the field's control if it's natively focusable (won't steal the
+    // smooth scroll thanks to `preventScroll`).
+    const control = message.parentElement?.querySelector<HTMLElement>(
+      "input, textarea, select, button, [tabindex]",
+    );
+    control?.focus({ preventScroll: true });
+  });
+}
 
 /** Map validated form values into the create/update request payload. */
 function toInput(values: DistributorFormValues): DistributorCreateInput {
@@ -120,19 +180,31 @@ export function useDistributorForm(id?: string) {
     resolver: zodResolver(distributorSchema),
     mode: "onTouched",
     defaultValues: distributorDefaults as DistributorFormValues,
+    // We scroll/focus the first error ourselves (see `scrollToFirstError`) so
+    // custom controls (Combobox/DatePicker/MultiSelect) are handled too.
+    shouldFocusError: false,
   });
 
-  // Paths already saved on the record — retained on update so leaving an image
-  // field untouched doesn't wipe the existing files.
-  const existingFiles = useRef<DistributorExistingFiles | null>(null);
+  // Paths already saved on the record — shown as thumbnails and retained on
+  // update so leaving an image field untouched doesn't wipe the existing files.
+  // Reactive so removing one re-renders and drops it from the update payload.
+  const [existingImages, setExistingImages] =
+    useState<ExistingImages>(EMPTY_EXISTING);
 
   // Seed the form once the record loads (edit mode only).
   useEffect(() => {
     if (detail.data) {
       reset(detail.data.values);
-      existingFiles.current = detail.data.existing;
+      setExistingImages(toExistingImages(detail.data.existing));
     }
   }, [detail.data, reset]);
+
+  /** Drop one already-saved image so the update no longer retains it. */
+  const removeExistingImage = (field: ExistingImageField, index: number) =>
+    setExistingImages((prev) => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index),
+    }));
 
   // Cascading territory selection — watch parents to build child options.
   const stateId = watch("stateId");
@@ -141,26 +213,30 @@ export function useDistributorForm(id?: string) {
   const talukaId = watch("talukaId");
   const cityId = watch("cityId");
 
-  const onSubmit = handleSubmit((values) => {
-    const input = toInput(values);
-    const onSuccess = () => {
-      toast.success(`${values.firmName} ${isEdit ? "updated" : "created"}`);
-      navigate({ to: "/distributors" });
-    };
-    const onError = () =>
-      toast.error(
-        `Couldn't ${isEdit ? "update" : "create"} the distributor. Please try again.`,
-      );
+  const onSubmit = handleSubmit(
+    (values) => {
+      const input = toInput(values);
+      const onSuccess = () => {
+        toast.success(`${values.firmName} ${isEdit ? "updated" : "created"}`);
+        navigate({ to: "/distributors" });
+      };
+      const onError = () =>
+        toast.error(
+          `Couldn't ${isEdit ? "update" : "create"} the distributor. Please try again.`,
+        );
 
-    if (isEdit && id) {
-      updateDistributor.mutate(
-        { ...input, id, existing: existingFiles.current ?? EMPTY_FILES },
-        { onSuccess, onError },
-      );
-    } else {
-      createDistributor.mutate(input, { onSuccess, onError });
-    }
-  });
+      if (isEdit && id) {
+        updateDistributor.mutate(
+          { ...input, id, existing: fromExistingImages(existingImages) },
+          { onSuccess, onError },
+        );
+      } else {
+        createDistributor.mutate(input, { onSuccess, onError });
+      }
+    },
+    // Invalid submit — bring the first errored field into view and focus it.
+    scrollToFirstError,
+  );
 
   const goBack = () => navigate({ to: "/distributors" });
 
@@ -169,6 +245,8 @@ export function useDistributorForm(id?: string) {
     control,
     errors,
     setValue,
+    existingImages,
+    removeExistingImage,
     stateId,
     zoneId,
     districtId,
@@ -184,11 +262,3 @@ export function useDistributorForm(id?: string) {
     maxBirthDate: MAX_BIRTH_DATE,
   };
 }
-
-const EMPTY_FILES: DistributorExistingFiles = {
-  officeImagePaths: [],
-  godownImagePaths: [],
-  panCardPhotoPath: "",
-  gstPhotoPath: "",
-  advanceChequePhotoPath: "",
-};

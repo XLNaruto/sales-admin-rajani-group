@@ -1,11 +1,9 @@
 import { Plus, Trash2 } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import type { Salesman } from '@/features/sales-incharge'
 import type { HierarchyNode } from '../types'
 
 interface TreeHandlers {
-  salesmenById: Map<string, Salesman>
   onAdd: (node: HierarchyNode) => void
   onRemove: (node: HierarchyNode, isRoot: boolean) => void
 }
@@ -14,12 +12,9 @@ interface TreeHandlers {
 function NodeCard({
   node,
   isRoot,
-  salesmenById,
   onAdd,
   onRemove,
 }: { node: HierarchyNode; isRoot: boolean } & TreeHandlers) {
-  const salesman = salesmenById.get(node.salesmanId)
-
   return (
     <div
       data-hierarchy-root={isRoot ? '' : undefined}
@@ -36,16 +31,16 @@ function NodeCard({
 
       <div className="flex flex-col items-center gap-2">
         <Avatar
-          name={salesman?.name ?? '?'}
-          src={salesman?.photoUrl}
+          name={node.name || '?'}
+          src={node.photoUrl}
           className="size-11 text-xs sm:size-14 sm:text-sm"
         />
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-            {salesman?.name ?? 'Unknown salesman'}
+            {node.name || 'Unknown salesman'}
           </p>
           <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
-            {salesman?.designation ?? '—'}
+            {node.designation ?? '—'}
           </p>
         </div>
       </div>
@@ -62,7 +57,7 @@ function NodeCard({
         </button>
         <button
           type="button"
-          title={isRoot ? 'Remove root (clears hierarchy)' : 'Remove'}
+          title={isRoot ? 'Detach root (and its reports)' : 'Detach from hierarchy'}
           onClick={() => onRemove(node, isRoot)}
           className="grid size-7 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400 sm:size-8"
         >
@@ -93,16 +88,22 @@ function TreeNode({
   )
 }
 
-/** The full org-chart. `w-max` lets it overflow the pan canvas horizontally. */
+/**
+ * The full org-chart. The tree is multi-root, so every top-level incharge is
+ * rendered as its own root branch. `w-max` lets it overflow the pan canvas
+ * horizontally.
+ */
 export function HierarchyTree({
-  root,
+  roots,
   ...handlers
-}: { root: HierarchyNode } & TreeHandlers) {
+}: { roots: HierarchyNode[] } & TreeHandlers) {
   return (
-    <div className="org-tree mx-auto w-max px-12 py-10">
-      <ul>
-        <TreeNode node={root} isRoot {...handlers} />
-      </ul>
+    <div className="org-tree mx-auto flex w-max items-start gap-12 px-12 py-10">
+      {roots.map((root) => (
+        <ul key={root.id}>
+          <TreeNode node={root} isRoot {...handlers} />
+        </ul>
+      ))}
     </div>
   )
 }

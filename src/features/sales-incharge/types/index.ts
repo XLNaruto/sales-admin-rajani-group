@@ -39,7 +39,7 @@ export type SalesInchargeSortBy =
   | 'display_name'
   | 'phone'
   | 'employee_code'
-  | 'designation'
+  | 'designation_id'
   | 'territory'
   | 'date_of_joining'
   | 'status'
@@ -58,10 +58,12 @@ export interface SalesIncharge {
   reportsTo: number | null
 }
 
-/** Query params accepted by the list endpoint. */
+/** Query params accepted by the list endpoint (page-based pagination). */
 export interface SalesInchargeListParams {
-  limit?: number
-  offset?: number
+  /** 1-based page number. */
+  page?: number
+  /** Rows per page. */
+  pageSize?: number
   id?: number
   reportsTo?: number
   search?: string
@@ -70,8 +72,117 @@ export interface SalesInchargeListParams {
   sortOrder?: 'asc' | 'desc'
 }
 
-/** Normalised list result (rows + total for pagination). */
+/** Normalised list result: the page of rows plus its pagination metadata. */
 export interface SalesInchargeListResult {
   items: SalesIncharge[]
+  /** Total rows matching the filter, across all pages. */
   total: number
+  /** Current page (1-based). */
+  page: number
+  /** Rows per page. */
+  pageSize: number
+  /** Total number of pages — `ceil(total / pageSize)`. */
+  totalPages: number
+}
+
+/**
+ * Display-oriented view of a single sales incharge — the full record from the
+ * detail endpoint, mapped to camelCase with photo paths resolved to full media
+ * URLs. Powers the read-only "view details" modal on the list screen.
+ */
+export interface SalesInchargeDetailView {
+  id: number
+  displayName: string
+  status: SalesInchargeStatus
+  employeeCode: string | null
+  designation: string | null
+  territory: string | null
+  reportsTo: number | null
+  phone: string | null
+  alternatePhone: string | null
+  email: string | null
+  address: string | null
+  dateOfBirth: string | null
+  marriageAnniversary: string | null
+  dateOfJoining: string | null
+  dateOfExit: string | null
+  basicSalary: string | null
+  allowance: string | null
+  salary: string | null
+  bankAccountName: string | null
+  bankAccountNumber: string | null
+  bankIfsc: string | null
+  bankName: string | null
+  aadharNumber: string | null
+  profilePhotoUrl: string
+  aadharFrontUrl: string
+  aadharBackUrl: string
+}
+
+// --- Reporting hierarchy (GET …/sales-incharges/hierarchy) ------------------
+
+/**
+ * A node in the sales-incharge reporting tree (client-facing). Each node is a
+ * sales incharge; `reports` holds their direct reports (recursively). The
+ * endpoint returns an array of these — the roots (incharges with no manager).
+ */
+export interface SalesInchargeHierarchyNode {
+  id: number
+  name: string
+  designation: string | null
+  /** Full media URL for the profile photo (resolved from the S3 key), if any. */
+  photoUrl?: string
+  status: SalesInchargeStatus | null
+  reports: SalesInchargeHierarchyNode[]
+}
+
+// --- Designations master (GET /sales-incharge-admin/designations) -----------
+
+/** A single designation row (client-facing). */
+export interface Designation {
+  id: number
+  name: string
+}
+
+/** Query params accepted by the designations list endpoint. */
+export interface DesignationListParams {
+  page?: number
+  pageSize?: number
+  id?: number
+  search?: string
+  sortBy?: 'name' | 'created_at' | 'updated_at'
+  sortOrder?: 'asc' | 'desc'
+}
+
+/** Normalised designations result: rows plus pagination metadata. */
+export interface DesignationListResult {
+  items: Designation[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/**
+ * Storage keys already saved on a record — retained on update so leaving an
+ * image field untouched (no new file picked) doesn't wipe the existing photo.
+ */
+export interface SalesInchargeExistingFiles {
+  profilePhotoPath: string
+  aadharFrontPhotoPath: string
+  aadharBackPhotoPath: string
+}
+
+/**
+ * Server-managed fields the onboarding form doesn't edit. Captured from the
+ * detail on load and sent back unchanged on update, so editing the form never
+ * wipes them.
+ */
+export interface SalesInchargePreservedFields {
+  status: SalesInchargeStatus
+  employeeCode: string | null
+  designationId: number | null
+  reportsTo: number | null
+  territory: string | null
+  salary: string | null
 }

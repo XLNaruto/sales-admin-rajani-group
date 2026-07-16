@@ -30,28 +30,17 @@ export const distributorRowSchema = z.object({
 })
 
 /**
- * The list endpoint envelope. The backend may answer with a bare array or wrap
- * rows in a `data`/`items`/`results` envelope alongside a total — accept any of
- * these so the client isn't brittle to the exact pagination shape.
+ * The list endpoint envelope: rows under `distributors` alongside the
+ * `total`/`page`/`page_size`/`total_pages` pagination fields. See
+ * GET /sales-incharge-admin/distributors → salesInchargeAdminListDistributors.
  */
-export const distributorListResponseSchema = z.union([
-  z.array(distributorRowSchema),
-  z.object({
-    data: z.array(distributorRowSchema),
-    total: z.number().optional(),
-    count: z.number().optional(),
-  }),
-  z.object({
-    items: z.array(distributorRowSchema),
-    total: z.number().optional(),
-    count: z.number().optional(),
-  }),
-  z.object({
-    results: z.array(distributorRowSchema),
-    total: z.number().optional(),
-    count: z.number().optional(),
-  }),
-])
+export const distributorListResponseSchema = z.object({
+  distributors: z.array(distributorRowSchema),
+  total: z.number().optional(),
+  page: z.number().optional(),
+  page_size: z.number().optional(),
+  total_pages: z.number().optional(),
+})
 
 export type DistributorRow = z.infer<typeof distributorRowSchema>
 export type DistributorListResponse = z.infer<typeof distributorListResponseSchema>

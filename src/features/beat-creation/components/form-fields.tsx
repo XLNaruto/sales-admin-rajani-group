@@ -49,7 +49,9 @@ export function Field({
       <Label className={cn('text-foreground/90', !optional && 'required')}>{label}</Label>
       {children}
       {error ? (
-        <p className="text-xs text-destructive">{error}</p>
+        <p data-error className="text-xs text-destructive">
+          {error}
+        </p>
       ) : hint ? (
         <p className="text-xs text-muted-foreground">{hint}</p>
       ) : null}
@@ -79,6 +81,11 @@ export function DatePicker({
   const parsed = value ? parse(value, 'yyyy-MM-dd', new Date()) : null
   const selected = parsed && isValid(parsed) ? parsed : null
 
+  // With nothing picked yet, open the calendar on `maxDate`'s month (e.g. the
+  // 18-years-ago cap for a birth date) instead of today — so the user isn't
+  // dropped on a fully-disabled current month and forced to page backwards.
+  const openMonth = !selected && maxDate ? maxDate : undefined
+
   return (
     <ReactDatePicker
       className="sa-datepicker"
@@ -93,6 +100,7 @@ export function DatePicker({
       yearPlaceholder="yyyy"
       minDate={new Date(fromYear, 0, 1)}
       maxDate={maxDate ?? new Date(toYear, 11, 31)}
+      calendarProps={openMonth ? { defaultActiveStartDate: openMonth } : undefined}
       calendarIcon={<CalendarIcon className="size-4 text-muted-foreground" />}
       clearIcon={value ? <X className="size-4 text-muted-foreground" /> : null}
     />

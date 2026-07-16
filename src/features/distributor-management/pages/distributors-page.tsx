@@ -1,12 +1,13 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Building2, Check, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
-import { StatusBadge } from "@/components/common/status-badge";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
 import { DistributorToolbar } from "../components/distributor-toolbar";
 import { useDistributorsList } from "../hooks/use-distributors-list";
 import { cityName, labelFor } from "../lib/distributor-reference";
@@ -30,11 +31,14 @@ export function DistributorsPage() {
     confirmDelete,
     confirmApprove,
     confirmReject,
+    changeStatus,
     isDeleting,
     isSettingStatus,
     goToCreate,
     goToEdit,
   } = useDistributorsList();
+
+  const [viewId, setViewId] = useState<string | null>(null);
 
   const columns = useMemo<ColumnDef<Distributor>[]>(
     () => [
@@ -54,6 +58,14 @@ export function DistributorsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              title="View details"
+              onClick={() => setViewId(row.original.id)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
+            >
+              <Eye className="size-4" />
+            </button>
             <button
               type="button"
               title="Edit"
@@ -116,6 +128,51 @@ export function DistributorsPage() {
             </div>
           </div>
         ),
+      },
+      {
+        accessorKey: "status",
+        header: "Status",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const active = row.original.status === "active";
+          return (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={active}
+              title={active ? "Set inactive" : "Set active"}
+              disabled={isSettingStatus}
+              onClick={() =>
+                changeStatus(row.original.id, active ? "inactive" : "active")
+              }
+              className="inline-flex min-w-28 cursor-pointer items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span
+                className={cn(
+                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+                  active ? "bg-emerald-500" : "bg-muted-foreground/30",
+                )}
+              >
+                <span
+                  className={cn(
+                    "inline-block size-4 transform rounded-full bg-white shadow transition-transform",
+                    active ? "translate-x-4.5" : "translate-x-0.5",
+                  )}
+                />
+              </span>
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  active
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-muted-foreground",
+                )}
+              >
+                {active ? "Active" : "Inactive"}
+              </span>
+            </button>
+          );
+        },
       },
       {
         id: "owner",
@@ -181,12 +238,6 @@ export function DistributorsPage() {
           </div>
         ),
       },
-      {
-        accessorKey: "status",
-        header: "Status",
-        enableSorting: false,
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
-      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isDeleting, isSettingStatus],
@@ -244,6 +295,8 @@ export function DistributorsPage() {
           </div>
         }
       />
+
+      <DistributorDetailDialog id={viewId} onClose={() => setViewId(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

@@ -112,14 +112,23 @@ export function DatePicker({
   onChange,
   fromYear = 1950,
   toYear = 2035,
+  maxDate,
 }: {
   value: string
   onChange: (v: string) => void
   fromYear?: number
   toYear?: number
+  /** Latest selectable date. Overrides the `toYear` end-of-year default when set
+   *  (e.g. to enforce a minimum age on a birth-date field). */
+  maxDate?: Date
 }) {
   const parsed = value ? parse(value, 'yyyy-MM-dd', new Date()) : null
   const selected = parsed && isValid(parsed) ? parsed : null
+
+  // With nothing picked yet, open the calendar on `maxDate`'s month (e.g. the
+  // 18-years-ago cap for a birth date) instead of today — so the user isn't
+  // dropped on a fully-disabled current month and forced to page backwards.
+  const openMonth = !selected && maxDate ? maxDate : undefined
 
   return (
     <ReactDatePicker
@@ -134,7 +143,8 @@ export function DatePicker({
       monthPlaceholder="mm"
       yearPlaceholder="yyyy"
       minDate={new Date(fromYear, 0, 1)}
-      maxDate={new Date(toYear, 11, 31)}
+      maxDate={maxDate ?? new Date(toYear, 11, 31)}
+      calendarProps={openMonth ? { defaultActiveStartDate: openMonth } : undefined}
       calendarIcon={<CalendarIcon className="size-4 text-muted-foreground" />}
       clearIcon={value ? <X className="size-4 text-muted-foreground" /> : null}
     />
@@ -192,25 +202,52 @@ export function FileDrop({
   )
 }
 
+/** Object-URL preview for a picked File — created/revoked with the selection. */
+function useFilePreview(file?: File) {
+  const [preview, setPreview] = React.useState<string | null>(null)
+  React.useEffect(() => {
+    if (!file) {
+      setPreview(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+  return preview
+}
+
 /**
- * Avatar-style profile photo uploader with a live preview + remove button.
- * Stores an object URL as the value so the preview renders immediately.
+ * Avatar-style profile photo uploader. The picked `File` is surfaced via
+ * `onChange` (so the submit flow can presign + upload it); `existingUrl` shows
+ * the already-saved photo in edit mode until a new one is picked. Removing
+ * clears the pick and drops the existing photo via `onRemoveExisting`.
  */
 export function AvatarUpload({
   value,
   onChange,
+  existingUrl,
+  onRemoveExisting,
 }: {
-  value: string
-  onChange: (v: string) => void
+  value?: File
+  onChange: (f?: File) => void
+  existingUrl?: string
+  onRemoveExisting?: () => void
 }) {
+  const preview = useFilePreview(value)
+  const shown = preview ?? (existingUrl || null)
+  const clear = () => {
+    onChange(undefined)
+    onRemoveExisting?.()
+  }
+
   return (
     <div className="flex flex-col items-start gap-2">
       <div className="relative">
         <FileUploader
-          handleChange={(file: File | File[]) => {
-            const f = Array.isArray(file) ? file[0] : file
-            onChange(f ? URL.createObjectURL(f) : '')
-          }}
+          handleChange={(file: File | File[]) =>
+            onChange((Array.isArray(file) ? file[0] : file) ?? undefined)
+          }
           name="profile"
           types={['JPG', 'JPEG', 'PNG']}
           hoverTitle=" "
@@ -219,11 +256,11 @@ export function AvatarUpload({
           <div
             className={cn(
               'grid size-28 cursor-pointer place-items-center overflow-hidden rounded-xl transition-colors',
-              value ? 'border border-border' : 'border-2 border-dashed border-input hover:border-primary/50',
+              shown ? 'border border-border' : 'border-2 border-dashed border-input hover:border-primary/50',
             )}
           >
-            {value ? (
-              <img src={value} alt="Profile preview" className="size-full object-cover" />
+            {shown ? (
+              <img src={shown} alt="Profile preview" className="size-full object-cover" />
             ) : (
               <div className="flex flex-col items-center gap-1 text-muted-foreground">
                 <UploadCloud className="size-6" />
@@ -233,10 +270,10 @@ export function AvatarUpload({
           </div>
         </FileUploader>
 
-        {value ? (
+        {shown ? (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={clear}
             title="Remove photo"
             className="absolute -right-2 -top-2 grid size-6 cursor-pointer place-items-center rounded-full border border-border bg-background text-muted-foreground shadow transition-colors hover:text-destructive"
           >
@@ -255,25 +292,36 @@ export function AvatarUpload({
 }
 
 /**
- * Image upload with a dropzone (empty) → preview thumbnail + remove (filled).
- * Stores an object URL so the preview renders immediately.
+ * Image upload with a dropzone (empty) → preview + remove (filled). The picked
+ * `File` is surfaced via `onChange`; `existingUrl` shows the already-saved image
+ * in edit mode. Removing clears the pick and drops the existing image.
  */
 export function ImageUpload({
   value,
   onChange,
+  existingUrl,
+  onRemoveExisting,
   types = ['JPG', 'JPEG', 'PNG'],
 }: {
-  value: string
-  onChange: (v: string) => void
+  value?: File
+  onChange: (f?: File) => void
+  existingUrl?: string
+  onRemoveExisting?: () => void
   types?: string[]
 }) {
-  if (value) {
+  const preview = useFilePreview(value)
+  const shown = preview ?? (existingUrl || null)
+
+  if (shown) {
     return (
       <div className="relative overflow-hidden rounded-lg border border-border">
-        <img src={value} alt="Preview" className="h-40 w-full object-contain bg-muted/30" />
+        <img src={shown} alt="Preview" className="h-40 w-full object-contain bg-muted/30" />
         <button
           type="button"
-          onClick={() => onChange('')}
+          onClick={() => {
+            onChange(undefined)
+            onRemoveExisting?.()
+          }}
           title="Remove"
           className="absolute right-2 top-2 grid size-7 cursor-pointer place-items-center rounded-full border border-border bg-background/90 text-muted-foreground shadow transition-colors hover:text-destructive"
         >
@@ -284,10 +332,9 @@ export function ImageUpload({
   }
   return (
     <FileUploader
-      handleChange={(file: File | File[]) => {
-        const f = Array.isArray(file) ? file[0] : file
-        onChange(f ? URL.createObjectURL(f) : '')
-      }}
+      handleChange={(file: File | File[]) =>
+        onChange((Array.isArray(file) ? file[0] : file) ?? undefined)
+      }
       name="file"
       types={types}
       hoverTitle=" "

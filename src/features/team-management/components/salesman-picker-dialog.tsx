@@ -51,7 +51,7 @@ export function SalesmanPickerDialog({
         <div className="mt-4" data-nopan>
           {options.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
-              Every salesman is already in the hierarchy.
+              No other salesmen are available to add here.
             </p>
           ) : (
             <Combobox

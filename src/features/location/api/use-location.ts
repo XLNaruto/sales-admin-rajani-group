@@ -29,16 +29,12 @@ import type {
  */
 const STALE_TIME = 5 * 60 * 1000
 
-/** The endpoint caps `limit` at 100; page dropdowns in bite-sized chunks. */
+/** The endpoint caps `page_size` at 100; page dropdowns in bite-sized chunks. */
 export const LOCATION_PAGE_SIZE = 50
 
-/** Given the pages fetched so far, the offset for the next page (or undefined). */
-function nextOffset<T>(
-  lastPage: LocationListResult<T>,
-  allPages: LocationListResult<T>[],
-): number | undefined {
-  const loaded = allPages.reduce((n, p) => n + p.items.length, 0)
-  return loaded < lastPage.total ? loaded : undefined
+/** The next 1-based page to request, or undefined once the last page is loaded. */
+function nextPage<T>(lastPage: LocationListResult<T>): number | undefined {
+  return lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined
 }
 
 /** GET /sales-incharge-admin/states */
@@ -98,11 +94,11 @@ export function useCities(params: CityParams = {}, options?: { enabled?: boolean
 
 /* ------------------------------------------------------------------ *
  * Infinite variants — page through a master `LOCATION_PAGE_SIZE` rows *
- * at a time. Back the scroll-lazy comboboxes with these. `limit` /    *
- * `offset` are owned by the hook; callers pass only the filters.      *
+ * at a time. Back the scroll-lazy comboboxes with these. `page` /      *
+ * `pageSize` are owned by the hook; callers pass only the filters.     *
  * ------------------------------------------------------------------ */
 
-type InfiniteFilters<P> = Omit<P, 'limit' | 'offset'>
+type InfiniteFilters<P> = Omit<P, 'page' | 'pageSize'>
 
 /** GET /sales-incharge-admin/states — infinite. */
 export function useStatesInfinite(
@@ -112,9 +108,9 @@ export function useStatesInfinite(
   return useInfiniteQuery({
     queryKey: queryKeys.location.states(params as Record<string, unknown>),
     queryFn: ({ pageParam }) =>
-      fetchStates({ ...params, limit: LOCATION_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+      fetchStates({ ...params, page: pageParam, pageSize: LOCATION_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
     staleTime: STALE_TIME,
     enabled: options?.enabled ?? true,
   })
@@ -128,9 +124,9 @@ export function useZonesInfinite(
   return useInfiniteQuery({
     queryKey: queryKeys.location.zones(params as Record<string, unknown>),
     queryFn: ({ pageParam }) =>
-      fetchZones({ ...params, limit: LOCATION_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+      fetchZones({ ...params, page: pageParam, pageSize: LOCATION_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
     staleTime: STALE_TIME,
     enabled: options?.enabled ?? params.stateId != null,
   })
@@ -144,9 +140,9 @@ export function useDistrictsInfinite(
   return useInfiniteQuery({
     queryKey: queryKeys.location.districts(params as Record<string, unknown>),
     queryFn: ({ pageParam }) =>
-      fetchDistricts({ ...params, limit: LOCATION_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+      fetchDistricts({ ...params, page: pageParam, pageSize: LOCATION_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
     staleTime: STALE_TIME,
     enabled: options?.enabled ?? params.zoneId != null,
   })
@@ -160,9 +156,9 @@ export function useTalukasInfinite(
   return useInfiniteQuery({
     queryKey: queryKeys.location.talukas(params as Record<string, unknown>),
     queryFn: ({ pageParam }) =>
-      fetchTalukas({ ...params, limit: LOCATION_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+      fetchTalukas({ ...params, page: pageParam, pageSize: LOCATION_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
     staleTime: STALE_TIME,
     enabled: options?.enabled ?? params.districtId != null,
   })
@@ -176,9 +172,9 @@ export function useCitiesInfinite(
   return useInfiniteQuery({
     queryKey: queryKeys.location.cities(params as Record<string, unknown>),
     queryFn: ({ pageParam }) =>
-      fetchCities({ ...params, limit: LOCATION_PAGE_SIZE, offset: pageParam }),
-    initialPageParam: 0,
-    getNextPageParam: nextOffset,
+      fetchCities({ ...params, page: pageParam, pageSize: LOCATION_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: nextPage,
     staleTime: STALE_TIME,
     enabled: options?.enabled ?? params.talukaId != null,
   })

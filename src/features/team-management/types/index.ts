@@ -13,11 +13,17 @@ export interface Salesman {
   achieved: number
 }
 
-/** A node in the salesman reporting hierarchy. References a salesman by id
- *  (resolved against the Sales Incharge list) and holds its direct reports. */
+/**
+ * A node in the salesman reporting hierarchy. Each node is a sales incharge:
+ * `id`/`salesmanId` both carry the incharge's id (as a string), and the node
+ * carries its own display fields so the tree renders without a side lookup.
+ */
 export interface HierarchyNode {
   id: string
   salesmanId: string
+  name: string
+  designation: string | null
+  photoUrl?: string
   children: HierarchyNode[]
 }
 

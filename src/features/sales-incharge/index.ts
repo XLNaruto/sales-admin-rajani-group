@@ -6,6 +6,9 @@ export {
   useDeleteSalesman,
   useSalesIncharges,
   useDeleteSalesIncharge,
+  useSalesInchargeHierarchy,
+  useSetReportingManager,
+  useClearSalesInchargeHierarchy,
 } from './api/use-sales-incharge'
 export type {
   Salesman,
@@ -16,4 +19,5 @@ export type {
   SalesInchargeSortBy,
   SalesInchargeListParams,
   SalesInchargeListResult,
+  SalesInchargeHierarchyNode,
 } from './types'

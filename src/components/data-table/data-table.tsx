@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
+  type OnChangeFn,
   type PaginationState,
   type SortingState,
   flexRender,
@@ -52,6 +53,28 @@ interface DataTableProps<TData, TValue> {
   /** Cap the table body height; enables vertical scroll with a sticky header. */
   maxHeight?: string
   className?: string
+  /**
+   * Server-side pagination. When true, `data` is treated as the current page
+   * (not sliced client-side); supply `pagination` + `onPaginationChange` and
+   * `rowCount` (total rows across all pages) to drive the footer.
+   */
+  manualPagination?: boolean
+  /** Controlled pagination state (required when `manualPagination`). */
+  pagination?: PaginationState
+  /** Pagination change handler (required when `manualPagination`). */
+  onPaginationChange?: OnChangeFn<PaginationState>
+  /** Total rows across all pages — powers the summary + page count when manual. */
+  rowCount?: number
+  /**
+   * Server-side sorting. When true, `data` is shown in server order; supply
+   * `sorting` + `onSortingChange` so header clicks re-query rather than sort
+   * the current page only.
+   */
+  manualSorting?: boolean
+  /** Controlled sorting state (required when `manualSorting`). */
+  sorting?: SortingState
+  /** Sorting change handler (required when `manualSorting`). */
+  onSortingChange?: OnChangeFn<SortingState>
 }
 
 /**
@@ -74,24 +97,43 @@ export function DataTable<TData, TValue>({
   itemName,
   maxHeight,
   className,
+  manualPagination = false,
+  pagination: paginationProp,
+  onPaginationChange,
+  rowCount,
+  manualSorting = false,
+  sorting: sortingProp,
+  onSortingChange,
 }: DataTableProps<TData, TValue>) {
-  const [sorting, setSorting] = useState<SortingState>([])
+  // Sorting + pagination can be controlled by the caller (server-side) or fall
+  // back to internal state (client-side). Controlled props win when supplied.
+  const [internalSorting, setInternalSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [globalFilter, setGlobalFilter] = useState('')
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize })
+  const [internalPagination, setInternalPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize,
+  })
+
+  const sorting = sortingProp ?? internalSorting
+  const pagination = paginationProp ?? internalPagination
 
   const table = useReactTable({
     data,
     columns,
     state: { sorting, columnFilters, globalFilter, pagination },
-    onSortingChange: setSorting,
+    manualPagination,
+    manualSorting,
+    rowCount: manualPagination ? rowCount : undefined,
+    onSortingChange: onSortingChange ?? setInternalSorting,
     onColumnFiltersChange: setColumnFilters,
     onGlobalFilterChange: setGlobalFilter,
-    onPaginationChange: setPagination,
+    onPaginationChange: onPaginationChange ?? setInternalPagination,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    getSortedRowModel: manualSorting ? undefined : getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: hidePagination ? undefined : getPaginationRowModel(),
+    getPaginationRowModel:
+      hidePagination || manualPagination ? undefined : getPaginationRowModel(),
   })
 
   const showSearch = searchColumn != null || searchPlaceholder != null

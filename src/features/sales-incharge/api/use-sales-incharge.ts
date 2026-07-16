@@ -6,16 +6,33 @@ import {
 } from "@tanstack/react-query";
 import { queryKeys } from "@/lib/query-keys";
 import { mockDelay } from "@/lib/utils";
-import { deleteSalesIncharge, fetchSalesIncharges } from "./sales-incharge-api";
+import {
+  clearSalesInchargeHierarchy,
+  createSalesIncharge,
+  deleteSalesIncharge,
+  fetchDesignations,
+  fetchSalesIncharge,
+  fetchSalesInchargeDetail,
+  fetchSalesIncharges,
+  fetchSalesInchargeHierarchy,
+  setReportingManager,
+  setSalesInchargeStatus,
+  updateSalesIncharge,
+} from "./sales-incharge-api";
+import type { SalesInchargeFormValues } from "../lib/incharge-form";
 import type {
+  DesignationListParams,
   Salesman,
   SalesmanInput,
+  SalesInchargeExistingFiles,
   SalesInchargeListParams,
+  SalesInchargePreservedFields,
+  SalesInchargeStatus,
 } from "../types";
 
 /**
  * GET /sales-incharge-admin/sales-incharges — live, server-filtered list.
- * Params are forwarded verbatim to the endpoint (limit/offset/search/status/
+ * Params are forwarded verbatim to the endpoint (page/page_size/search/status/
  * sort). Kept separate from the mock create/delete flow below.
  */
 export function useSalesIncharges(params: SalesInchargeListParams = {}) {
@@ -26,12 +43,124 @@ export function useSalesIncharges(params: SalesInchargeListParams = {}) {
   });
 }
 
+/**
+ * GET /sales-incharge-admin/designations — the designation master used to
+ * populate the onboarding form's designation dropdown. Rarely changes, so it's
+ * cached for 5 minutes; a large page_size fetches the full (small) list at once.
+ */
+export function useDesignations(params: DesignationListParams = {}) {
+  return useQuery({
+    queryKey: queryKeys.salesIncharge.designations(
+      params as Record<string, unknown>,
+    ),
+    queryFn: () => fetchDesignations({ pageSize: 100, sortBy: "name", ...params }),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** GET /sales-incharge-admin/sales-incharges/{id} — full record for the edit form. */
+export function useSalesIncharge(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.salesIncharge.detail(id ?? ""),
+    queryFn: () => fetchSalesIncharge(id as string),
+    enabled: !!id,
+  });
+}
+
+/**
+ * GET /sales-incharge-admin/sales-incharges/{id} — read-only, display-ready
+ * record for the "view details" modal (camelCase, media URLs resolved).
+ */
+export function useSalesInchargeDetail(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.salesIncharge.detailView(id ?? ""),
+    queryFn: () => fetchSalesInchargeDetail(id as string),
+    enabled: !!id,
+  });
+}
+
+/** POST /sales-incharge-admin/sales-incharges — upload photos, then create. */
+export function useCreateSalesIncharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (values: SalesInchargeFormValues) => createSalesIncharge(values),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
+  });
+}
+
+/** PUT /sales-incharge-admin/sales-incharges/{id} — upload new photos, then update. */
+export function useUpdateSalesIncharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      id: string;
+      values: SalesInchargeFormValues;
+      existing: SalesInchargeExistingFiles;
+      preserved: SalesInchargePreservedFields;
+    }) =>
+      updateSalesIncharge(input.id, input.values, input.existing, input.preserved),
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all });
+      qc.invalidateQueries({
+        queryKey: queryKeys.salesIncharge.detail(input.id),
+      });
+    },
+  });
+}
+
+/** Change a sales incharge's status (PUT under the hood, preserving all fields). */
+export function useSetSalesInchargeStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: number; status: SalesInchargeStatus }) =>
+      setSalesInchargeStatus(String(id), status),
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all });
+      qc.invalidateQueries({
+        queryKey: queryKeys.salesIncharge.detail(String(input.id)),
+      });
+    },
+  });
+}
+
 /** DELETE /sales-incharge-admin/sales-incharges/{id} — remove a sales incharge. */
 export function useDeleteSalesIncharge() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => deleteSalesIncharge(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
+  });
+}
+
+/** GET /sales-incharge-admin/sales-incharges/hierarchy — the reporting tree. */
+export function useSalesInchargeHierarchy() {
+  return useQuery({
+    queryKey: queryKeys.salesIncharge.hierarchy(),
+    queryFn: () => fetchSalesInchargeHierarchy(),
+  });
+}
+
+/**
+ * PATCH …/{id}/reporting-manager — attach/move/detach a node in the tree.
+ * `reportsTo = null` makes the incharge a root.
+ */
+export function useSetReportingManager() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reportsTo }: { id: number; reportsTo: number | null }) =>
+      setReportingManager(id, reportsTo),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
+  });
+}
+
+/** DELETE …/{id}/hierarchy — detach a node and its whole subtree. */
+export function useClearSalesInchargeHierarchy() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => clearSalesInchargeHierarchy(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
   });
 }
 

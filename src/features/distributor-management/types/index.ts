@@ -1,4 +1,9 @@
 export type DistributorStatus = 'active' | 'inactive' | 'pending' | 'suspended' | 'rejected'
+/**
+ * Lifecycle statuses the API accepts on PATCH …/distributors/{id}/status.
+ * (`pending`/`rejected` are UI-only workflow states, not settable via the API.)
+ */
+export type DistributorLifecycleStatus = 'active' | 'inactive' | 'suspended'
 export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
@@ -157,6 +162,72 @@ export interface DistributorUpdateInput extends DistributorCreateInput {
   existing: DistributorExistingFiles
 }
 
+/**
+ * Display-oriented view of a single distributor — the full detail record mapped
+ * to camelCase with image paths resolved to full media URLs. Powers the
+ * read-only "view details" modal on the list screen. Reference ids (state/city/
+ * taluka) stay as strings; the modal resolves them to names via the reference
+ * lib.
+ */
+export interface DistributorDetailView {
+  id: string
+  code: string | null
+  status: DistributorStatus
+
+  // --- Firm & owner ---
+  firmName: string
+  firmType: FirmType | null
+  legalName: string | null
+  ownerName: string | null
+  ownerMobile: string | null
+  ownerBirthDate: string | null
+  ownerAnniversaryDate: string | null
+  communicationMobile: string | null
+  multipleLogin: boolean | null
+  email: string | null
+
+  // --- Location & coverage ---
+  officeAddress: string | null
+  godownAddress: string | null
+  homeAddress: string | null
+  stateId: string | null
+  cityId: string | null
+  talukaId: string | null
+  pincode: string | null
+  deliveryRoute: string | null
+  marketType: string | null
+  marketSystem: string | null
+  weeklyOff: string | null
+  geoLocation: string | null
+  retailersLocal: number | null
+  retailersRural: number | null
+  officeImageUrls: string[]
+  godownImageUrls: string[]
+
+  // --- Business details ---
+  otherAgencies: string | null
+  similarAgencies: string | null
+  assignedProducts: string | null
+  productTargets: string | null
+  deliveryVehicle: boolean | null
+  deliveryVehicleDetail: string | null
+  godownSize: number | null
+  yearOfEst: number | null
+
+  // --- Legal & financial ---
+  panNumber: string | null
+  panPhotoUrl: string
+  gstNumber: string | null
+  gstPhotoUrl: string
+  advanceChequeNumbers: string | null
+  advanceChequePhotoUrl: string
+  paymentCondition: string | null
+  bankAccountName: string | null
+  bankAccountNumber: string | null
+  bankIfsc: string | null
+  bankName: string | null
+}
+
 // --- Live list API (GET /sales-incharge-admin/distributors) -----------------
 
 /** Columns the list endpoint can sort by. */
@@ -170,10 +241,10 @@ export type DistributorSortBy =
 
 /** Query params accepted by the list endpoint. Forwarded verbatim as snake_case. */
 export interface DistributorListParams {
+  /** 1-based page number. Default 1. */
+  page?: number
   /** Rows per page (1–100). Default 20. */
-  limit?: number
-  /** Rows to skip. Default 0. */
-  offset?: number
+  pageSize?: number
   /** Case-insensitive match against firm/owner name, phone, email or code. */
   search?: string
   /** Filter by status. */
@@ -184,8 +255,15 @@ export interface DistributorListParams {
   sortOrder?: 'asc' | 'desc'
 }
 
-/** Normalised list result (rows + total for pagination). */
+/** Normalised list result: a page of rows plus its pagination metadata. */
 export interface DistributorListResult {
   items: Distributor[]
+  /** Total rows across all pages. */
   total: number
+  /** Current page (1-based). */
+  page: number
+  /** Rows per page. */
+  pageSize: number
+  /** Total number of pages. */
+  totalPages: number
 }

@@ -1,6 +1,0 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ReportsPage } from '@/features/reports-analytics'
-
-export const Route = createFileRoute('/_authenticated/reports')({
-  component: ReportsPage,
-})

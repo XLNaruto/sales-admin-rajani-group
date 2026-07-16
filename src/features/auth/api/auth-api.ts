@@ -36,10 +36,10 @@ function userFromPhone(phone: ConfirmedIdentity): AuthUser {
  * non-2xx (e.g. unknown/ineligible number).
  */
 export async function accountCheck(phone: string): Promise<void> {
-  let data: { accountExist?: boolean }
+  let data: { account_exists?: boolean }
   try {
     data = await http.post<
-      { accountExist?: boolean },
+      { account_exists?: boolean },
       { phone: string; user_type: string }
     >(endpoints.AUTH.ACCOUNT_CHECK, { phone, user_type: USER_TYPE })
   } catch (error) {
@@ -47,7 +47,7 @@ export async function accountCheck(phone: string): Promise<void> {
   }
   // The endpoint answers 200 with a flag rather than a non-2xx for unknown
   // numbers, so gate on the body.
-  if (!data.accountExist) {
+  if (!data.account_exists) {
     throw new Error('This account is not authorised to access the sales admin portal.')
   }
 }
