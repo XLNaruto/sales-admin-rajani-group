@@ -88,6 +88,7 @@ export const navGroups: NavGroup[] = [
 
 /** Page names for routes that don't appear in the sidebar (auth, errors, etc.). */
 const extraTitles: Record<string, string> = {
+  '/profile': 'My Profile',
   '/login': 'Login',
   '/verify-otp': 'Verify OTP',
   '/forgot-password': 'Forgot Password',

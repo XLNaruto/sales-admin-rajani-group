@@ -8,6 +8,10 @@ export const queryKeys = {
     all: ['config'] as const,
     app: () => [...queryKeys.config.all, 'app'] as const,
   },
+  profile: {
+    all: ['profile'] as const,
+    me: () => [...queryKeys.profile.all, 'me'] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
     kpis: () => [...queryKeys.dashboard.all, 'kpis'] as const,

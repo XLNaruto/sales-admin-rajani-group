@@ -16,6 +16,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { FileDropzone, type DropzoneFile } from '@/components/common/file-dropzone'
 import type { ComboboxOption } from '@/components/ui/combobox'
 
 /** Close a popover on outside-click / Escape. */
@@ -348,6 +349,63 @@ export function ImageUpload({
         <p className="text-xs text-muted-foreground">{types.join(', ')}</p>
       </div>
     </FileUploader>
+  )
+}
+
+/** Last path segment of a storage path/URL, used as a display file name. */
+const baseName = (p: string) => p.split('?')[0].split('/').pop() || p
+
+/**
+ * Adapts the shared {@link FileDropzone} (which speaks {@link DropzoneFile}) to
+ * the form's `File`-based fields. A fresh pick's raw `File` is surfaced via
+ * `onChange` (the submit flow presigns + uploads it); in edit mode `existingUrl`
+ * seeds the preview with the already-saved file until it's replaced or removed
+ * (which fires `onRemoveExisting`).
+ */
+export function FileDropzoneField({
+  value,
+  onChange,
+  existingUrl,
+  onRemoveExisting,
+  accept = 'image/*',
+  maxSizeMB = 5,
+  label = 'Upload file',
+  hint,
+}: {
+  value?: File
+  onChange: (f?: File) => void
+  existingUrl?: string
+  onRemoveExisting?: () => void
+  accept?: string
+  maxSizeMB?: number
+  label?: string
+  hint?: string
+}) {
+  const [dz, setDz] = React.useState<DropzoneFile | null>(null)
+
+  // Seed/refresh the preview from the saved image whenever there's no fresh
+  // pick. Naming it from the path keeps image detection (extension) working.
+  React.useEffect(() => {
+    if (value) return
+    setDz(existingUrl ? { name: baseName(existingUrl), url: existingUrl } : null)
+  }, [value, existingUrl])
+
+  return (
+    <FileDropzone
+      value={dz}
+      accept={accept}
+      maxSizeMB={maxSizeMB}
+      label={label}
+      hint={hint}
+      onChange={(next) => {
+        setDz(next)
+        if (next?.file) onChange(next.file)
+        else {
+          onChange(undefined)
+          if (!next) onRemoveExisting?.()
+        }
+      }}
+    />
   )
 }
 

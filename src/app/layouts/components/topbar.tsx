@@ -14,20 +14,16 @@ import {
 import { useUiStore } from '@/stores/ui-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { useLogout } from '@/features/auth'
+import { useMyProfile } from '@/features/profile'
 import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
-
-const roleLabel: Record<string, string> = {
-  admin: 'Sales Admin',
-  'sales-manager': 'Sales Manager',
-  'sales-incharge': 'Sales Incharge',
-}
 
 export function Topbar() {
   const theme = useUiStore((s) => s.theme)
   const toggleTheme = useUiStore((s) => s.toggleTheme)
   const toggleMobileSidebar = useUiStore((s) => s.toggleMobileSidebar)
   const user = useAuthStore((s) => s.user)
+  const { data: profile } = useMyProfile()
   const logout = useLogout()
   const navigate = useNavigate()
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -38,9 +34,12 @@ export function Topbar() {
     })
   }
 
-  const name = user?.name ?? 'User'
-  const roleName = user?.role ? roleLabel[user.role] ?? user.role : 'Account'
-  const phone = user?.phone?.replace(/^\+91/, '') ?? user?.email
+  // Prefer the live `/me` profile; fall back to the token-derived auth user.
+  const name = profile?.displayName ?? user?.name ?? 'User'
+  const phone =
+    profile?.phone?.replace(/^\+91/, '') ??
+    user?.phone?.replace(/^\+91/, '') ??
+    user?.email
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/80 px-6 backdrop-blur">
@@ -80,9 +79,9 @@ export function Topbar() {
           trigger={
             <button className="ml-1 flex cursor-pointer items-center gap-2 rounded-full pr-1">
               <Avatar name={name} src={user?.avatarUrl} />
-              <span className="hidden text-left leading-tight sm:block">
-                <span className="block text-sm font-semibold text-foreground">{roleName}</span>
-                <span className="block text-xs text-muted-foreground">{phone}</span>
+              <span className="hidden max-w-40 text-left leading-tight sm:block">
+                <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{phone}</span>
               </span>
               <ChevronDown className="hidden size-4 text-muted-foreground sm:block" />
             </button>
@@ -92,7 +91,7 @@ export function Topbar() {
           <div className="flex items-center gap-3 p-4">
             <Avatar name={name} src={user?.avatarUrl} className="size-11 text-sm" />
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-foreground">{roleName}</p>
+              <p className="truncate text-sm font-semibold text-foreground">{name}</p>
               <p className="truncate text-xs text-muted-foreground">{phone}</p>
             </div>
           </div>
@@ -100,8 +99,8 @@ export function Topbar() {
           <DropdownSeparator />
 
           <div className="p-1">
-            <DropdownItem>
-              <User className="size-4" /> Edit Profile
+            <DropdownItem onClick={() => navigate({ to: '/profile' })}>
+              <User className="size-4" /> My Profile
             </DropdownItem>
 
             {/* Dark mode toggle — stop propagation so the menu stays open */}

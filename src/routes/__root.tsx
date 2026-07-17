@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router'
 import { pageNameForPath } from '@/config/navigation'
+import { OfflineScreen } from '@/features/error'
+import { useOnlineStatus } from '@/hooks/use-online-status'
 
 const APP_NAME = 'Sales Admin'
 
@@ -16,6 +18,7 @@ function RootComponent() {
   const pathname = useRouterState({
     select: (s) => s.resolvedLocation?.pathname ?? s.location.pathname,
   })
+  const online = useOnlineStatus()
 
   // Reflect the active page in the browser tab: "Sales Admin | <page>".
   useEffect(() => {
@@ -23,5 +26,10 @@ function RootComponent() {
     document.title = pageName ? `${APP_NAME} | ${pageName}` : APP_NAME
   }, [pathname])
 
-  return <Outlet />
+  return (
+    <>
+      <Outlet />
+      {!online && <OfflineScreen />}
+    </>
+  )
 }

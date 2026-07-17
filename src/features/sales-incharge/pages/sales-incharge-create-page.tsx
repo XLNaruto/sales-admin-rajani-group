@@ -11,7 +11,7 @@ import {
   Field,
   Textarea,
   DatePicker,
-  ImageUpload,
+  FileDropzoneField,
   AvatarUpload,
 } from "../components/form-fields";
 import { useDesignationSelect } from "../hooks/use-designation-select";
@@ -384,13 +384,15 @@ export function SalesInchargeCreatePage({
                   control={control}
                   name="aadharFront"
                   render={({ field }) => (
-                    <ImageUpload
+                    <FileDropzoneField
                       value={field.value}
                       onChange={field.onChange}
                       existingUrl={mediaUrl(existingImages.aadharFront)}
                       onRemoveExisting={() =>
                         removeExistingImage("aadharFront")
                       }
+                      label="Upload Aadhaar front"
+                      hint="JPG, JPEG or PNG · up to 5 MB"
                     />
                   )}
                 />
@@ -404,11 +406,13 @@ export function SalesInchargeCreatePage({
                   control={control}
                   name="aadharBack"
                   render={({ field }) => (
-                    <ImageUpload
+                    <FileDropzoneField
                       value={field.value}
                       onChange={field.onChange}
                       existingUrl={mediaUrl(existingImages.aadharBack)}
                       onRemoveExisting={() => removeExistingImage("aadharBack")}
+                      label="Upload Aadhaar back"
+                      hint="JPG, JPEG or PNG · up to 5 MB"
                     />
                   )}
                 />

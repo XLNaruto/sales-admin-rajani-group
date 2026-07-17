@@ -15,7 +15,7 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ------------------------------------------------------------------ */
-/* Design tokens — shared with the Dispatch Panel design system        */
+/* Design tokens — the Sales Admin design system                       */
 /* ------------------------------------------------------------------ */
 /* Palette: orange accent on deep-navy / slate base.
    Brand accent -> --primary/--ring; navy shell -> --sidebar + dark surfaces. */

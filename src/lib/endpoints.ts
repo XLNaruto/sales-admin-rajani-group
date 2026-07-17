@@ -14,6 +14,10 @@ export const endpoints = {
     REFRESH_TOKEN: '/sales-incharge-admin/auth/refresh',
     LOGOUT: '/sales-incharge-admin/auth/logout',
   },
+  /** The authenticated user's own profile, resolved from the access token. */
+  ME: {
+    GET: '/sales-incharge-admin/me',
+  },
   SALES_INCHARGE: {
     LIST: '/sales-incharge-admin/sales-incharges',
     CREATE: '/sales-incharge-admin/sales-incharges',

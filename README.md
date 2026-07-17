@@ -9,7 +9,7 @@ TanStack Query for server state and Zustand for client state.
 - **React 19 + Vite + TypeScript** (strict)
 - **TanStack** — Query (server state), Router (file-based routes), Table (`<DataTable>`)
 - **Zustand** — auth + UI (client state only)
-- **Tailwind v4 + shadcn-style UI** — design tokens shared with the Dispatch Panel
+- **Tailwind v4 + shadcn-style UI** — themed design tokens with light/dark support
 - **Recharts** — sales / target analytics · **Leaflet** — GPS tracking
 - **Axios** + **Zod** + **react-hook-form**
 

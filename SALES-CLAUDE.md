@@ -1,6 +1,6 @@
 # CLAUDE.md — Sales Admin Web Portal
 
-Guidance for Claude Code. Same architecture as the Dispatch Panel — modular features, TanStack Query for server state, Zustand for client state.
+Guidance for Claude Code. Modular, feature-based architecture — TanStack Query for server state, Zustand for client state.
 
 ## Stack
 
@@ -25,7 +25,7 @@ npm install -D @tanstack/react-query-devtools @tanstack/router-devtools @tanstac
 npm install tailwindcss @tailwindcss/vite
 npx shadcn@latest init          # choose the "@/" alias
 npm install recharts date-fns leaflet react-leaflet
-# fonts (matches the dispatch design system)
+# fonts (design system)
 npm install @fontsource/space-grotesk @fontsource/inter @fontsource/jetbrains-mono
 ```
 

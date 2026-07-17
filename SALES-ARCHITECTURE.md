@@ -2,7 +2,7 @@
 
 **Stack:** React 19 + Vite + TypeScript · TanStack (Query · Router · Table) · Zustand · Tailwind + shadcn/ui
 
-> Same architecture as the Dispatch Panel. Only the feature modules and domain differ. If you already built the dispatch panel, this is the identical shell — reuse the design system, `<DataTable>`, theme provider, and auth module as-is.
+> Modular, feature-based architecture. Each feature module is self-contained; the shared shell — design system, `<DataTable>`, theme provider, and auth module — is reused across all of them.
 
 ---
 
@@ -106,6 +106,6 @@ These are the sales-specific pieces that touch the outside world. Keep each behi
 
 ---
 
-## Everything else is identical to the dispatch panel
+## Shared conventions
 
-Query-key factory in `lib/query-keys.ts`, small single-concern Zustand stores, one generic `<DataTable>`, `@/` path alias, kebab-case files, feature `index.ts` barrels, cross-feature imports only through barrels. Those code patterns carry over unchanged — and the design system + auth module from the dispatch redesign drop straight in.
+Query-key factory in `lib/query-keys.ts`, small single-concern Zustand stores, one generic `<DataTable>`, `@/` path alias, kebab-case files, feature `index.ts` barrels, cross-feature imports only through barrels. These code patterns apply consistently across every feature module, alongside the shared design system and auth module.
