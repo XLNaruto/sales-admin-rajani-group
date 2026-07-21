@@ -26,8 +26,10 @@ export const endpoints = {
     STATUS: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/status`,
     DELETE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/sales-incharges/documents/presign',
-    /** GET the reporting hierarchy tree (root nodes with nested reports). */
+    /** GET the reporting hierarchy tree (the single root with nested children). */
     HIERARCHY: '/sales-incharge-admin/sales-incharges/hierarchy',
+    /** PATCH to designate this incharge as THE single top-of-org root. */
+    ROOT: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/root`,
     /** PATCH who a sales incharge reports to (`reports_to` id, or null → root). */
     REPORTING_MANAGER: (id: string | number) =>
       `/sales-incharge-admin/sales-incharges/${id}/reporting-manager`,

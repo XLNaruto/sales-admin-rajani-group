@@ -1,12 +1,23 @@
 import { useEffect } from 'react'
-import { createRootRoute, Outlet, useRouterState } from '@tanstack/react-router'
+import { createRootRouteWithContext, Outlet, useRouterState } from '@tanstack/react-router'
+import type { QueryClient } from '@tanstack/react-query'
 import { pageNameForPath } from '@/config/navigation'
 import { OfflineScreen } from '@/features/error'
 import { useOnlineStatus } from '@/hooks/use-online-status'
 
 const APP_NAME = 'Sales Admin'
 
-export const Route = createRootRoute({
+/**
+ * Router context available to every route. The `queryClient` lets route
+ * `loader`s prefetch data into the TanStack Query cache — combined with the
+ * router's `defaultPreload: 'intent'`, hovering a link warms both the route
+ * component and its data before the user clicks.
+ */
+export interface RouterContext {
+  queryClient: QueryClient
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootComponent,
 })
 

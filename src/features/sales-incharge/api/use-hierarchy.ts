@@ -3,9 +3,9 @@ import {
   useClearSalesInchargeHierarchy,
   useSalesInchargeHierarchy,
   useSetReportingManager,
-  type SalesInchargeHierarchyNode,
-} from '@/features/sales-incharge'
-import type { HierarchyNode } from '../types'
+  useSetSalesInchargeRoot,
+} from './use-sales-incharge'
+import type { HierarchyNode, SalesInchargeHierarchyNode } from '../types'
 
 /** Map a sales-incharge hierarchy node (recursively) to the canvas node shape. */
 function toNode(n: SalesInchargeHierarchyNode): HierarchyNode {
@@ -21,18 +21,26 @@ function toNode(n: SalesInchargeHierarchyNode): HierarchyNode {
 
 /**
  * GET /sales-incharge-admin/sales-incharges/hierarchy, mapped to the canvas's
- * node shape. The tree is multi-root — `roots` are the incharges with no
- * reporting manager, each with its nested reports.
+ * node shape. The tree is single-rooted — `root` is the one designated
+ * top-of-org node (with its nested reports), or `null` when none is set.
  */
 export function useHierarchy() {
   const query = useSalesInchargeHierarchy()
-  const roots = useMemo(() => (query.data ?? []).map(toNode), [query.data])
-  return { ...query, roots }
+  const root = useMemo(() => (query.data ? toNode(query.data) : null), [query.data])
+  return { ...query, root }
 }
 
 /**
- * PATCH …/{id}/reporting-manager — place a salesman under a parent (or detach).
- * `reportsTo = null` makes the incharge a root.
+ * PATCH …/{id}/root — designate the single top-of-org root. Used to seed the
+ * tree when it's empty (no card exists yet to add a report under).
+ */
+export function useSetRoot() {
+  return useSetSalesInchargeRoot()
+}
+
+/**
+ * PATCH …/{id}/reporting-manager — place a salesman under a parent already in
+ * the tree.
  */
 export function useAddReport() {
   return useSetReportingManager()

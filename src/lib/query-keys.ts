@@ -47,14 +47,6 @@ export const queryKeys = {
       [...queryKeys.salesIncharge.all, 'designations', filters ?? {}] as const,
     hierarchy: () => [...queryKeys.salesIncharge.all, 'hierarchy'] as const,
   },
-  team: {
-    all: ['team'] as const,
-    hierarchy: () => [...queryKeys.team.all, 'hierarchy'] as const,
-    salesmen: (filters?: Record<string, unknown>) =>
-      [...queryKeys.team.all, 'salesmen', filters ?? {}] as const,
-    productivity: () => [...queryKeys.team.all, 'productivity'] as const,
-    dailyActivity: () => [...queryKeys.team.all, 'daily-activity'] as const,
-  },
   beats: {
     all: ['beats'] as const,
     list: (filters?: Record<string, unknown>) =>

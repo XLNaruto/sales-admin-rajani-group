@@ -60,19 +60,19 @@ export function DistributorsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              title="View details"
-              onClick={() => setViewId(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
-            >
-              <Eye className="size-4" />
-            </button>
-            <button
-              type="button"
               title="Edit"
               onClick={() => goToEdit(row.original.id)}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
+            </button>
+            <button
+              type="button"
+              title="View details"
+              onClick={() => setViewId(row.original.id)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
+            >
+              <Eye className="size-4" />
             </button>
             <button
               type="button"

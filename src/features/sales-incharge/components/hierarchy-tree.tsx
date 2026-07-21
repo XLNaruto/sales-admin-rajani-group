@@ -39,9 +39,11 @@ function NodeCard({
           <p className="truncate text-sm font-semibold text-foreground sm:text-base">
             {node.name || 'Unknown salesman'}
           </p>
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
-            {node.designation ?? '—'}
-          </p>
+          {node.designation && (
+            <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
+              {node.designation}
+            </p>
+          )}
         </div>
       </div>
 

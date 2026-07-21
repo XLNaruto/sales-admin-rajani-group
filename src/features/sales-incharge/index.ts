@@ -1,5 +1,6 @@
 export { SalesInchargePage } from './pages/sales-incharge-page'
 export { SalesInchargeCreatePage } from './pages/sales-incharge-create-page'
+export { SalesInchargeHierarchyPage } from './pages/sales-incharge-hierarchy-page'
 export {
   useSalesmen,
   useCreateSalesman,
@@ -7,6 +8,8 @@ export {
   useSalesIncharges,
   useDeleteSalesIncharge,
   useSalesInchargeHierarchy,
+  salesInchargeHierarchyQueryOptions,
+  useSetSalesInchargeRoot,
   useSetReportingManager,
   useClearSalesInchargeHierarchy,
 } from './api/use-sales-incharge'

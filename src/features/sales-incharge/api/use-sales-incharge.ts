@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  queryOptions,
   useInfiniteQuery,
   useMutation,
   useQuery,
@@ -17,6 +18,7 @@ import {
   fetchSalesIncharges,
   fetchSalesInchargeHierarchy,
   setReportingManager,
+  setSalesInchargeRoot,
   setSalesInchargeStatus,
   updateSalesIncharge,
 } from "./sales-incharge-api";
@@ -161,17 +163,39 @@ export function useDeleteSalesIncharge() {
   });
 }
 
-/** GET /sales-incharge-admin/sales-incharges/hierarchy — the reporting tree. */
-export function useSalesInchargeHierarchy() {
-  return useQuery({
+/**
+ * Query options for the reporting hierarchy — shared by the hook below and the
+ * route `loader` so link-intent prefetch and the component read the same cache
+ * entry (same key + fetcher).
+ */
+export function salesInchargeHierarchyQueryOptions() {
+  return queryOptions({
     queryKey: queryKeys.salesIncharge.hierarchy(),
     queryFn: () => fetchSalesInchargeHierarchy(),
   });
 }
 
+/** GET /sales-incharge-admin/sales-incharges/hierarchy — the reporting tree. */
+export function useSalesInchargeHierarchy() {
+  return useQuery(salesInchargeHierarchyQueryOptions());
+}
+
 /**
- * PATCH …/{id}/reporting-manager — attach/move/detach a node in the tree.
- * `reportsTo = null` makes the incharge a root.
+ * PATCH …/{id}/root — designate the single top-of-org root. Any existing root
+ * is demoted under the new one, so the tree stays connected.
+ */
+export function useSetSalesInchargeRoot() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => setSalesInchargeRoot(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
+  });
+}
+
+/**
+ * PATCH …/{id}/reporting-manager — attach/move a node under a manager already
+ * in the tree. (To detach, use the clear-hierarchy mutation.)
  */
 export function useSetReportingManager() {
   const qc = useQueryClient();

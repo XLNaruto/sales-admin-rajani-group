@@ -4,32 +4,37 @@ import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { HierarchyTree } from '../components/hierarchy-tree'
 import { PanCanvas } from '../components/pan-canvas'
 import { SalesmanPickerDialog } from '../components/salesman-picker-dialog'
-import { useSalesmanHierarchy } from '../hooks/use-salesman-hierarchy'
+import { useSalesInchargeHierarchyView } from '../hooks/use-sales-incharge-hierarchy'
 
-export function SalesmanHierarchyPage() {
+export function SalesInchargeHierarchyPage() {
   const {
-    roots,
+    root,
     isLoading,
     availableOptions,
+    rootOptions,
     zoom,
     zoomBy,
     resetView,
     canvasRef,
+    setRoot,
     addReport,
     removeNode,
     addParent,
     setAddParent,
+    rootPickerOpen,
+    setRootPickerOpen,
     pendingRemove,
     setPendingRemove,
     handleAdd,
+    handleSetRoot,
     confirmRemove,
     removedName,
-  } = useSalesmanHierarchy()
+  } = useSalesInchargeHierarchyView()
 
   return (
     <div className="flex h-[calc(100dvh-11rem)] min-h-0 flex-col">
       <PageHeader
-        title="Salesman Hierarchy"
+        title="Sales Incharge Hierarchy"
         description="Build the reporting structure — drag the canvas to pan, hover a card to add or detach reports."
       />
 
@@ -46,13 +51,13 @@ export function SalesmanHierarchyPage() {
               <p className="text-sm font-medium">Loading hierarchy…</p>
             </div>
           </div>
-        ) : roots.length > 0 ? (
+        ) : root ? (
           <div className="relative h-full w-full">
             <PanCanvas ref={canvasRef} className="h-full w-full" onZoomDelta={zoomBy}>
               {/* Extra padding gives empty canvas room to pan around the tree. */}
               <div style={{ zoom }} className="p-24 sm:p-48">
                 <HierarchyTree
-                  roots={roots}
+                  roots={[root]}
                   onAdd={(node) => setAddParent(node)}
                   onRemove={(node, isRoot) => setPendingRemove({ node, isRoot })}
                 />
@@ -110,15 +115,35 @@ export function SalesmanHierarchyPage() {
               <div>
                 <p className="font-medium text-foreground">No hierarchy yet</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Once sales incharges are onboarded they appear here as roots.
-                  Use the <span className="font-medium">+</span> on a card to set
+                  Start by designating the top-of-org root. Once the root is set,
+                  use the <span className="font-medium">+</span> on a card to set
                   who reports to whom.
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setRootPickerOpen(true)}
+                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <Plus className="size-4" />
+                Designate root
+              </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Designate-root picker (only reachable when the tree is empty) */}
+      <SalesmanPickerDialog
+        open={rootPickerOpen}
+        onOpenChange={setRootPickerOpen}
+        title="Designate the root"
+        description="Pick the top-of-org sales incharge. Everyone else is placed under them."
+        options={rootOptions}
+        confirmLabel="Set as root"
+        loading={setRoot.isPending}
+        onConfirm={handleSetRoot}
+      />
 
       {/* Add-report picker */}
       <SalesmanPickerDialog
@@ -144,8 +169,8 @@ export function SalesmanHierarchyPage() {
           pendingRemove ? (
             <>
               <span className="font-medium text-foreground">{removedName}</span> and
-              all of their reports will be detached from the hierarchy (they become
-              unassigned roots).
+              all of their reports will be removed from the hierarchy.
+              {pendingRemove.isRoot && ' Removing the root resets the whole tree.'}
             </>
           ) : undefined
         }

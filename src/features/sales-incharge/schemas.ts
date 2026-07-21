@@ -115,6 +115,7 @@ export interface SalesInchargeHierarchyNodeRaw {
   designation_name?: string | null
   profile_photo_path?: string | null
   status?: SalesInchargeStatusValue
+  is_root?: boolean
   reports: SalesInchargeHierarchyNodeRaw[]
 }
 
@@ -139,15 +140,20 @@ export const salesInchargeHierarchyNodeSchema: z.ZodType<SalesInchargeHierarchyN
           designation_name: z.string().nullish(),
           profile_photo_path: z.string().nullish(),
           status: salesInchargeStatusSchema.optional(),
+          is_root: z.boolean().optional(),
           reports: z.array(salesInchargeHierarchyNodeSchema),
         })
         .passthrough(),
     ) as z.ZodType<SalesInchargeHierarchyNodeRaw>,
   )
 
-/** Envelope for GET …/hierarchy — root nodes under `hierarchy`. */
+/**
+ * Envelope for GET …/hierarchy. The tree is single-rooted: `hierarchy` is the
+ * one designated root node (its reports nested under `children`), or `null`
+ * when no root has been designated yet.
+ */
 export const salesInchargeHierarchyResponseSchema = z.object({
-  hierarchy: z.array(salesInchargeHierarchyNodeSchema),
+  hierarchy: salesInchargeHierarchyNodeSchema.nullable(),
 })
 
 /**

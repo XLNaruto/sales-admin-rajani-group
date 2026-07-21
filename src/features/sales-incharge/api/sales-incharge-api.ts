@@ -418,22 +418,36 @@ function toHierarchyNode(raw: SalesInchargeHierarchyNodeRaw): SalesInchargeHiera
     designation: raw.designation_name ?? null,
     photoUrl: raw.profile_photo_path ? mediaUrl(raw.profile_photo_path) : undefined,
     status: raw.status ?? null,
+    isRoot: raw.is_root ?? false,
     reports: raw.reports.map(toHierarchyNode),
   }
 }
 
 /**
  * GET /sales-incharge-admin/sales-incharges/hierarchy — the reporting tree.
- * Returns the root nodes (incharges with no reporting manager), each carrying
- * its nested reports.
+ * The tree is single-rooted: returns the one designated root node (with its
+ * nested reports), or `null` when no root has been designated yet.
  */
-export async function fetchSalesInchargeHierarchy(): Promise<SalesInchargeHierarchyNode[]> {
+export async function fetchSalesInchargeHierarchy(): Promise<SalesInchargeHierarchyNode | null> {
   try {
     const raw = await http.get<unknown>(endpoints.SALES_INCHARGE.HIERARCHY)
     const res = salesInchargeHierarchyResponseSchema.parse(raw)
-    return res.hierarchy.map(toHierarchyNode)
+    return res.hierarchy ? toHierarchyNode(res.hierarchy) : null
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to load the hierarchy.'))
+  }
+}
+
+/**
+ * PATCH /sales-incharge-admin/sales-incharges/{id}/root — designate this
+ * incharge as THE single root (top of org). Any current root is atomically
+ * demoted and re-parented under the new one. Idempotent if already the root.
+ */
+export async function setSalesInchargeRoot(id: number): Promise<void> {
+  try {
+    await http.patch<unknown>(endpoints.SALES_INCHARGE.ROOT(id), {})
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error, 'Failed to set the root.'))
   }
 }
 

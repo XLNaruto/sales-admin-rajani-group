@@ -19,6 +19,12 @@ export function Toaster() {
       gap={10}
       offset={20}
       swipeDirections={['right', 'top']}
+      // The toast container is always mounted over the page; without this it
+      // would swallow clicks/taps on controls beneath it. Keep the container
+      // click-through (pointer-events: none) — each toast card re-enables
+      // pointer events via `pointer-events-auto` below, so it stays interactive.
+      className="pointer-events-none"
+      style={{ pointerEvents: 'none' }}
       icons={{
         success: <IconBadge tone="success"><CheckCircle2 className="size-4" /></IconBadge>,
         error: <IconBadge tone="error"><XCircle className="size-4" /></IconBadge>,

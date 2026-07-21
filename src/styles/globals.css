@@ -542,18 +542,17 @@
 }
 
 /* Toast (react-hot-toast–inspired) — springy pop-in + icon bounce. */
+/* Entrance uses translate + opacity only — NO scale. A `scale()` here would
+ * distort the toast's `getBoundingClientRect()` height that Sonner measures on
+ * mount, making the toast jump to a corrected height on first hover. */
 @keyframes toast-pop {
   0% {
     opacity: 0;
-    transform: translateY(-8px) scale(0.92);
-  }
-  60% {
-    opacity: 1;
-    transform: translateY(0) scale(1.02);
+    transform: translateY(-8px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 @keyframes icon-pop {
