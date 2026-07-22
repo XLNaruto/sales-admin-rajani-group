@@ -1,106 +1,74 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
-import { useSalesmen } from '@/features/sales-incharge'
-import { useCreateBeat } from '../api/use-beats'
-import { beatSchema, beatDefaults, type BeatFormValues } from '../lib/beat-form'
-import type { BeatOutlet } from '../types'
+import { useBeat, useCreateBeat, useUpdateBeat } from '../api/use-beats'
+import { beatDefaults, beatSchema, type BeatFormValues } from '../lib/beat-form'
 
-const CURRENT_YEAR = new Date().getFullYear()
-
-/** Parse an optional numeric-text field into a number (or undefined when blank). */
-const num = (v?: string) => (v && v.trim() !== '' ? Number(v) : undefined)
+interface UseBeatFormOptions {
+  /** The beat id to edit, or null/undefined for create mode. */
+  id?: string | null
+  /** Called after a successful create/update (e.g. to close the modal). */
+  onSaved: () => void
+}
 
 /**
- * Owns the create-beat form: validation wiring, the create mutation, the
- * cascading territory selection, salesman options, the submit → map → navigate
- * flow and the date-picker year bounds. The page consumes this and only lays
- * out fields.
+ * Drives the add/edit beat modal: seeds the form (create defaults, or the
+ * loaded record in edit mode), validates the four fields, and submits via the
+ * create or update mutation.
  */
-export function useBeatForm() {
-  const navigate = useNavigate()
-  const createBeat = useCreateBeat()
-  const { data: salesmen } = useSalesmen()
+export function useBeatForm({ id, onSaved }: UseBeatFormOptions) {
+  const isEdit = !!id
+  const { data, isLoading, isError } = useBeat(id || undefined)
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<BeatFormValues>({
+  const form = useForm<BeatFormValues>({
     resolver: zodResolver(beatSchema),
-    mode: 'onTouched',
-    defaultValues: beatDefaults as BeatFormValues,
+    defaultValues: beatDefaults,
   })
+  const { reset } = form
 
-  // Cascading territory selection — watch parents to build child options.
-  const stateId = watch('stateId')
-  const zoneId = watch('zoneId')
-  const districtId = watch('districtId')
-  const talukaId = watch('talukaId')
-  const cityId = watch('cityId')
+  // Seed the form: reset to defaults for create, or to the loaded record on edit.
+  useEffect(() => {
+    if (isEdit) {
+      if (data) reset(data.values)
+    } else {
+      reset(beatDefaults)
+    }
+  }, [isEdit, data, reset])
 
-  const salesmanOptions = (salesmen ?? []).map((s) => ({ value: s.id, label: s.name }))
+  const createBeat = useCreateBeat()
+  const updateBeat = useUpdateBeat()
+  const isPending = createBeat.isPending || updateBeat.isPending
 
-  const onSubmit = handleSubmit((values) => {
-    const outlets: BeatOutlet[] = values.outlets.map((o, i) => ({
-      retailerId: o.retailerId,
-      sequence: i + 1,
-      geoLat: num(o.geoLat),
-      geoLng: num(o.geoLng),
-      geoFenceM: num(o.geoFenceM),
-    }))
+  const onSubmit = form.handleSubmit((values) => {
+    // Status isn't in the four-field form: keep the record's status on edit,
+    // default to active on create.
+    const status = isEdit ? (data?.status ?? 'active') : 'active'
+    const input = { ...values, status }
 
-    createBeat.mutate(
-      {
-        beatCode: values.beatCode,
-        beatName: values.beatName,
-        status: values.status,
-        marketType: values.marketType,
-        marketSystem: values.marketSystem,
-        stateId: values.stateId,
-        zoneId: values.zoneId,
-        districtId: values.districtId,
-        talukaId: values.talukaId,
-        cityId: values.cityId,
-        villageIds: values.villageIds ?? [],
-        distributorId: values.distributorId,
-        visitCycle: values.visitCycle,
-        visitDays: values.visitDays,
-        assignedSalesmanId: values.assignedSalesmanId,
-        beatProgramId: values.beatProgramId || undefined,
-        effectiveDate: values.effectiveDate,
-        outlets,
+    const handlers = {
+      onSuccess: () => {
+        toast.success(isEdit ? 'Beat updated' : 'Beat created')
+        onSaved()
       },
-      {
-        onSuccess: () => {
-          toast.success(`${values.beatName} created`)
-          navigate({ to: '/beats' })
-        },
-        onError: () => toast.error("Couldn't create the beat. Please try again."),
-      },
-    )
+      onError: (e: unknown) =>
+        toast.error(e instanceof Error ? e.message : "Couldn't save the beat."),
+    }
+
+    if (isEdit && id) updateBeat.mutate({ id, input }, handlers)
+    else createBeat.mutate(input, handlers)
   })
-
-  const goBack = () => navigate({ to: '/beats' })
 
   return {
-    register,
-    control,
-    errors,
-    setValue,
+    form,
     onSubmit,
-    isPending: createBeat.isPending,
-    goBack,
-    salesmanOptions,
-    stateId,
-    zoneId,
-    districtId,
-    talukaId,
-    cityId,
-    currentYear: CURRENT_YEAR,
+    isEdit,
+    isPending,
+    // Label for the currently-selected distributor (edit mode), so its lazy
+    // dropdown can show the selection before its page is loaded.
+    distributorName: data?.distributorName ?? null,
+    // Edit-mode load state (create mode is always ready).
+    isSeeding: isEdit && isLoading,
+    isError: isEdit && isError,
   }
 }

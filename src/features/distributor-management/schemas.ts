@@ -9,6 +9,13 @@ export const distributorStatusSchema = z.enum([
   'inactive',
 ])
 
+/** Onboarding-approval workflow state (independent of the lifecycle status). */
+export const distributorOnboardingStatusSchema = z.enum([
+  'pending',
+  'approved',
+  'rejected',
+])
+
 /**
  * A single row from GET /sales-incharge-admin/distributors. Only the documented
  * (sortable/searchable) columns are relied on; everything else is optional so a
@@ -24,9 +31,12 @@ export const distributorRowSchema = z.object({
   owner_mobile: z.string().nullish(),
   email: z.string().nullish(),
   city_id: z.union([z.number(), z.string()]).nullish(),
+  city_name: z.string().nullish(),
+  product_division_names: z.array(z.string()).nullish(),
   market_type: z.string().nullish(),
   market_system: z.string().nullish(),
   status: distributorStatusSchema.catch('pending'),
+  onboarding_status: distributorOnboardingStatusSchema.catch('pending'),
 })
 
 /**
@@ -68,10 +78,15 @@ export const distributorDetailSchema = z.object({
   godown_address: z.string().nullish(),
   home_address: z.string().nullish(),
   state_id: z.number().nullish(),
+  state_name: z.string().nullish(),
   zone_id: z.number().nullish(),
+  zone_name: z.string().nullish(),
   district_id: z.number().nullish(),
+  district_name: z.string().nullish(),
   taluka_id: z.number().nullish(),
+  taluka_name: z.string().nullish(),
   city_id: z.number().nullish(),
+  city_name: z.string().nullish(),
   pincode: z.string().nullish(),
   delivery_route: z.string().nullish(),
   taluka_of_agency_ids: z.array(z.number()).nullish(),
@@ -103,9 +118,32 @@ export const distributorDetailSchema = z.object({
   bank_account_number: z.string().nullish(),
   bank_ifsc: z.string().nullish(),
   bank_name: z.string().nullish(),
+  // Product-division ids this distributor handles, plus their resolved names.
+  product_divisions: z.array(z.number()).nullish(),
+  product_division_names: z.array(z.string()).nullish(),
 })
 
 export type DistributorDetailRow = z.infer<typeof distributorDetailSchema>
+
+/**
+ * A single row from GET /sales-incharge-admin/product-divisions — the master
+ * that backs the "Product Divisions" multi-select on the distributor form.
+ */
+export const productDivisionRowSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+})
+
+/** The product-division list envelope (rows + pagination metadata). */
+export const productDivisionListResponseSchema = z.object({
+  product_divisions: z.array(productDivisionRowSchema),
+  total: z.number().optional(),
+  page: z.number().optional(),
+  page_size: z.number().optional(),
+  total_pages: z.number().optional(),
+})
+
+export type ProductDivisionRow = z.infer<typeof productDivisionRowSchema>
 
 /**
  * Response from the presigned-upload endpoints

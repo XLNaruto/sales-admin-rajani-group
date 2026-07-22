@@ -16,7 +16,7 @@ import type { ProfileStatus } from '../types'
 
 /** Format an ISO date/date-time as 'dd MMM yyyy' (falls back to the raw value). */
 function formatDate(value: string | null) {
-  if (!value) return '—'
+  if (!value) return 'N/A'
   try {
     return format(parseISO(value), 'dd MMM yyyy')
   } catch {
@@ -40,7 +40,7 @@ function tenureLabel(createdAt: string) {
     if (months >= 1) return `${months} month${months > 1 ? 's' : ''}`
     return 'Less than a month'
   } catch {
-    return '—'
+    return 'N/A'
   }
 }
 
@@ -85,7 +85,7 @@ function Field({
           {label}
         </p>
         <p className="mt-0.5 break-words text-sm font-semibold text-foreground">
-          {value ?? '—'}
+          {value ?? 'N/A'}
         </p>
       </div>
     </Card>
@@ -183,7 +183,7 @@ export function MyProfilePage() {
             <Field
               icon={Mail}
               label="Email"
-              value={data.email}
+              value={data.email || undefined}
               tint="bg-sky-500/10 text-sky-600 dark:text-sky-400"
             />
             <Field

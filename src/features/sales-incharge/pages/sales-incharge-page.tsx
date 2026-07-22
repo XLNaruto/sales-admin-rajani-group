@@ -1,6 +1,14 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Eye, Pencil, Plus, Trash2, UserRound, UsersRound } from "lucide-react";
+import {
+  Eye,
+  MapPinned,
+  Pencil,
+  Plus,
+  Trash2,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
@@ -15,7 +23,7 @@ import type { SalesIncharge } from "../types";
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
 function formatDate(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "N/A";
   try {
     return format(parseISO(value), "dd-MM-yyyy");
   } catch {
@@ -36,9 +44,13 @@ export function SalesInchargePage() {
     onSortingChange,
     isLoading,
     isError,
+    onLoadMore,
+    hasMore,
+    isFetchingMore,
     hasActiveFilters,
     goToCreate,
     goToEdit,
+    goToBeatAllocation,
     changeStatus,
     isSettingStatus,
     pendingDelete,
@@ -88,6 +100,14 @@ export function SalesInchargePage() {
             </button>
             <button
               type="button"
+              title="Beat allocation"
+              onClick={() => goToBeatAllocation(row.original.id)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+            >
+              <MapPinned className="size-4" />
+            </button>
+            <button
+              type="button"
               title="Delete"
               onClick={() => setPendingDelete(row.original)}
               disabled={isDeleting}
@@ -105,15 +125,23 @@ export function SalesInchargePage() {
         ),
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-              <UserRound className="size-4.5" />
-            </span>
+            {row.original.profilePhotoUrl ? (
+              <img
+                src={row.original.profilePhotoUrl}
+                alt={row.original.displayName}
+                className="size-9 shrink-0 rounded-full object-cover"
+              />
+            ) : (
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
+                <UserRound className="size-4.5" />
+              </span>
+            )}
             <div className="leading-tight">
               <p className="font-medium text-foreground">
                 {row.original.displayName}
               </p>
               <p className="text-xs text-muted-foreground tabular-nums">
-                {row.original.phone ?? "—"}
+                {row.original.phone ?? "N/A"}
               </p>
             </div>
           </div>
@@ -175,7 +203,7 @@ export function SalesInchargePage() {
           row.original.email ? (
             <span className="text-sm">{row.original.email}</span>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">N/A</span>
           ),
       },
       {
@@ -185,7 +213,7 @@ export function SalesInchargePage() {
         ),
         cell: ({ row }) => (
           <span className="tabular-nums">
-            {row.original.employeeCode ?? "—"}
+            {row.original.employeeCode ?? "N/A"}
           </span>
         ),
       },
@@ -200,15 +228,8 @@ export function SalesInchargePage() {
               {row.original.designation}
             </Badge>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">N/A</span>
           ),
-      },
-      {
-        accessorKey: "territory",
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Territory" />
-        ),
-        cell: ({ row }) => row.original.territory ?? "—",
       },
       {
         accessorKey: "dateOfJoining",
@@ -252,6 +273,9 @@ export function SalesInchargePage() {
         manualSorting
         sorting={sorting}
         onSortingChange={onSortingChange}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        isFetchingMore={isFetchingMore}
         toolbar={
           <SalesmanToolbar
             filters={filters}

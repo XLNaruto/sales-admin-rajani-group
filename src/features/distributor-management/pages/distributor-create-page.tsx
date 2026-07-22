@@ -10,6 +10,7 @@ import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
 import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "../components/file-input";
 import { useDistributorForm } from "../hooks/use-distributor-form";
+import { useProductDivisions } from "../api/use-distributors";
 import {
   useCitySelect,
   useDistrictSelect,
@@ -75,6 +76,13 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
 
   // Cascading geography masters — each level is a scroll-lazy, server-searched
   // dropdown scoped to its parent's id.
+  // Product-division master — small list; fetched whole and searched in-place.
+  const productDivisions = useProductDivisions();
+  const productDivisionOptions = (productDivisions.data?.items ?? []).map((d) => ({
+    value: String(d.id),
+    label: d.name,
+  }));
+
   const stateSelect = useStateSelect();
   const zoneSelect = useZoneSelect(toId(stateId));
   const districtSelect = useDistrictSelect(toId(zoneId));
@@ -270,6 +278,30 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   options={DISTRIBUTOR_STATUSES}
                   placeholder="Select…"
                   searchable={false}
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Product Divisions"
+            optional
+            error={errors.productDivisions?.message}
+          >
+            <Controller
+              control={control}
+              name="productDivisions"
+              render={({ field }) => (
+                <MultiSelect
+                  value={field.value ?? []}
+                  onChange={field.onChange}
+                  options={productDivisionOptions}
+                  placeholder={
+                    productDivisions.isLoading
+                      ? "Loading…"
+                      : "Select product divisions…"
+                  }
+                  searchPlaceholder="Search division"
                 />
               )}
             />

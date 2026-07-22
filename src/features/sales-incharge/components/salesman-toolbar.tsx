@@ -25,8 +25,6 @@ export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarP
       options: [
         { label: 'All Status', value: 'all' },
         { label: 'Active', value: 'active' },
-        { label: 'Invited', value: 'invited' },
-        { label: 'Suspended', value: 'suspended' },
         { label: 'Inactive', value: 'inactive' },
       ],
     },

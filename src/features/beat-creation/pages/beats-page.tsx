@@ -1,42 +1,40 @@
 import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { MapPinned, Pencil, Plus, Route, Trash2 } from 'lucide-react'
-import { format, parseISO } from 'date-fns'
+import { MapPinned, Pencil, Plus, Store, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageHeader } from '@/components/common/page-header'
-import { StatusBadge } from '@/components/common/status-badge'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { BeatFormDialog } from '../components/beat-form-dialog'
 import { BeatToolbar } from '../components/beat-toolbar'
-import { cityName, distributorName, labelFor } from '../lib/beat-reference'
+import { gradeLabel } from '../lib/beat-reference'
 import { useBeatsList } from '../hooks/use-beats-list'
 import type { Beat } from '../types'
-
-/** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
-function formatDate(value: string) {
-  try {
-    return format(parseISO(value), 'dd-MM-yyyy')
-  } catch {
-    return value
-  }
-}
 
 export function BeatsPage() {
   const {
     filters,
     patchFilters,
     resetFilters,
-    filtered,
+    rows,
+    rowCount,
+    pagination,
+    setPagination,
+    sorting,
+    onSortingChange,
     isLoading,
+    isError,
     hasActiveFilters,
-    salesmanName,
+    modalOpen,
+    editId,
+    openCreate,
+    openEdit,
+    closeModal,
     pendingDelete,
     setPendingDelete,
     confirmDelete,
-    deleteIsPending,
-    goToCreate,
-    goToEdit,
+    isDeleting,
   } = useBeatsList()
 
   const columns = useMemo<ColumnDef<Beat>[]>(
@@ -45,11 +43,14 @@ export function BeatsPage() {
         id: 'index',
         header: '#',
         enableSorting: false,
-        cell: ({ row, table }) => (
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {table.getSortedRowModel().rows.findIndex((r) => r.id === row.id) + 1}
-          </span>
-        ),
+        cell: ({ row, table }) => {
+          const { pageIndex, pageSize } = table.getState().pagination
+          return (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {pageIndex * pageSize + row.index + 1}
+            </span>
+          )
+        },
       },
       {
         id: 'actions',
@@ -60,7 +61,7 @@ export function BeatsPage() {
             <button
               type="button"
               title="Edit"
-              onClick={goToEdit}
+              onClick={() => openEdit(row.original.id)}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
             >
               <Pencil className="size-4" />
@@ -69,7 +70,7 @@ export function BeatsPage() {
               type="button"
               title="Delete"
               onClick={() => setPendingDelete(row.original)}
-              disabled={deleteIsPending}
+              disabled={isDeleting}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
             >
               <Trash2 className="size-4" />
@@ -85,105 +86,64 @@ export function BeatsPage() {
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
               <MapPinned className="size-4.5" />
             </span>
-            <div className="leading-tight">
-              <p className="font-medium text-foreground">{row.original.beatName}</p>
-              <p className="text-xs text-muted-foreground">{row.original.beatCode}</p>
-            </div>
+            <p className="font-medium text-foreground">{row.original.beatName}</p>
           </div>
         ),
       },
       {
-        accessorKey: 'marketType',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Market" />,
+        accessorKey: 'beatGrade',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Grade" />,
         cell: ({ row }) => (
-          <div className="flex flex-col gap-1">
-            <Badge variant="outline" className="font-medium">
-              {labelFor(row.original.marketType)}
-            </Badge>
-            <span className="text-xs text-muted-foreground">
-              {labelFor(row.original.marketSystem)}
-            </span>
-          </div>
+          <Badge variant="outline" className="font-medium">
+            {gradeLabel(row.original.beatGrade)}
+          </Badge>
         ),
-      },
-      {
-        id: 'city',
-        accessorFn: (b) => cityName(b.cityId),
-        header: ({ column }) => <DataTableColumnHeader column={column} title="City" />,
       },
       {
         id: 'distributor',
-        accessorFn: (b) => distributorName(b.distributorId),
+        accessorFn: (b) => b.distributorName ?? b.distributorId,
+        enableSorting: false,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Distributor" />,
-      },
-      {
-        id: 'salesman',
-        accessorFn: (b) => salesmanName(b.assignedSalesmanId),
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Salesman" />,
-      },
-      {
-        accessorKey: 'visitCycle',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Cycle" />,
         cell: ({ row }) => (
-          <div className="leading-tight">
-            <p className="text-sm">{labelFor(row.original.visitCycle)}</p>
-            <p className="text-xs text-muted-foreground">{row.original.visitDays.join(', ')}</p>
-          </div>
-        ),
-      },
-      {
-        id: 'outlets',
-        accessorFn: (b) => b.outlets.length,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Outlets" />,
-        cell: ({ row }) => (
-          <span className="inline-flex items-center gap-1.5 tabular-nums">
-            <Route className="size-3.5 text-muted-foreground" />
-            {row.original.outlets.length}
+          <span className="inline-flex items-center gap-1.5 text-sm">
+            <Store className="size-3.5 text-muted-foreground" />
+            {row.original.distributorName ?? row.original.distributorId ?? '—'}
           </span>
         ),
       },
-      {
-        accessorKey: 'effectiveDate',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Effective" />,
-        cell: ({ row }) => (
-          <span className="tabular-nums">{formatDate(row.original.effectiveDate)}</span>
-        ),
-      },
-      {
-        accessorKey: 'status',
-        header: 'Status',
-        enableSorting: false,
-        cell: ({ row }) => <StatusBadge status={row.original.status} />,
-      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [deleteIsPending, salesmanName],
+    [isDeleting],
   )
 
   return (
     <div>
       <PageHeader
         title="Beat Creation"
-        description="Create and manage beats — the ordered route a salesman covers."
+        description="Create and manage beats — name, grade and distributor."
         actions={
-          <Button className="cursor-pointer" onClick={goToCreate}>
-            <Plus /> Create Beat
+          <Button className="cursor-pointer" onClick={openCreate}>
+            <Plus /> Add Beat
           </Button>
         }
       />
       <DataTable
         columns={columns}
-        data={filtered}
+        data={rows}
         isLoading={isLoading}
         itemName="beats"
         maxHeight="70vh"
+        pageSize={pagination.pageSize}
         pageSizeOptions={[5, 10, 25, 50]}
+        manualPagination
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        rowCount={rowCount}
+        manualSorting
+        sorting={sorting}
+        onSortingChange={onSortingChange}
         toolbar={
-          <BeatToolbar
-            filters={filters}
-            onChange={patchFilters}
-            onReset={resetFilters}
-          />
+          <BeatToolbar filters={filters} onChange={patchFilters} onReset={resetFilters} />
         }
         emptyState={
           <div className="flex flex-col items-center gap-3 py-14 text-center">
@@ -191,21 +151,27 @@ export function BeatsPage() {
               <MapPinned className="size-6" />
             </span>
             <div>
-              <p className="font-medium text-foreground">No beats found</p>
+              <p className="font-medium text-foreground">
+                {isError ? "Couldn't load beats" : 'No beats found'}
+              </p>
               <p className="text-sm text-muted-foreground">
-                {hasActiveFilters
-                  ? 'Try adjusting your filters.'
-                  : 'Create your first beat to get started.'}
+                {isError
+                  ? 'Something went wrong. Please try again.'
+                  : hasActiveFilters
+                    ? 'Try adjusting your filters.'
+                    : 'Create your first beat to get started.'}
               </p>
             </div>
-            {!hasActiveFilters && (
-              <Button className="cursor-pointer" onClick={goToCreate}>
-                <Plus /> Create Beat
+            {!hasActiveFilters && !isError && (
+              <Button className="cursor-pointer" onClick={openCreate}>
+                <Plus /> Add Beat
               </Button>
             )}
           </div>
         }
       />
+
+      {modalOpen && <BeatFormDialog open editId={editId} onClose={closeModal} />}
 
       <ConfirmDialog
         open={pendingDelete !== null}
@@ -223,7 +189,7 @@ export function BeatsPage() {
         }
         confirmLabel="Yes, delete"
         cancelLabel="Cancel"
-        loading={deleteIsPending}
+        loading={isDeleting}
         onConfirm={confirmDelete}
       />
     </div>

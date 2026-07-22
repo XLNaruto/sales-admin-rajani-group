@@ -18,6 +18,7 @@ import type {
   DistributorListParams,
   DistributorListResult,
   DistributorMarketType,
+  DistributorOnboardingAction,
   DistributorStatus,
   DistributorUpdateInput,
   FirmType,
@@ -36,6 +37,8 @@ function toDistributor(row: DistributorRow): Distributor {
     email: row.email ?? '',
     code: row.distributor_code ?? '',
     status: row.status as DistributorStatus,
+    onboardingStatus: row.onboarding_status,
+    productDivisionNames: row.product_division_names ?? undefined,
     // Fields not returned by the list endpoint — filled on the detail screen.
     officeAddress: '',
     stateId: '',
@@ -43,6 +46,7 @@ function toDistributor(row: DistributorRow): Distributor {
     districtId: '',
     talukaId: '',
     cityId: row.city_id != null ? String(row.city_id) : '',
+    cityName: row.city_name ?? undefined,
     marketType: (row.market_type ?? undefined) as DistributorMarketType | undefined,
     marketSystem: (row.market_system ?? undefined) as MarketSystem | undefined,
   }
@@ -55,6 +59,7 @@ function toQuery(params: DistributorListParams): Record<string, string | number>
   if (params.pageSize != null) q.page_size = params.pageSize
   if (params.search) q.search = params.search
   if (params.status) q.status = params.status
+  if (params.firmType) q.firm_type = params.firmType
   if (params.sortBy) q.sort_by = params.sortBy
   if (params.sortOrder) q.sort_order = params.sortOrder
   return q
@@ -231,6 +236,9 @@ function buildScalarBody(input: DistributorCreateInput) {
   return {
     distributor_code: str(input.code),
     status: input.status,
+    product_divisions: (input.productDivisions ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n) && n > 0),
     firm_name: input.firmName,
     firm_type: input.firmType,
     owner_name: input.ownerName,
@@ -333,6 +341,7 @@ export async function fetchDistributor(id: string): Promise<{
       email: r.email ?? '',
       code: r.distributor_code ?? '',
       status: r.status as DistributorFormValues['status'],
+      productDivisions: (r.product_divisions ?? []).map(String),
       officeAddress: r.office_address ?? '',
       godownAddress: r.godown_address ?? '',
       homeAddress: r.home_address ?? '',
@@ -416,8 +425,13 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       godownAddress: r.godown_address ?? null,
       homeAddress: r.home_address ?? null,
       stateId: idStr(r.state_id),
+      stateName: r.state_name ?? null,
+      zoneName: r.zone_name ?? null,
+      districtName: r.district_name ?? null,
       cityId: idStr(r.city_id),
+      cityName: r.city_name ?? null,
       talukaId: idStr(r.taluka_id),
+      talukaName: r.taluka_name ?? null,
       pincode: r.pincode ?? null,
       deliveryRoute: r.delivery_route ?? null,
       marketType: r.market_type ?? null,
@@ -429,6 +443,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       officeImageUrls: (r.office_image_paths ?? []).map((p) => mediaUrl(p)),
       godownImageUrls: (r.godown_image_paths ?? []).map((p) => mediaUrl(p)),
 
+      productDivisionNames: r.product_division_names ?? [],
       otherAgencies: r.other_agencies_details ?? null,
       similarAgencies: r.similar_category_agencies ?? null,
       assignedProducts: r.assigned_products ?? null,
@@ -498,5 +513,26 @@ export async function setDistributorStatus(
     await http.patch<unknown>(endpoints.DISTRIBUTOR.STATUS(id), { status })
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to update the status.'))
+  }
+}
+
+/**
+ * PATCH /sales-incharge-admin/distributors/{id}/onboarding — approve or reject a
+ * pending onboarding request. Body is `{ action: 'approve' | 'reject' }`.
+ */
+export async function updateDistributorOnboarding(
+  id: string,
+  action: DistributorOnboardingAction,
+  reason?: string,
+): Promise<void> {
+  try {
+    const body: { action: DistributorOnboardingAction; reason?: string } = { action }
+    const trimmed = reason?.trim()
+    if (trimmed) body.reason = trimmed
+    await http.patch<unknown>(endpoints.DISTRIBUTOR.ONBOARDING(id), body)
+  } catch (error) {
+    throw new Error(
+      getApiErrorMessage(error, 'Failed to update the onboarding status.'),
+    )
   }
 }

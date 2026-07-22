@@ -30,6 +30,8 @@ export const distributorSchema = z.object({
   code: z.string().optional(),
   // API accepts only these three (see /sales-incharge-admin/docs → POST /distributors).
   status: z.enum(['active', 'inactive', 'suspended']),
+  // Product-division ids this distributor handles (option values are stringified ids).
+  productDivisions: z.array(z.string()).optional(),
 
   // --- Location & coverage ---
   officeAddress: z.string().trim().min(1, 'Enter the office address'),
@@ -92,6 +94,7 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   email: '',
   code: '',
   status: 'active',
+  productDivisions: [],
   officeAddress: '',
   godownAddress: '',
   homeAddress: '',

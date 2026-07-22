@@ -38,11 +38,38 @@ import type {
  * Params are forwarded verbatim to the endpoint (page/page_size/search/status/
  * sort). Kept separate from the mock create/delete flow below.
  */
-export function useSalesIncharges(params: SalesInchargeListParams = {}) {
+export function useSalesIncharges(
+  params: SalesInchargeListParams = {},
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: queryKeys.salesIncharge.list(params as Record<string, unknown>),
     queryFn: () => fetchSalesIncharges(params),
     placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
+  });
+}
+
+/**
+ * GET /sales-incharge-admin/sales-incharges — infinite ("All") variant. Loads
+ * one batch of `pageSize` rows per page and appends the next batch as the list
+ * is scrolled; drives the DataTable's infinite-scroll mode. `params` should NOT
+ * include `page` (the hook owns paging) but may carry search/status/sort.
+ */
+export function useSalesInchargesInfinite(
+  params: Omit<SalesInchargeListParams, "page"> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.salesIncharge.listInfinite(
+      params as Record<string, unknown>,
+    ),
+    queryFn: ({ pageParam }) =>
+      fetchSalesIncharges({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: options.enabled ?? true,
   });
 }
 

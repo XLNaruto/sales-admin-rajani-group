@@ -56,6 +56,8 @@ export interface SalesIncharge {
   dateOfJoining: string | null
   status: SalesInchargeStatus
   reportsTo: number | null
+  /** Full media URL for the profile photo (resolved from `profile_photo_path`). */
+  profilePhotoUrl?: string
 }
 
 /** Query params accepted by the list endpoint (page-based pagination). */

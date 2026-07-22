@@ -4,12 +4,27 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 
+/**
+ * Sentinel page size meaning "load everything, lazily". When the footer's page-
+ * size selector is set to "All", the pagination state carries this value; the
+ * feature hook detects it and switches to an infinite (append-on-scroll) query
+ * instead of fetching every row in a single request.
+ */
+export const ALL_PAGE_SIZE = -1
+
+/** Default rows fetched per infinite-scroll batch when "All" is selected. */
+export const INFINITE_BATCH_SIZE = 100
+
 interface DataTablePaginationProps<TData> {
   table: Table<TData>
   /** Noun used in the "Showing 1 to 10 of 42 vehicles" summary. */
   itemName?: string
   /** Page-size choices; omit to hide the selector. */
   pageSizeOptions?: number[]
+  /** Infinite ("All") mode — hides the numeric pager and shows a loaded/total summary. */
+  infinite?: boolean
+  /** Rows loaded so far (used for the infinite-mode summary). */
+  loadedCount?: number
 }
 
 /**
@@ -33,14 +48,19 @@ export function DataTablePagination<TData>({
   table,
   itemName = 'results',
   pageSizeOptions,
+  infinite = false,
+  loadedCount = 0,
 }: DataTablePaginationProps<TData>) {
   const { pageIndex, pageSize } = table.getState().pagination
   // Total rows across all pages — respects server-side (`rowCount`) pagination
   // and falls back to the filtered client row count otherwise.
   const total = table.getRowCount()
-  const pageCount = table.getPageCount() || 1
-  const from = total === 0 ? 0 : pageIndex * pageSize + 1
-  const to = Math.min(total, (pageIndex + 1) * pageSize)
+  // In infinite mode the numeric pager is meaningless — collapse to one page.
+  const pageCount = infinite ? 1 : table.getPageCount() || 1
+  const from = total === 0 ? 0 : infinite ? 1 : pageIndex * pageSize + 1
+  const to = infinite
+    ? loadedCount
+    : Math.min(total, (pageIndex + 1) * pageSize)
 
   return (
     <div className="flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
@@ -117,15 +137,25 @@ export function DataTablePagination<TData>({
             className="w-17 border-border/50"
             align="end"
             searchable={false}
-            // An exact option match wins; otherwise "All" (page holds every row).
+            // "All" maps to the infinite sentinel; otherwise the exact page size.
             value={
-              pageSizeOptions.includes(pageSize)
-                ? String(pageSize)
-                : total > 0 && pageSize >= total
-                  ? 'all'
+              infinite || pageSize === ALL_PAGE_SIZE
+                ? 'all'
+                : pageSizeOptions.includes(pageSize)
+                  ? String(pageSize)
                   : String(pageSize)
             }
-            onChange={(v) => table.setPageSize(v === 'all' ? Math.max(total, 1) : Number(v))}
+            onChange={(v) =>
+              // `setPageSize` clamps to >= 1, so set the "All" sentinel directly
+              // via `setPagination` (also resets to the first batch).
+              v === 'all'
+                ? table.setPagination((old) => ({
+                    ...old,
+                    pageIndex: 0,
+                    pageSize: ALL_PAGE_SIZE,
+                  }))
+                : table.setPageSize(Number(v))
+            }
             options={[
               ...pageSizeOptions.map((n) => ({ label: String(n), value: String(n) })),
               { label: 'All', value: 'all' },

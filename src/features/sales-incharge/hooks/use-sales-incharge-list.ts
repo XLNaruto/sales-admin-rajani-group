@@ -7,9 +7,11 @@ import type {
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
+import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
 import {
   useDeleteSalesIncharge,
   useSalesIncharges,
+  useSalesInchargesInfinite,
   useSetSalesInchargeStatus,
 } from "../api/use-sales-incharge";
 import type { SalesmanFilters } from "../components/salesman-toolbar";
@@ -65,21 +67,43 @@ export function useSalesInchargeList() {
   const sort = sorting[0];
   const sortBy = sort ? SORT_BY_COLUMN[sort.id] : undefined;
 
-  // Filters, sort and pagination are all applied server-side by the endpoint.
-  const { data, isLoading, isError } = useSalesIncharges({
+  // "All" selected → lazy/infinite mode; otherwise classic page-by-page.
+  const isAll = pagination.pageSize === ALL_PAGE_SIZE;
+
+  // Shared server-side filter/sort params (page/size differ per mode).
+  const baseParams = {
     search: filters.search.trim() || undefined,
     status:
       filters.status !== "all"
         ? (filters.status as SalesInchargeStatus)
         : undefined,
-    page: pagination.pageIndex + 1,
-    pageSize: pagination.pageSize,
     sortBy,
     sortOrder: sortBy ? (sort.desc ? "desc" : "asc") : undefined,
-  });
+  } as const;
 
-  const rows = data?.items ?? [];
-  const rowCount = data?.total ?? 0;
+  // Only one of the two queries is enabled at a time (based on `isAll`).
+  const { data, isLoading, isError } = useSalesIncharges(
+    {
+      ...baseParams,
+      page: pagination.pageIndex + 1,
+      pageSize: pagination.pageSize,
+    },
+    { enabled: !isAll },
+  );
+
+  const infinite = useSalesInchargesInfinite(
+    { ...baseParams, pageSize: INFINITE_BATCH_SIZE },
+    { enabled: isAll },
+  );
+
+  const infiniteRows = infinite.data?.pages.flatMap((p) => p.items) ?? [];
+  const infiniteTotal =
+    infinite.data?.pages.at(-1)?.total ?? infiniteRows.length;
+
+  const rows = isAll ? infiniteRows : (data?.items ?? []);
+  const rowCount = isAll ? infiniteTotal : (data?.total ?? 0);
+  const listIsLoading = isAll ? infinite.isLoading : isLoading;
+  const listIsError = isAll ? infinite.isError : isError;
   const hasActiveFilters = filters.search !== "" || filters.status !== "all";
 
   const goToCreate = () => navigate({ to: "/sales-incharge/create" });
@@ -88,6 +112,12 @@ export function useSalesInchargeList() {
   const goToEdit = (id: number) =>
     navigate({
       to: "/sales-incharge/create",
+      search: { data: encryptParams({ id }) },
+    });
+  // Beat allocation reuses the same encrypted-id token pattern as edit.
+  const goToBeatAllocation = (id: number) =>
+    navigate({
+      to: "/sales-incharge/beat-allocation",
       search: { data: encryptParams({ id }) },
     });
 
@@ -130,11 +160,16 @@ export function useSalesInchargeList() {
     setPagination,
     sorting,
     onSortingChange,
-    isLoading,
-    isError,
+    isLoading: listIsLoading,
+    isError: listIsError,
+    // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
+    onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
+    hasMore: isAll ? infinite.hasNextPage : false,
+    isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     hasActiveFilters,
     goToCreate,
     goToEdit,
+    goToBeatAllocation,
     changeStatus,
     isSettingStatus: setStatus.isPending,
     pendingDelete,

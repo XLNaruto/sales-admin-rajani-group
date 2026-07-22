@@ -32,17 +32,23 @@ export const queryKeys = {
     all: ['distributors'] as const,
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.distributors.all, 'list', filters ?? {}] as const,
+    listInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.distributors.all, 'list-infinite', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.distributors.all, 'detail', id] as const,
     detailView: (id: string) =>
       [...queryKeys.distributors.all, 'detail-view', id] as const,
     performance: (id: string) =>
       [...queryKeys.distributors.all, 'performance', id] as const,
     pendingApproval: () => [...queryKeys.distributors.all, 'pending-approval'] as const,
+    productDivisions: (filters?: Record<string, unknown>) =>
+      [...queryKeys.distributors.all, 'product-divisions', filters ?? {}] as const,
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'list', filters ?? {}] as const,
+    listInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.salesIncharge.all, 'list-infinite', filters ?? {}] as const,
     salesmen: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'salesmen', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.salesIncharge.all, 'detail', id] as const,
@@ -57,6 +63,15 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.beats.all, 'list', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.beats.all, 'detail', id] as const,
+  },
+  beatAllocation: {
+    all: ['beat-allocation'] as const,
+    /** Beats already allocated to a sales incharge (per-incharge + filters). */
+    allocated: (inchargeId: string, filters?: Record<string, unknown>) =>
+      [...queryKeys.beatAllocation.all, 'allocated', inchargeId, filters ?? {}] as const,
+    /** Beats available to allocate to a sales incharge (per-incharge + filters). */
+    available: (inchargeId: string, filters?: Record<string, unknown>) =>
+      [...queryKeys.beatAllocation.all, 'available', inchargeId, filters ?? {}] as const,
   },
   notifications: {
     all: ['notifications'] as const,

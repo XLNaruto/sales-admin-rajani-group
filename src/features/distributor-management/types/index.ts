@@ -4,11 +4,30 @@ export type DistributorStatus = 'active' | 'inactive' | 'pending' | 'suspended' 
  * (`pending`/`rejected` are UI-only workflow states, not settable via the API.)
  */
 export type DistributorLifecycleStatus = 'active' | 'inactive' | 'suspended'
+/** Onboarding-approval workflow state, independent of the lifecycle status. */
+export type DistributorOnboardingStatus = 'pending' | 'approved' | 'rejected'
+/** Action accepted by PATCH …/distributors/{id}/onboarding. */
+export type DistributorOnboardingAction = 'approve' | 'reject'
 export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
 export type MarketSystem = 'ready_stock' | 'booking'
 export type PaymentCondition = 'same_day_cheque' | 'due_date_neft_rtgs' | 'advance'
+
+/** A product-division master option (id + display name). */
+export interface ProductDivision {
+  id: number
+  name: string
+}
+
+/** Normalised product-division list result: a page of rows + pagination. */
+export interface ProductDivisionListResult {
+  items: ProductDivision[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
 
 export interface Distributor {
   id: string
@@ -25,6 +44,9 @@ export interface Distributor {
   email: string
   code: string
   status: DistributorStatus
+  onboardingStatus: DistributorOnboardingStatus
+  /** Product-division names resolved by the list endpoint (`product_division_names`). */
+  productDivisionNames?: string[]
 
   // --- Location & coverage ---
   officeAddress: string
@@ -35,6 +57,8 @@ export interface Distributor {
   districtId: string
   talukaId: string
   cityId: string
+  /** City display name resolved by the list endpoint (`city_name`). */
+  cityName?: string
   pincode?: string
   deliveryRoute?: string
   agencyTalukaIds?: string[]
@@ -92,6 +116,8 @@ export interface DistributorCreateInput {
   email: string
   code?: string
   status: DistributorStatus
+  /** Selected product-division ids (as strings; sent to the API as numbers). */
+  productDivisions?: string[]
 
   // --- Location & coverage ---
   officeAddress: string
@@ -191,8 +217,13 @@ export interface DistributorDetailView {
   godownAddress: string | null
   homeAddress: string | null
   stateId: string | null
+  stateName: string | null
+  zoneName: string | null
+  districtName: string | null
   cityId: string | null
+  cityName: string | null
   talukaId: string | null
+  talukaName: string | null
   pincode: string | null
   deliveryRoute: string | null
   marketType: string | null
@@ -205,6 +236,8 @@ export interface DistributorDetailView {
   godownImageUrls: string[]
 
   // --- Business details ---
+  /** Product-division names this distributor handles. */
+  productDivisionNames: string[]
   otherAgencies: string | null
   similarAgencies: string | null
   assignedProducts: string | null
@@ -249,6 +282,8 @@ export interface DistributorListParams {
   search?: string
   /** Filter by status. */
   status?: string
+  /** Filter by distributor (firm) type, exact match. */
+  firmType?: string
   /** Column to sort by. Defaults to newest first when omitted. */
   sortBy?: DistributorSortBy
   /** Sort direction. */

@@ -1,43 +1,47 @@
+/** Lifecycle status of a beat. */
 export type BeatStatus = 'active' | 'inactive'
-export type MarketType = 'local' | 'rural' | 'counter_sales'
-export type MarketSystem = 'ready_stock' | 'booking'
-export type VisitCycle = 'weekly' | 'fortnightly' | 'monthly'
 
-/** A single ordered stop on the beat route. */
-export interface BeatOutlet {
-  retailerId: string
-  /** 1-based visit order. */
-  sequence: number
-  geoLat?: number
-  geoLng?: number
-  geoFenceM?: number
-}
+/** Beat grade — the market classification a beat falls under. */
+export type BeatGrade = 'urban' | 'semi_urban' | 'metro' | 'non_metro' | 'rural'
 
+/** A beat as shown in the list — the four core fields plus resolved labels. */
 export interface Beat {
   id: string
-  // Beat details
-  beatCode: string
   beatName: string
-  status: BeatStatus
-  marketType: MarketType
-  marketSystem: MarketSystem
-  // Territory & distributor
-  stateId: string
-  zoneId: string
-  districtId: string
-  talukaId: string
-  cityId: string
-  villageIds?: string[]
+  beatGrade: BeatGrade
   distributorId: string
-  // Schedule & allocation
-  visitCycle: VisitCycle
-  visitDays: string[]
-  assignedSalesmanId: string
-  beatProgramId?: string
-  effectiveDate: string
-  // Outlets & route
-  outlets: BeatOutlet[]
+  /** Resolved distributor label from the list endpoint (for display). */
+  distributorName?: string
+  status: BeatStatus
 }
 
-/** Payload for creating a beat (everything except the generated id). */
-export type BeatInput = Omit<Beat, 'id'>
+/** Body for creating/updating a beat (everything except the generated id). */
+export interface BeatInput {
+  beatName: string
+  beatGrade: BeatGrade
+  distributorId: string
+  status: BeatStatus
+}
+
+/** Columns the list endpoint can sort by. */
+export type BeatSortBy = 'beat_name' | 'beat_grade' | 'created_at' | 'updated_at'
+
+/** Query params accepted by the beat list endpoint (camelCase). */
+export interface BeatListParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  grade?: BeatGrade
+  status?: BeatStatus
+  sortBy?: BeatSortBy
+  sortOrder?: 'asc' | 'desc'
+}
+
+/** One page of the server-filtered beat list. */
+export interface BeatListResult {
+  items: Beat[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

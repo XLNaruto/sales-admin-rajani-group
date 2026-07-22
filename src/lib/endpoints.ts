@@ -44,16 +44,46 @@ export const endpoints = {
   DESIGNATION: {
     LIST: '/sales-incharge-admin/designations',
   },
+  /** Product-division master — the divisions a distributor can be assigned to. */
+  PRODUCT_DIVISION: {
+    LIST: '/sales-incharge-admin/product-divisions',
+  },
   DISTRIBUTOR: {
     LIST: '/sales-incharge-admin/distributors',
     CREATE: '/sales-incharge-admin/distributors',
     GET: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/distributors/${id}/status`,
+    ONBOARDING: (id: string | number) => `/sales-incharge-admin/distributors/${id}/onboarding`,
     DELETE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     OFFICE_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/office-images/presign',
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/distributors/documents/presign',
+  },
+  /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
+  BEAT: {
+    LIST: '/sales-incharge-admin/beats',
+    CREATE: '/sales-incharge-admin/beats',
+    GET: (id: string | number) => `/sales-incharge-admin/beats/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/beats/${id}`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/beats/${id}`,
+    STATUS: (id: string | number) => `/sales-incharge-admin/beats/${id}/status`,
+  },
+  /**
+   * Beat allocation — assign/unassign beats to a sales incharge. Paths are left
+   * blank until the backend is finalised; the allocation `api/` layer treats a
+   * blank path as "not configured yet" (queries resolve to empty, mutations
+   * surface a clear error) so the screen renders. Fill these in to go live.
+   */
+  BEAT_ALLOCATION: {
+    /** GET the beats already allocated to a sales incharge (paged + searchable). */
+    ALLOCATED: (_id: string | number) => '',
+    /** GET the beats available to allocate (not yet assigned to this incharge). */
+    AVAILABLE: (_id: string | number) => '',
+    /** POST to allocate (add) one or more beats to a sales incharge. */
+    ALLOCATE: (_id: string | number) => '',
+    /** DELETE to remove one allocated beat from a sales incharge. */
+    REMOVE: (_id: string | number, _beatId: string | number) => '',
   },
   /**
    * Geography masters. A strict hierarchy — each level filters by its parent's

@@ -1,14 +1,30 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import type { OnChangeFn, PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
+import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
 import {
   useDistributors,
+  useDistributorsInfinite,
   useDeleteDistributor,
   useSetDistributorStatus,
+  useUpdateDistributorOnboarding,
 } from "../api/use-distributors";
 import type { DistributorFilters } from "../components/distributor-toolbar";
-import type { Distributor, DistributorLifecycleStatus } from "../types";
+import type {
+  Distributor,
+  DistributorLifecycleStatus,
+  DistributorSortBy,
+} from "../types";
+
+/** Map a table column id → the list endpoint's `sort_by` value. */
+const SORT_BY_COLUMN: Record<string, DistributorSortBy> = {
+  firmName: "firm_name",
+  owner: "owner_name",
+  city: "city_id",
+  status: "status",
+};
 
 /** Empty filter state — also used to reset the toolbar. */
 const INITIAL_FILTERS: DistributorFilters = {
@@ -27,26 +43,70 @@ export function useDistributorsList() {
   const navigate = useNavigate();
 
   const [filters, setFilters] = useState<DistributorFilters>(INITIAL_FILTERS);
-  const patchFilters = (patch: Partial<DistributorFilters>) =>
-    setFilters((f) => ({ ...f, ...patch }));
-  const resetFilters = () => setFilters(INITIAL_FILTERS);
+  // Server-side pagination + sorting state (mirrors TanStack Table's shapes).
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+  const [sorting, setSorting] = useState<SortingState>([]);
 
-  // search + status are applied server-side by the list endpoint. Firm type has
-  // no server param, so it's filtered client-side over the returned rows.
-  const { data, isLoading, isError } = useDistributors({
+  // Any filter/sort change resets to the first page — otherwise you could land
+  // on a page that no longer exists for the narrower result set.
+  const patchFilters = (patch: Partial<DistributorFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }));
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  };
+  const resetFilters = () => {
+    setFilters(INITIAL_FILTERS);
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  };
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPagination((p) => ({ ...p, pageIndex: 0 }));
+  };
+
+  const sort = sorting[0];
+  const sortBy = sort ? SORT_BY_COLUMN[sort.id] : undefined;
+
+  // "All" selected → lazy/infinite mode; otherwise classic page-by-page.
+  const isAll = pagination.pageSize === ALL_PAGE_SIZE;
+
+  // Search, status and firm type are all applied server-side by the endpoint.
+  const baseParams = {
     search: filters.search.trim() || undefined,
     status: filters.status !== "all" ? filters.status : undefined,
-    pageSize: 100,
-  });
+    firmType: filters.firmType !== "all" ? filters.firmType : undefined,
+    sortBy,
+    sortOrder: sortBy ? (sort.desc ? "desc" : "asc") : undefined,
+  } as const;
+
+  // Only one of the two queries is enabled at a time (based on `isAll`).
+  const { data, isLoading, isError } = useDistributors(
+    {
+      ...baseParams,
+      page: pagination.pageIndex + 1,
+      pageSize: pagination.pageSize,
+    },
+    { enabled: !isAll },
+  );
+
+  const infinite = useDistributorsInfinite(
+    { ...baseParams, pageSize: INFINITE_BATCH_SIZE },
+    { enabled: isAll },
+  );
 
   const deleteDistributor = useDeleteDistributor();
   const setStatus = useSetDistributorStatus();
+  const setOnboarding = useUpdateDistributorOnboarding();
 
-  const filtered = useMemo(() => {
-    const items = data?.items ?? [];
-    if (filters.firmType === "all") return items;
-    return items.filter((d) => d.firmType === filters.firmType);
-  }, [data, filters.firmType]);
+  const infiniteRows = infinite.data?.pages.flatMap((p) => p.items) ?? [];
+  const infiniteTotal =
+    infinite.data?.pages.at(-1)?.total ?? infiniteRows.length;
+
+  const rows = isAll ? infiniteRows : (data?.items ?? []);
+  const rowCount = isAll ? infiniteTotal : (data?.total ?? 0);
+  const listIsLoading = isAll ? infinite.isLoading : isLoading;
+  const listIsError = isAll ? infinite.isError : isError;
 
   const hasActiveFilters =
     filters.search !== "" ||
@@ -58,6 +118,7 @@ export function useDistributorsList() {
     null,
   );
   const [pendingReject, setPendingReject] = useState<Distributor | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Inline status change from the list toggle — PATCH the record's status.
   const changeStatus = (id: string, status: DistributorLifecycleStatus) => {
@@ -85,10 +146,13 @@ export function useDistributorsList() {
   const confirmApprove = () => {
     if (!pendingApprove) return;
     const d = pendingApprove;
-    setStatus.mutate(
-      { id: d.id, status: "active" },
+    setOnboarding.mutate(
+      { id: d.id, action: "approve" },
       {
-        onSuccess: () => toast.success(`${d.firmName} approved`),
+        onSuccess: () => {
+          toast.success(`${d.firmName} approved`);
+          setPendingApprove(null);
+        },
         onError: () => toast.error("Couldn't approve the distributor."),
       },
     );
@@ -96,12 +160,17 @@ export function useDistributorsList() {
 
   const confirmReject = () => {
     if (!pendingReject) return;
+    const reason = rejectReason.trim();
+    if (!reason) return;
     const d = pendingReject;
-    // The API has no 'rejected' state — a rejected distributor is set inactive.
-    setStatus.mutate(
-      { id: d.id, status: "inactive" },
+    setOnboarding.mutate(
+      { id: d.id, action: "reject", reason },
       {
-        onSuccess: () => toast.success(`${d.firmName} rejected`),
+        onSuccess: () => {
+          toast.success(`${d.firmName} rejected`);
+          setPendingReject(null);
+          setRejectReason("");
+        },
         onError: () => toast.error("Couldn't reject the distributor."),
       },
     );
@@ -120,9 +189,18 @@ export function useDistributorsList() {
     filters,
     patchFilters,
     resetFilters,
-    filtered,
-    isLoading,
-    isError,
+    rows,
+    rowCount,
+    pagination,
+    setPagination,
+    sorting,
+    onSortingChange,
+    isLoading: listIsLoading,
+    isError: listIsError,
+    // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
+    onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
+    hasMore: isAll ? infinite.hasNextPage : false,
+    isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     hasActiveFilters,
     pendingDelete,
     setPendingDelete,
@@ -130,12 +208,15 @@ export function useDistributorsList() {
     setPendingApprove,
     pendingReject,
     setPendingReject,
+    rejectReason,
+    setRejectReason,
     confirmDelete,
     confirmApprove,
     confirmReject,
     changeStatus,
     isDeleting: deleteDistributor.isPending,
     isSettingStatus: setStatus.isPending,
+    isSettingOnboarding: setOnboarding.isPending,
     goToCreate,
     goToEdit,
   };

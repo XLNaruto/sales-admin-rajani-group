@@ -2,6 +2,7 @@ export { DistributorsPage } from './pages/distributors-page'
 export { DistributorCreatePage } from './pages/distributor-create-page'
 export {
   useDistributors,
+  useDistributorsInfinite,
   useDistributor,
   useCreateDistributor,
   useUpdateDistributor,

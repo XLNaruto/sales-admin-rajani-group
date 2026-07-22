@@ -13,8 +13,9 @@ const phone = (msg = 'Enter a valid 10-digit number') => z.string().regex(/^\d{1
 export const salesInchargeSchema = z
   .object({
     name: z.string().min(2, 'Enter the name'),
-    // No API field maps to this — kept for the UI only, not persisted.
-    employerCompany: z.string().optional(),
+    // Holds the selected company (tenant) id as a string; persisted as
+    // `company_id`. Sourced from the `/me/companies` dropdown.
+    employerCompany: z.string().min(1, 'Select the employer company'),
     address: z.string().min(2, 'Enter the address'),
     dateOfBirth: z.string().min(1, 'Select date of birth'),
     marriageAnniversary: z.string().optional(),

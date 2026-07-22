@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Loader2 } from 'lucide-react'
 import {
   type ColumnDef,
   type ColumnFiltersState,
   type OnChangeFn,
   type PaginationState,
+  type RowData,
   type SortingState,
   flexRender,
   getCoreRowModel,
@@ -22,8 +24,16 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DataTablePagination } from './data-table-pagination'
+import { ALL_PAGE_SIZE, DataTablePagination } from './data-table-pagination'
 import { DataTableToolbar } from './data-table-toolbar'
+
+declare module '@tanstack/react-table' {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface ColumnMeta<TData extends RowData, TValue> {
+    /** Extra classes for this column's header + cells (e.g. `w-px whitespace-nowrap` to shrink to content). */
+    className?: string
+  }
+}
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
@@ -75,6 +85,18 @@ interface DataTableProps<TData, TValue> {
   sorting?: SortingState
   /** Sorting change handler (required when `manualSorting`). */
   onSortingChange?: OnChangeFn<SortingState>
+  /**
+   * Infinite-scroll ("All") support. When `onLoadMore` is supplied, the table
+   * watches its scroll container and calls it as the user nears the bottom,
+   * provided `hasMore` is true and a fetch isn't already in flight. Pair with a
+   * feature hook that appends each batch to `data`. Only active while the page
+   * size is `ALL_PAGE_SIZE`; the numeric pager is hidden and a loading row shows.
+   */
+  onLoadMore?: () => void
+  /** Whether another batch remains to load (drives the scroll trigger). */
+  hasMore?: boolean
+  /** Whether the next batch is currently loading (shows a bottom loading row). */
+  isFetchingMore?: boolean
 }
 
 /**
@@ -104,6 +126,9 @@ export function DataTable<TData, TValue>({
   manualSorting = false,
   sorting: sortingProp,
   onSortingChange,
+  onLoadMore,
+  hasMore = false,
+  isFetchingMore = false,
 }: DataTableProps<TData, TValue>) {
   // Sorting + pagination can be controlled by the caller (server-side) or fall
   // back to internal state (client-side). Controlled props win when supplied.
@@ -140,6 +165,35 @@ export function DataTable<TData, TValue>({
   // Hide the pagination footer when there's nothing to page through.
   const hasRows = table.getRowModel().rows.length > 0
 
+  // Infinite ("All") mode: active only when the caller wires up `onLoadMore`
+  // AND the current page size is the "All" sentinel.
+  const isInfinite = onLoadMore != null && pagination.pageSize === ALL_PAGE_SIZE
+
+  // Scroll container ref + near-bottom detection that drives `onLoadMore`.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef(onLoadMore)
+  loadMoreRef.current = onLoadMore
+
+  const maybeLoadMore = useCallback(() => {
+    const el = scrollRef.current
+    if (!el || !isInfinite || !hasMore || isFetchingMore) return
+    // Trigger when within ~150px of the bottom so the next batch is ready
+    // before the user hits the very end.
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
+      loadMoreRef.current?.()
+    }
+  }, [isInfinite, hasMore, isFetchingMore])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || !isInfinite) return
+    el.addEventListener('scroll', maybeLoadMore)
+    // Content shorter than the viewport never scrolls — kick a check so the
+    // next batch still loads until the container fills or data runs out.
+    maybeLoadMore()
+    return () => el.removeEventListener('scroll', maybeLoadMore)
+  }, [isInfinite, maybeLoadMore])
+
   return (
     <div className={cn('w-full space-y-4', className)}>
       {toolbar ??
@@ -153,12 +207,15 @@ export function DataTable<TData, TValue>({
 
       <div className="rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px]">
         <div className={cn('overflow-hidden', hidePagination || !hasRows ? 'rounded-xl' : 'rounded-t-xl')}>
-        <Table maxHeight={maxHeight}>
+        <Table maxHeight={maxHeight} containerRef={scrollRef}>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id} className="hover:bg-transparent">
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    className={header.column.columnDef.meta?.className}
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -172,7 +229,9 @@ export function DataTable<TData, TValue>({
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              Array.from({ length: skeletonRows ?? pageSize }).map((_, r) => (
+              Array.from({
+                length: skeletonRows ?? (pageSize > 0 ? pageSize : 10),
+              }).map((_, r) => (
                 <TableRow key={`skeleton-${r}`} className="hover:bg-transparent">
                   {columns.map((_, c) => (
                     <TableCell key={c}>
@@ -182,15 +241,36 @@ export function DataTable<TData, TValue>({
                 </TableRow>
               ))
             ) : table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} className="[&:last-child_td]:border-0">
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+              <>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id} className="[&:last-child_td]:border-0">
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        className={cell.column.columnDef.meta?.className}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+                {isInfinite && isFetchingMore ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell
+                      colSpan={columns.length}
+                      className="border-0 py-4 text-center text-sm text-muted-foreground"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        Loading more…
+                      </span>
                     </TableCell>
-                  ))}
-                </TableRow>
-              ))
+                  </TableRow>
+                ) : null}
+              </>
             ) : (
               <TableRow className="hover:bg-transparent">
                 <TableCell
@@ -214,6 +294,8 @@ export function DataTable<TData, TValue>({
               table={table}
               itemName={itemName}
               pageSizeOptions={pageSizeOptions}
+              infinite={isInfinite}
+              loadedCount={table.getRowModel().rows.length}
             />
           </div>
         )}

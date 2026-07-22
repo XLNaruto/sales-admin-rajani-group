@@ -10,17 +10,35 @@ import { cn } from "@/lib/utils";
 import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
 import { DistributorToolbar } from "../components/distributor-toolbar";
 import { useDistributorsList } from "../hooks/use-distributors-list";
-import { cityName, labelFor } from "../lib/distributor-reference";
-import type { Distributor } from "../types";
+import { labelFor } from "../lib/distributor-reference";
+import type { Distributor, DistributorOnboardingStatus } from "../types";
+
+/** Badge tint per onboarding-approval state. */
+const ONBOARDING_STYLES: Record<DistributorOnboardingStatus, string> = {
+  pending:
+    "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  approved:
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  rejected:
+    "border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+};
 
 export function DistributorsPage() {
   const {
     filters,
     patchFilters,
     resetFilters,
-    filtered,
+    rows,
+    rowCount,
+    pagination,
+    setPagination,
+    sorting,
+    onSortingChange,
     isLoading,
     isError,
+    onLoadMore,
+    hasMore,
+    isFetchingMore,
     hasActiveFilters,
     pendingDelete,
     setPendingDelete,
@@ -28,12 +46,15 @@ export function DistributorsPage() {
     setPendingApprove,
     pendingReject,
     setPendingReject,
+    rejectReason,
+    setRejectReason,
     confirmDelete,
     confirmApprove,
     confirmReject,
     changeStatus,
     isDeleting,
     isSettingStatus,
+    isSettingOnboarding,
     goToCreate,
     goToEdit,
   } = useDistributorsList();
@@ -46,16 +67,24 @@ export function DistributorsPage() {
         id: "index",
         header: "#",
         enableSorting: false,
-        cell: ({ row, table }) => (
-          <span className="text-sm text-muted-foreground tabular-nums">
-            {table.getSortedRowModel().rows.findIndex((r) => r.id === row.id) + 1}
-          </span>
-        ),
+        meta: { className: "w-px whitespace-nowrap" },
+        cell: ({ row, table }) => {
+          const { pageIndex, pageSize } = table.getState().pagination;
+          // In infinite ("All") mode pageSize is the sentinel (< 0) and all rows
+          // share one running list — fall back to the row's own index.
+          const base = pageSize > 0 ? pageIndex * pageSize : 0;
+          return (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {base + row.index + 1}
+            </span>
+          );
+        },
       },
       {
         id: "actions",
         header: "Actions",
         enableSorting: false,
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <button
@@ -83,13 +112,13 @@ export function DistributorsPage() {
             >
               <Trash2 className="size-4" />
             </button>
-            {row.original.status === "pending" && (
+            {row.original.onboardingStatus === "pending" && (
               <>
                 <button
                   type="button"
                   title="Approve"
                   onClick={() => setPendingApprove(row.original)}
-                  disabled={isSettingStatus}
+                  disabled={isSettingOnboarding}
                   className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
                 >
                   <Check className="size-4" />
@@ -98,7 +127,7 @@ export function DistributorsPage() {
                   type="button"
                   title="Reject"
                   onClick={() => setPendingReject(row.original)}
-                  disabled={isSettingStatus}
+                  disabled={isSettingOnboarding}
                   className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
                 >
                   <X className="size-4" />
@@ -175,6 +204,22 @@ export function DistributorsPage() {
         },
       },
       {
+        accessorKey: "onboardingStatus",
+        header: "Onboarding",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const s = row.original.onboardingStatus;
+          return (
+            <Badge
+              variant="outline"
+              className={cn("font-medium capitalize", ONBOARDING_STYLES[s])}
+            >
+              {s}
+            </Badge>
+          );
+        },
+      },
+      {
         id: "owner",
         accessorFn: (d) => d.ownerName,
         header: ({ column }) => (
@@ -183,10 +228,10 @@ export function DistributorsPage() {
         cell: ({ row }) => {
           const { ownerName, ownerMobile } = row.original;
           if (!ownerName && !ownerMobile)
-            return <span className="text-muted-foreground">—</span>;
+            return <span className="text-muted-foreground">N/A</span>;
           return (
             <div className="leading-tight">
-              <p className="text-sm text-foreground">{ownerName || "—"}</p>
+              <p className="text-sm text-foreground">{ownerName || "N/A"}</p>
               {ownerMobile && (
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {ownerMobile}
@@ -207,20 +252,39 @@ export function DistributorsPage() {
               {labelFor(row.original.firmType)}
             </Badge>
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">N/A</span>
           ),
       },
       {
+        id: "productDivisions",
+        header: "Product Divisions",
+        enableSorting: false,
+        cell: ({ row }) => {
+          const names = row.original.productDivisionNames ?? [];
+          if (names.length === 0)
+            return <span className="text-muted-foreground">N/A</span>;
+          return (
+            <div className="flex max-w-56 flex-wrap gap-1">
+              {names.map((name) => (
+                <Badge key={name} variant="outline" className="font-medium">
+                  {name}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
+      },
+      {
         id: "city",
-        accessorFn: (d) => cityName(d.cityId),
+        accessorFn: (d) => d.cityName,
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="City" />
         ),
         cell: ({ row }) =>
-          row.original.cityId ? (
-            cityName(row.original.cityId)
+          row.original.cityName ? (
+            row.original.cityName
           ) : (
-            <span className="text-muted-foreground">—</span>
+            <span className="text-muted-foreground">N/A</span>
           ),
       },
       {
@@ -240,7 +304,7 @@ export function DistributorsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDeleting, isSettingStatus],
+    [isDeleting, isSettingStatus, isSettingOnboarding],
   );
 
   return (
@@ -256,11 +320,21 @@ export function DistributorsPage() {
       />
       <DataTable
         columns={columns}
-        data={filtered}
+        data={rows}
         isLoading={isLoading}
         itemName="distributors"
         maxHeight="70vh"
         pageSizeOptions={[5, 10, 25, 50]}
+        manualPagination
+        pagination={pagination}
+        onPaginationChange={setPagination}
+        rowCount={rowCount}
+        manualSorting
+        sorting={sorting}
+        onSortingChange={onSortingChange}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        isFetchingMore={isFetchingMore}
         toolbar={
           <DistributorToolbar
             filters={filters}
@@ -331,19 +405,24 @@ export function DistributorsPage() {
               <span className="font-medium text-foreground">
                 {pendingApprove.firmName}
               </span>{" "}
-              will be marked active and can start operating.
+              onboarding request will be approved.
             </>
           ) : undefined
         }
         confirmLabel="Yes, approve"
         cancelLabel="Cancel"
-        loading={isSettingStatus}
+        loading={isSettingOnboarding}
         onConfirm={confirmApprove}
       />
 
       <ConfirmDialog
         open={pendingReject !== null}
-        onOpenChange={(open) => !open && setPendingReject(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingReject(null);
+            setRejectReason("");
+          }
+        }}
         variant="destructive"
         icon={X}
         title="Reject this distributor?"
@@ -353,15 +432,34 @@ export function DistributorsPage() {
               <span className="font-medium text-foreground">
                 {pendingReject.firmName}
               </span>{" "}
-              will be marked rejected.
+              onboarding request will be rejected. Please provide a reason.
             </>
           ) : undefined
         }
         confirmLabel="Yes, reject"
         cancelLabel="Cancel"
-        loading={isSettingStatus}
+        loading={isSettingOnboarding}
+        confirmDisabled={rejectReason.trim() === ""}
+        keepOpenOnConfirm
         onConfirm={confirmReject}
-      />
+      >
+        <div className="text-left">
+          <label
+            htmlFor="reject-reason"
+            className="mb-1.5 block text-sm font-medium text-foreground"
+          >
+            Reason <span className="text-destructive">*</span>
+          </label>
+          <textarea
+            id="reject-reason"
+            autoFocus
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Why is this onboarding request being rejected?"
+            className="h-24 w-full resize-none overflow-auto rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
+          />
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

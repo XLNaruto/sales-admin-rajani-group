@@ -8,16 +8,20 @@ import { cn } from '@/lib/utils'
 function Table({
   className,
   containerClassName,
+  containerRef,
   maxHeight,
   ...props
 }: React.ComponentProps<'table'> & {
   /** Extra classes for the scroll container. */
   containerClassName?: string
+  /** Ref to the scroll container (e.g. for infinite-scroll detection). */
+  containerRef?: React.Ref<HTMLDivElement>
   /** When set, the container scrolls vertically and the header stays sticky. */
   maxHeight?: string
 }) {
   return (
     <div
+      ref={containerRef}
       className={cn('relative w-full overflow-auto', containerClassName)}
       style={maxHeight ? { maxHeight } : undefined}
     >

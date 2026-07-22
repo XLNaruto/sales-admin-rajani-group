@@ -15,7 +15,7 @@ import type { SalesInchargeStatus } from "../types";
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
 function formatDate(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "N/A";
   try {
     return format(parseISO(value), "dd-MM-yyyy");
   } catch {
@@ -25,7 +25,7 @@ function formatDate(value: string | null) {
 
 /** Format a numeric money string as '₹ 1,234' (falls back to the raw value). */
 function formatMoney(value: string | null) {
-  if (value == null || value.trim() === "") return "—";
+  if (value == null || value.trim() === "") return "N/A";
   const n = Number(value);
   if (!Number.isFinite(n)) return value;
   return `₹ ${n.toLocaleString("en-IN")}`;
@@ -57,7 +57,7 @@ function Field({
         {label}
       </dt>
       <dd className="mt-0.5 break-words text-sm text-foreground">
-        {value ?? "—"}
+        {value ?? "N/A"}
       </dd>
     </div>
   );
@@ -65,7 +65,7 @@ function Field({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-3 mt-6 text-sm font-semibold text-foreground first:mt-0">
+    <h3 className="mb-3 mt-6 border-b border-border pb-2 text-sm font-semibold text-foreground first:mt-0">
       {children}
     </h3>
   );

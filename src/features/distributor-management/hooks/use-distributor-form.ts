@@ -108,6 +108,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     email: values.email,
     code: values.code ?? "",
     status: values.status,
+    productDivisions: values.productDivisions ?? [],
     // Location & coverage
     officeAddress: values.officeAddress,
     godownAddress: str(values.godownAddress),

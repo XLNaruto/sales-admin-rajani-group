@@ -27,6 +27,15 @@ export interface ConfirmDialogProps {
   icon?: LucideIcon
   /** Disables the confirm button (e.g. while an async action is pending). */
   loading?: boolean
+  /** Independently disable the confirm button (e.g. a required field is empty). */
+  confirmDisabled?: boolean
+  /** Extra content rendered between the description and the footer (e.g. an input). */
+  children?: ReactNode
+  /**
+   * Keep the dialog open after confirming (default `false` auto-closes). Set
+   * `true` when an async action may fail and the caller closes on success.
+   */
+  keepOpenOnConfirm?: boolean
 }
 
 /**
@@ -55,12 +64,15 @@ export function ConfirmDialog({
   variant = 'default',
   icon: Icon = AlertTriangle,
   loading = false,
+  confirmDisabled = false,
+  keepOpenOnConfirm = false,
+  children,
 }: ConfirmDialogProps) {
   const isDestructive = variant === 'destructive'
 
   const handleConfirm = () => {
     onConfirm()
-    onOpenChange(false)
+    if (!keepOpenOnConfirm) onOpenChange(false)
   }
 
   return (
@@ -82,6 +94,7 @@ export function ConfirmDialog({
             </DialogDescription>
           ) : null}
         </DialogHeader>
+        {children ? <div className="mt-4">{children}</div> : null}
         <DialogFooter className="mt-6 grid grid-cols-2 gap-3 sm:justify-stretch">
           <Button
             variant="outline"
@@ -95,7 +108,7 @@ export function ConfirmDialog({
             variant={isDestructive ? 'destructive' : 'default'}
             className="w-full cursor-pointer"
             onClick={handleConfirm}
-            disabled={loading}
+            disabled={loading || confirmDisabled}
           >
             {confirmLabel}
           </Button>

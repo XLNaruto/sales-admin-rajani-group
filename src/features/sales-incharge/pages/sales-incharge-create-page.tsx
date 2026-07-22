@@ -2,6 +2,7 @@ import { Controller } from "react-hook-form";
 import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
 import { decryptParams } from "@/lib/crypto";
 import { mediaUrl } from "@/lib/media";
+import { useCompanies } from "@/features/company";
 import { PageHeader } from "@/components/common/page-header";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,15 @@ export function SalesInchargeCreatePage({
   // Designation options are server-searched + paged (GET …/designations): the
   // search box query is sent to the API, not filtered client-side.
   const designationSelect = useDesignationSelect();
+
+  // Employer-company options — the tenants the caller belongs to (GET
+  // /me/companies). Small list, so the combobox filters client-side.
+  const companies = useCompanies();
+  const companyOptions =
+    companies.data?.companies.map((c) => ({
+      value: String(c.id),
+      label: c.name,
+    })) ?? [];
 
   const title = isEdit ? "Edit Sales Incharge" : "Create Sales Incharge";
   const description = isEdit
@@ -140,12 +150,21 @@ export function SalesInchargeCreatePage({
 
           <Field
             label="Employer Company"
-            optional
             error={errors.employerCompany?.message}
           >
-            <Input
-              placeholder="e.g. Rajani Group"
-              {...register("employerCompany")}
+            <Controller
+              control={control}
+              name="employerCompany"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={companyOptions}
+                  loading={companies.isLoading}
+                  placeholder="Select employer company"
+                  searchPlaceholder="Search company"
+                />
+              )}
             />
           </Field>
 

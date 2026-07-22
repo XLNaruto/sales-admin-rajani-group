@@ -27,6 +27,7 @@ export const salesInchargeRowSchema = z.object({
   date_of_joining: z.string().nullish(),
   status: salesInchargeStatusSchema.catch('inactive'),
   reports_to: z.number().nullish(),
+  profile_photo_path: z.string().nullish(),
 })
 
 /**
@@ -56,6 +57,7 @@ export const salesInchargeDetailSchema = z.object({
   email: z.string().nullish(),
   status: salesInchargeStatusSchema.catch('inactive'),
   employee_code: z.string().nullish(),
+  company_id: z.number().nullish(),
   designation_id: z.number().nullish(),
   designation_name: z.string().nullish(),
   reports_to: z.number().nullish(),

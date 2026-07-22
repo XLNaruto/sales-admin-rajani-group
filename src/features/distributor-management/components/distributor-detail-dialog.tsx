@@ -9,19 +9,15 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GeoLocationValue } from "@/components/maps/geo-location-value";
 import { cn } from "@/lib/utils";
 import { useDistributorDetail } from "../api/use-distributors";
-import {
-  cityName,
-  labelFor,
-  stateName,
-  talukaName,
-} from "../lib/distributor-reference";
+import { labelFor } from "../lib/distributor-reference";
 import type { DistributorStatus } from "../types";
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
 function formatDate(value: string | null) {
-  if (!value) return "—";
+  if (!value) return "N/A";
   try {
     return format(parseISO(value), "dd-MM-yyyy");
   } catch {
@@ -57,7 +53,7 @@ function Field({
         {label}
       </dt>
       <dd className="mt-0.5 break-words text-sm text-foreground">
-        {value ?? "—"}
+        {value ?? "N/A"}
       </dd>
     </div>
   );
@@ -65,7 +61,7 @@ function Field({
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-3 mt-6 text-sm font-semibold text-foreground first:mt-0">
+    <h3 className="mb-3 mt-6 border-b border-border pb-2 text-sm font-semibold text-foreground first:mt-0">
       {children}
     </h3>
   );
@@ -110,7 +106,7 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
   const open = id !== null;
   const { data, isLoading, isError, error } = useDistributorDetail(id ?? undefined);
 
-  const yesNo = (v: boolean | null) => (v == null ? "—" : v ? "Yes" : "No");
+  const yesNo = (v: boolean | null) => (v == null ? "N/A" : v ? "Yes" : "No");
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -209,18 +205,11 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="Office Address" value={data.officeAddress} wide />
                 <Field label="Godown Address" value={data.godownAddress} wide />
                 <Field label="Home Address" value={data.homeAddress} wide />
-                <Field
-                  label="State"
-                  value={data.stateId ? stateName(data.stateId) : "—"}
-                />
-                <Field
-                  label="City"
-                  value={data.cityId ? cityName(data.cityId) : "—"}
-                />
-                <Field
-                  label="Taluka"
-                  value={data.talukaId ? talukaName(data.talukaId) : "—"}
-                />
+                <Field label="State" value={data.stateName} />
+                <Field label="Zone" value={data.zoneName} />
+                <Field label="District" value={data.districtName} />
+                <Field label="City" value={data.cityName} />
+                <Field label="Taluka" value={data.talukaName} />
                 <Field label="Pincode" value={data.pincode} />
                 <Field label="Delivery Route" value={data.deliveryRoute} />
                 <Field label="Weekly Off" value={data.weeklyOff} />
@@ -234,7 +223,11 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 />
                 <Field label="Retailers (Local)" value={data.retailersLocal} />
                 <Field label="Retailers (Rural)" value={data.retailersRural} />
-                <Field label="Geo Location" value={data.geoLocation} wide />
+                <Field
+                  label="Geo Location"
+                  value={<GeoLocationValue value={data.geoLocation} />}
+                  wide
+                />
               </dl>
               {(data.officeImageUrls.length > 0 ||
                 data.godownImageUrls.length > 0) && (
@@ -246,6 +239,25 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
 
               <SectionTitle>Business Details</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                <Field
+                  label="Product Divisions"
+                  value={
+                    data.productDivisionNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {data.productDivisionNames.map((name) => (
+                          <Badge
+                            key={name}
+                            variant="outline"
+                            className="font-medium"
+                          >
+                            {name}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null
+                  }
+                  wide
+                />
                 <Field label="Other Agencies" value={data.otherAgencies} wide />
                 <Field
                   label="Similar Category Agencies"

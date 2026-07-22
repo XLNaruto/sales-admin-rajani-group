@@ -59,8 +59,9 @@ export function Topbar() {
         </div>
       </div>
 
-      {/* Centered logo — mobile only */}
-      <div className="flex flex-1 justify-center lg:hidden">
+      {/* Centered logo — mobile only. Absolutely centered so the uneven left/right
+          group widths can't offset it; pointer-events-none keeps it click-through. */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden">
         <img
           src={asset('media/logos/sidebar-logo.png')}
           alt="Rajani Group"

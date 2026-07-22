@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Crosshair, Layers, Loader2, MapPin } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/use-google-maps'
+import { reverseGeocode } from '@/lib/reverse-geocode'
 import { PlaceSearchInput } from './place-search-input'
 import {
   Dialog,
@@ -44,10 +45,28 @@ interface GeoLocationPickerProps {
  * "lat, lng" string.
  */
 export function GeoLocationPicker({ value, onChange }: GeoLocationPickerProps) {
+  const { ready } = useGoogleMaps()
   const [open, setOpen] = useState(false)
   // Address label shown in the search box (from an inline pick or a map pick).
   const [label, setLabel] = useState('')
-  const hasValue = Boolean(parseLatLng(value))
+  const parsed = parseLatLng(value)
+  const hasValue = Boolean(parsed)
+
+  // Seed the label for a value that arrived without one (e.g. edit mode, where
+  // only "lat, lng" is stored): reverse-geocode it so the box shows a name too,
+  // matching what the map dialog resolves for the same point.
+  useEffect(() => {
+    if (!ready || label || !parsed) return
+    let active = true
+    reverseGeocode(parsed).then((addr) => {
+      if (active && addr) setLabel(addr)
+    })
+    return () => {
+      active = false
+    }
+    // Re-run when the SDK becomes ready or the stored value changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, value])
 
   return (
     <div className="space-y-2">
@@ -112,7 +131,6 @@ function LocationDialog({ initial, onCancel, onSave }: LocationDialogProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const markerRef = useRef<google.maps.Marker | null>(null)
-  const geocoderRef = useRef<google.maps.Geocoder | null>(null)
 
   const [draft, setDraft] = useState(initial ?? '')
   const [address, setAddress] = useState('')
@@ -122,10 +140,8 @@ function LocationDialog({ initial, onCancel, onSave }: LocationDialogProps) {
 
   // Reverse-geocode to a human address (needs the Geocoding API; degrades to
   // coords-only if unavailable).
-  const reverseGeocode = (p: google.maps.LatLngLiteral) => {
-    geocoderRef.current?.geocode({ location: p }, (results, gStatus) => {
-      setAddress(gStatus === 'OK' && results?.[0] ? results[0].formatted_address : '')
-    })
+  const resolveAddress = (p: google.maps.LatLngLiteral) => {
+    reverseGeocode(p).then(setAddress)
   }
 
   /** Drop the pin at a point and record it as the draft. */
@@ -136,10 +152,10 @@ function LocationDialog({ initial, onCancel, onSave }: LocationDialogProps) {
       mapRef.current?.setZoom(16)
     }
     setDraft(formatLatLng(p))
-    reverseGeocode(p)
+    resolveAddress(p)
   }
 
-  // Initialise the map, marker and geocoder on open.
+  // Initialise the map and marker on open.
   useEffect(() => {
     if (!ready || !containerRef.current || mapRef.current) return
 
@@ -157,7 +173,6 @@ function LocationDialog({ initial, onCancel, onSave }: LocationDialogProps) {
       position: initialPos ?? undefined,
       draggable: true,
     })
-    geocoderRef.current = new google.maps.Geocoder()
 
     map.addListener('click', (e: google.maps.MapMouseEvent) => {
       if (e.latLng) applyPoint(toLiteral(e.latLng))
@@ -169,7 +184,7 @@ function LocationDialog({ initial, onCancel, onSave }: LocationDialogProps) {
 
     mapRef.current = map
     markerRef.current = marker
-    if (initialPos) reverseGeocode(initialPos)
+    if (initialPos) resolveAddress(initialPos)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, initial])
 

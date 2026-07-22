@@ -39,6 +39,9 @@ function toSalesIncharge(row: SalesInchargeRow): SalesIncharge {
     dateOfJoining: row.date_of_joining ?? null,
     status: row.status,
     reportsTo: row.reports_to ?? null,
+    profilePhotoUrl: row.profile_photo_path
+      ? mediaUrl(row.profile_photo_path)
+      : undefined,
   }
 }
 
@@ -218,6 +221,8 @@ function buildScalarBody(
     email: str(values.email),
     status,
     employee_code: preserved?.employeeCode ?? null,
+    // The employer company (tenant) chosen from the `/me/companies` dropdown.
+    company_id: intId(values.employerCompany),
     // The selected designation id from the dropdown (falls back to preserved).
     designation_id: intId(values.designation) ?? preserved?.designationId ?? null,
     reports_to: preserved?.reportsTo ?? null,
@@ -286,7 +291,8 @@ export async function fetchSalesIncharge(id: string): Promise<{
     }
     const values: SalesInchargeFormValues = {
       name: r.display_name,
-      employerCompany: '',
+      // Seed the employer-company dropdown from the record's company_id.
+      employerCompany: r.company_id != null ? String(r.company_id) : '',
       address: r.address ?? '',
       dateOfBirth: r.birth_date ?? '',
       marriageAnniversary: r.marriage_anniversary ?? '',

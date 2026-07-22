@@ -36,9 +36,7 @@ export function DistributorToolbar({ filters, onChange, onReset }: DistributorTo
       options: [
         { label: 'All Status', value: 'all' },
         { label: 'Active', value: 'active' },
-        { label: 'Pending', value: 'pending' },
-        { label: 'Suspended', value: 'suspended' },
-        { label: 'Rejected', value: 'rejected' },
+        { label: 'Inactive', value: 'inactive' },
       ],
     },
   ]

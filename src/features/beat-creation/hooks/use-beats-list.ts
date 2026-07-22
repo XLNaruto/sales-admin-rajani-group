@@ -1,75 +1,108 @@
-import { useMemo, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useState } from 'react'
+import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { useSalesmen } from '@/features/sales-incharge'
 import { useBeats, useDeleteBeat } from '../api/use-beats'
 import type { BeatFilters } from '../components/beat-toolbar'
-import type { Beat } from '../types'
+import type { Beat, BeatGrade, BeatSortBy } from '../types'
 
 /** Empty filter state — also used to reset the toolbar. */
-const INITIAL_FILTERS: BeatFilters = { search: '', marketType: 'all', status: 'all' }
+const INITIAL_FILTERS: BeatFilters = { search: '', grade: 'all' }
+
+/** Map a table column id → the list endpoint's `sort_by` value. */
+const SORT_BY_COLUMN: Record<string, BeatSortBy> = {
+  beatName: 'beat_name',
+  beatGrade: 'beat_grade',
+}
 
 /**
- * Orchestrates the beats list screen: the list + salesmen queries, filter
- * state, client-side filtering, the delete flow and navigation. The page
- * consumes this and only renders (JSX + table column definitions).
+ * Orchestrates the beats list screen: filter/pagination/sort state, the live
+ * (server-filtered) list query, the delete flow, and the add/edit modal state.
+ * The page consumes this and only renders.
  */
 export function useBeatsList() {
-  const navigate = useNavigate()
-  const { data, isLoading } = useBeats()
-  const { data: salesmen } = useSalesmen()
-  const deleteBeat = useDeleteBeat()
-
-  const salesmanName = useMemo(() => {
-    const map = new Map((salesmen ?? []).map((s) => [s.id, s.name]))
-    return (id: string) => map.get(id) ?? '—'
-  }, [salesmen])
-
   const [filters, setFilters] = useState<BeatFilters>(INITIAL_FILTERS)
-  const patchFilters = (patch: Partial<BeatFilters>) => setFilters((f) => ({ ...f, ...patch }))
-  const resetFilters = () => setFilters(INITIAL_FILTERS)
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [sorting, setSorting] = useState<SortingState>([])
 
-  const filtered = useMemo(() => {
-    const q = filters.search.trim().toLowerCase()
-    return (data ?? []).filter((b) => {
-      const matchesSearch =
-        !q || b.beatName.toLowerCase().includes(q) || b.beatCode.toLowerCase().includes(q)
-      const matchesMarket = filters.marketType === 'all' || b.marketType === filters.marketType
-      const matchesStatus = filters.status === 'all' || b.status === filters.status
-      return matchesSearch && matchesMarket && matchesStatus
-    })
-  }, [data, filters])
-
-  const hasActiveFilters =
-    filters.search !== '' || filters.marketType !== 'all' || filters.status !== 'all'
-
-  const [pendingDelete, setPendingDelete] = useState<Beat | null>(null)
-
-  const confirmDelete = () => {
-    if (!pendingDelete) return
-    const b = pendingDelete
-    deleteBeat.mutate(b.id, {
-      onSuccess: () => toast.success(`${b.beatName} removed`),
-      onError: () => toast.error("Couldn't remove the beat."),
-    })
+  // Any filter/sort change resets to the first page.
+  const patchFilters = (patch: Partial<BeatFilters>) => {
+    setFilters((f) => ({ ...f, ...patch }))
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const resetFilters = () => {
+    setFilters(INITIAL_FILTERS)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }
+  const onSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater)
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
 
-  const goToCreate = () => navigate({ to: '/beats/create' })
-  const goToEdit = () => navigate({ to: '/beats/create' })
+  const sort = sorting[0]
+  const sortBy = sort ? SORT_BY_COLUMN[sort.id] : undefined
+
+  const { data, isLoading, isError } = useBeats({
+    search: filters.search.trim() || undefined,
+    grade: filters.grade !== 'all' ? (filters.grade as BeatGrade) : undefined,
+    sortBy,
+    sortOrder: sortBy ? (sort.desc ? 'desc' : 'asc') : undefined,
+    page: pagination.pageIndex + 1,
+    pageSize: pagination.pageSize,
+  })
+
+  const rows = data?.items ?? []
+  const rowCount = data?.total ?? 0
+  const hasActiveFilters = filters.search !== '' || filters.grade !== 'all'
+
+  // Add/edit modal — `editId === null` in create mode, an id string in edit mode.
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const openCreate = () => {
+    setEditId(null)
+    setModalOpen(true)
+  }
+  const openEdit = (id: string) => {
+    setEditId(id)
+    setModalOpen(true)
+  }
+  const closeModal = () => setModalOpen(false)
+
+  // Delete flow — confirm in a dialog, then DELETE the selected row.
+  const deleteBeat = useDeleteBeat()
+  const [pendingDelete, setPendingDelete] = useState<Beat | null>(null)
+  const confirmDelete = () => {
+    if (!pendingDelete) return
+    const target = pendingDelete
+    deleteBeat.mutate(target.id, {
+      onSuccess: () => {
+        toast.success(`${target.beatName} removed`)
+        setPendingDelete(null)
+      },
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't remove the beat."),
+    })
+  }
 
   return {
     filters,
     patchFilters,
     resetFilters,
-    filtered,
+    rows,
+    rowCount,
+    pagination,
+    setPagination,
+    sorting,
+    onSortingChange,
     isLoading,
+    isError,
     hasActiveFilters,
-    salesmanName,
+    modalOpen,
+    editId,
+    openCreate,
+    openEdit,
+    closeModal,
     pendingDelete,
     setPendingDelete,
     confirmDelete,
-    deleteIsPending: deleteBeat.isPending,
-    goToCreate,
-    goToEdit,
+    isDeleting: deleteBeat.isPending,
   }
 }

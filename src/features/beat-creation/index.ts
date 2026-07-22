@@ -1,5 +1,6 @@
 export { BeatsPage } from './pages/beats-page'
-export { BeatCreatePage } from './pages/beat-create-page'
-export { useBeats, useCreateBeat, useDeleteBeat } from './api/use-beats'
+export { useBeats, useBeat, useCreateBeat, useUpdateBeat, useDeleteBeat } from './api/use-beats'
+// Generic form helpers that also back the distributor onboarding form.
 export { Field, DatePicker, MultiSelect } from './components/form-fields'
-export type { Beat, BeatInput, BeatStatus, BeatOutlet, MarketType, MarketSystem, VisitCycle } from './types'
+export { gradeLabel, BEAT_GRADES } from './lib/beat-reference'
+export type { Beat, BeatInput, BeatStatus, BeatGrade } from './types'
