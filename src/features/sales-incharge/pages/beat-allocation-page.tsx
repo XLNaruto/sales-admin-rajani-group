@@ -1,27 +1,27 @@
-import { ArrowLeft, ListChecks, Plus, Trash2, UserRound } from 'lucide-react'
-import { decryptParams } from '@/lib/crypto'
-import { cn } from '@/lib/utils'
-import { PageHeader } from '@/components/common/page-header'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Skeleton } from '@/components/ui/skeleton'
-import { BeatAllocationPanel } from '../components/beat-allocation-panel'
-import { useBeatAllocation } from '../hooks/use-beat-allocation'
-import type { SalesInchargeStatus } from '../types'
+import { ArrowLeft, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
+import { decryptParams } from "@/lib/crypto";
+import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/common/page-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { BeatAllocationPanel } from "../components/beat-allocation-panel";
+import { useBeatAllocation } from "../hooks/use-beat-allocation";
+import type { SalesInchargeStatus } from "../types";
 
 interface BeatAllocationPageProps {
   /** Encrypted `?data=` token carrying the sales-incharge id to allocate for. */
-  data?: string
+  data?: string;
 }
 
 const STATUS_STYLES: Record<SalesInchargeStatus, string> = {
   active:
-    'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  invited: 'border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400',
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  invited: "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400",
   suspended:
-    'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400',
-  inactive: 'border-border bg-muted text-muted-foreground',
-}
+    "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  inactive: "border-border bg-muted text-muted-foreground",
+};
 
 /** A compact labelled fact in the detail header. */
 function HeaderFact({ label, value }: { label: string; value: string | null }) {
@@ -31,20 +31,28 @@ function HeaderFact({ label, value }: { label: string; value: string | null }) {
         {label}
       </dt>
       <dd className="mt-0.5 truncate text-sm font-medium text-foreground">
-        {value || 'N/A'}
+        {value || "N/A"}
       </dd>
     </div>
-  )
+  );
 }
 
 export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
   // Decrypt the id from the URL token; missing/malformed → empty (no queries).
   const id = data
-    ? String(decryptParams<{ id?: string | number }>(data)?.id ?? '')
-    : ''
+    ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "")
+    : "";
 
-  const { goBack, detail, available, allocated, addBeat, removeBeat, pendingId, isMutating } =
-    useBeatAllocation(id || undefined)
+  const {
+    goBack,
+    detail,
+    available,
+    allocated,
+    addBeat,
+    removeBeat,
+    pendingId,
+    isMutating,
+  } = useBeatAllocation(id || undefined);
 
   return (
     <div>
@@ -93,7 +101,10 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <Badge
                     variant="outline"
-                    className={cn('font-medium', STATUS_STYLES[detail.data.status])}
+                    className={cn(
+                      "font-medium",
+                      STATUS_STYLES[detail.data.status],
+                    )}
                   >
                     {detail.data.status.charAt(0).toUpperCase() +
                       detail.data.status.slice(1)}
@@ -108,7 +119,10 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
             </div>
 
             <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 sm:border-l sm:border-border sm:pl-6 lg:grid-cols-4">
-              <HeaderFact label="Employee Code" value={detail.data.employeeCode} />
+              <HeaderFact
+                label="Employee Code"
+                value={detail.data.employeeCode}
+              />
               <HeaderFact label="Mobile" value={detail.data.phone} />
               <HeaderFact label="Territory" value={detail.data.territory} />
               <HeaderFact label="Email" value={detail.data.email} />
@@ -133,14 +147,16 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           pagination={available.pagination}
           onPaginationChange={(updater) =>
             available.setPagination(
-              typeof updater === 'function' ? updater(available.pagination) : updater,
+              typeof updater === "function"
+                ? updater(available.pagination)
+                : updater,
             )
           }
           action={{
-            label: 'Add',
+            label: "Add",
             icon: Plus,
             className:
-              'bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400',
+              "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400",
             onClick: addBeat,
           }}
           pendingId={pendingId}
@@ -162,14 +178,16 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           pagination={allocated.pagination}
           onPaginationChange={(updater) =>
             allocated.setPagination(
-              typeof updater === 'function' ? updater(allocated.pagination) : updater,
+              typeof updater === "function"
+                ? updater(allocated.pagination)
+                : updater,
             )
           }
           action={{
-            label: 'Remove',
+            label: "Remove",
             icon: Trash2,
             className:
-              'bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400',
+              "bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 dark:text-rose-400",
             onClick: removeBeat,
           }}
           pendingId={pendingId}
@@ -178,5 +196,5 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
         />
       </div>
     </div>
-  )
+  );
 }

@@ -1,29 +1,20 @@
 import { z } from 'zod'
 
-/** Beat grade values — tolerant so an unknown value doesn't fail the row. */
-export const beatGradeSchema = z.enum([
-  'urban',
-  'semi_urban',
-  'metro',
-  'non_metro',
-  'rural',
-])
-
-/** Beat lifecycle status. */
-export const beatStatusSchema = z.enum(['active', 'inactive'])
-
 /**
  * A single row from GET /sales-incharge-admin/beats. `id`/`city_id`/
  * `distributor_id` accept number or string since the backend's exact type isn't
- * pinned down; resolved `*_name` labels are optional.
+ * pinned down; `grade` is a free-form string and resolved `*_name` labels are
+ * optional. Timestamps are accepted but ignored by the client mapping.
  */
 export const beatRowSchema = z.object({
   id: z.union([z.number(), z.string()]).transform(String),
-  beat_name: z.string(),
-  beat_grade: beatGradeSchema.catch('urban'),
+  name: z.string(),
+  grade: z.string().nullish(),
   distributor_id: z.union([z.number(), z.string()]).nullish(),
   distributor_name: z.string().nullish(),
-  status: beatStatusSchema.catch('active'),
+  city_id: z.union([z.number(), z.string()]).nullish(),
+  created_at: z.string().nullish(),
+  updated_at: z.string().nullish(),
 })
 
 /**

@@ -6,7 +6,7 @@ import {
 } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import {
-  allocateBeats,
+  allocateBeat,
   fetchAllocatedBeats,
   fetchAvailableBeats,
   removeAllocatedBeat,
@@ -45,11 +45,11 @@ export function useAvailableBeats(
   })
 }
 
-/** POST to allocate beats, then refresh both lists for this incharge. */
-export function useAllocateBeats(inchargeId: string | undefined) {
+/** POST to allocate one beat, then refresh both lists for this incharge. */
+export function useAllocateBeat(inchargeId: string | undefined) {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (beatIds: string[]) => allocateBeats(inchargeId as string, beatIds),
+    mutationFn: (beatId: string) => allocateBeat(inchargeId as string, beatId),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.beatAllocation.all }),
   })

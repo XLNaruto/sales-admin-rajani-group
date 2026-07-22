@@ -10,8 +10,8 @@ const INITIAL_FILTERS: BeatFilters = { search: '', grade: 'all' }
 
 /** Map a table column id → the list endpoint's `sort_by` value. */
 const SORT_BY_COLUMN: Record<string, BeatSortBy> = {
-  beatName: 'beat_name',
-  beatGrade: 'beat_grade',
+  beatName: 'name',
+  beatGrade: 'grade',
 }
 
 /**

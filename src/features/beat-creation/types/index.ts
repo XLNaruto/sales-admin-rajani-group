@@ -1,18 +1,18 @@
-/** Lifecycle status of a beat. */
-export type BeatStatus = 'active' | 'inactive'
-
-/** Beat grade — the market classification a beat falls under. */
+/**
+ * Beat grade — the market classification a beat falls under. Server-side `grade`
+ * is a free string; this enum is the fixed set the create/edit form offers.
+ */
 export type BeatGrade = 'urban' | 'semi_urban' | 'metro' | 'non_metro' | 'rural'
 
-/** A beat as shown in the list — the four core fields plus resolved labels. */
+/** A beat as shown in the list — the core fields plus resolved labels. */
 export interface Beat {
   id: string
   beatName: string
-  beatGrade: BeatGrade
+  /** Free-form grade string from the API (may be empty). */
+  beatGrade: string
   distributorId: string
   /** Resolved distributor label from the list endpoint (for display). */
   distributorName?: string
-  status: BeatStatus
 }
 
 /** Body for creating/updating a beat (everything except the generated id). */
@@ -20,11 +20,10 @@ export interface BeatInput {
   beatName: string
   beatGrade: BeatGrade
   distributorId: string
-  status: BeatStatus
 }
 
 /** Columns the list endpoint can sort by. */
-export type BeatSortBy = 'beat_name' | 'beat_grade' | 'created_at' | 'updated_at'
+export type BeatSortBy = 'name' | 'grade' | 'created_at' | 'updated_at'
 
 /** Query params accepted by the beat list endpoint (camelCase). */
 export interface BeatListParams {
@@ -32,7 +31,6 @@ export interface BeatListParams {
   pageSize?: number
   search?: string
   grade?: BeatGrade
-  status?: BeatStatus
   sortBy?: BeatSortBy
   sortOrder?: 'asc' | 'desc'
 }

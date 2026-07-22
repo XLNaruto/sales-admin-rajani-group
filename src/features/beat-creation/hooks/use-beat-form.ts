@@ -41,10 +41,7 @@ export function useBeatForm({ id, onSaved }: UseBeatFormOptions) {
   const isPending = createBeat.isPending || updateBeat.isPending
 
   const onSubmit = form.handleSubmit((values) => {
-    // Status isn't in the four-field form: keep the record's status on edit,
-    // default to active on create.
-    const status = isEdit ? (data?.status ?? 'active') : 'active'
-    const input = { ...values, status }
+    const input = values
 
     const handlers = {
       onSuccess: () => {

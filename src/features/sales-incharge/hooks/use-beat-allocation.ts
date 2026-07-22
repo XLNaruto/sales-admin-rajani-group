@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import type { Beat } from '@/features/beat-creation'
 import { useSalesInchargeDetail } from '../api/use-sales-incharge'
 import {
-  useAllocateBeats,
+  useAllocateBeat,
   useAllocatedBeats,
   useAvailableBeats,
   useRemoveAllocatedBeat,
@@ -64,13 +64,13 @@ export function useBeatAllocation(inchargeId: string | undefined) {
     setAllocated((s) => ({ ...s, pagination }))
 
   // Add / remove — track the in-flight beat id so only its button spins.
-  const allocate = useAllocateBeats(inchargeId)
+  const allocate = useAllocateBeat(inchargeId)
   const remove = useRemoveAllocatedBeat(inchargeId)
   const [pendingId, setPendingId] = useState<string | null>(null)
 
   const addBeat = (beat: Beat) => {
     setPendingId(beat.id)
-    allocate.mutate([beat.id], {
+    allocate.mutate(beat.id, {
       onSuccess: () => toast.success(`${beat.beatName} allocated`),
       onError: (e) =>
         toast.error(e instanceof Error ? e.message : "Couldn't allocate the beat."),

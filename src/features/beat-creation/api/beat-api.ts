@@ -13,11 +13,10 @@ import type { Beat, BeatInput, BeatListParams, BeatListResult } from '../types'
 function toBeat(row: BeatRow): Beat {
   return {
     id: row.id,
-    beatName: row.beat_name,
-    beatGrade: row.beat_grade,
+    beatName: row.name,
+    beatGrade: row.grade ?? '',
     distributorId: row.distributor_id != null ? String(row.distributor_id) : '',
     distributorName: row.distributor_name ?? undefined,
-    status: row.status,
   }
 }
 
@@ -27,8 +26,7 @@ function toQuery(params: BeatListParams): Record<string, string | number> {
   if (params.page != null) q.page = params.page
   if (params.pageSize != null) q.page_size = params.pageSize
   if (params.search) q.search = params.search
-  if (params.grade) q.beat_grade = params.grade
-  if (params.status) q.status = params.status
+  if (params.grade) q.grade = params.grade
   if (params.sortBy) q.sort_by = params.sortBy
   if (params.sortOrder) q.sort_order = params.sortOrder
   return q
@@ -41,12 +39,11 @@ function toId(value: string): number | string {
 }
 
 /** Build the create/update request body from the form values. */
-function toBody(values: BeatFormValues, status: Beat['status']) {
+function toBody(values: BeatFormValues) {
   return {
-    beat_name: values.beatName.trim(),
-    beat_grade: values.beatGrade,
+    name: values.beatName.trim(),
+    grade: values.beatGrade,
     distributor_id: toId(values.distributorId),
-    status,
   }
 }
 
@@ -68,14 +65,23 @@ export async function fetchBeats(params: BeatListParams = {}): Promise<BeatListR
   }
 }
 
-/** A loaded beat mapped for the edit form: form values, status, and the
- *  city/distributor labels so their (lazy) dropdowns can show the current
- *  selection before its page is fetched. */
+/** A loaded beat mapped for the edit form: form values plus the distributor
+ *  label so its (lazy) dropdown can show the current selection before its page
+ *  is fetched. */
 export interface BeatEditRecord {
   id: string
   values: BeatFormValues
-  status: Beat['status']
   distributorName: string | null
+}
+
+/** Known grades the form offers — anything else falls back to the default. */
+const KNOWN_GRADES = ['urban', 'semi_urban', 'metro', 'non_metro', 'rural'] as const
+
+/** Coerce the API's free-form grade to a form grade (defaults to `urban`). */
+function toFormGrade(grade?: string | null): BeatFormValues['beatGrade'] {
+  return (KNOWN_GRADES as readonly string[]).includes(grade ?? '')
+    ? (grade as BeatFormValues['beatGrade'])
+    : 'urban'
 }
 
 /** GET /sales-incharge-admin/beats/{id} — a single beat as form-ready values. */
@@ -85,11 +91,10 @@ export async function fetchBeat(id: string): Promise<BeatEditRecord> {
     const r = beatDetailSchema.parse(raw)
     return {
       id: r.id,
-      status: r.status,
       distributorName: r.distributor_name ?? null,
       values: {
-        beatName: r.beat_name,
-        beatGrade: r.beat_grade,
+        beatName: r.name,
+        beatGrade: toFormGrade(r.grade),
         distributorId: r.distributor_id != null ? String(r.distributor_id) : '',
       },
     }
@@ -98,10 +103,10 @@ export async function fetchBeat(id: string): Promise<BeatEditRecord> {
   }
 }
 
-/** POST /sales-incharge-admin/beats — create a new beat (defaults to active). */
+/** POST /sales-incharge-admin/beats — create a new beat. */
 export async function createBeat(input: BeatInput): Promise<void> {
   try {
-    await http.post<unknown>(endpoints.BEAT.CREATE, toBody(input, input.status))
+    await http.post<unknown>(endpoints.BEAT.CREATE, toBody(input))
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to create the beat.'))
   }
@@ -110,7 +115,7 @@ export async function createBeat(input: BeatInput): Promise<void> {
 /** PATCH /sales-incharge-admin/beats/{id} — update an existing beat. */
 export async function updateBeat(id: string, input: BeatInput): Promise<void> {
   try {
-    await http.patch<unknown>(endpoints.BEAT.UPDATE(id), toBody(input, input.status))
+    await http.patch<unknown>(endpoints.BEAT.UPDATE(id), toBody(input))
   } catch (error) {
     throw new Error(getApiErrorMessage(error, 'Failed to update the beat.'))
   }

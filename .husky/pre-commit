@@ -1,1 +1,12 @@
+unset PREFIX
+export NVM_DIR="$HOME/.nvm"
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+# husky runs hooks under `set -e`. nvm.sh enables its own `set -e` while
+# sourcing and aborts the shell (exit code 3) when it can't resolve a default
+# node version — killing the commit before lint-staged ever runs. Disable
+# errexit just for the source so nvm still loads node onto PATH without taking
+# the hook down with it.
+set +e
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+set -e
 npm run lint && npm run typecheck

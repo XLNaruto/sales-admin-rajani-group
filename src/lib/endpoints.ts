@@ -70,20 +70,24 @@ export const endpoints = {
     STATUS: (id: string | number) => `/sales-incharge-admin/beats/${id}/status`,
   },
   /**
-   * Beat allocation — assign/unassign beats to a sales incharge. Paths are left
-   * blank until the backend is finalised; the allocation `api/` layer treats a
-   * blank path as "not configured yet" (queries resolve to empty, mutations
-   * surface a clear error) so the screen renders. Fill these in to go live.
+   * Beat allocation — assign/unassign beats to a sales incharge. Allocated beats
+   * and the allocate/de-allocate mutations live under the incharge sub-resource
+   * (`…/sales-incharges/{id}/beats`); the pool still available to allocate has
+   * its own `available-beats` collection.
    */
   BEAT_ALLOCATION: {
     /** GET the beats already allocated to a sales incharge (paged + searchable). */
-    ALLOCATED: (_id: string | number) => '',
+    ALLOCATED: (id: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/beats`,
     /** GET the beats available to allocate (not yet assigned to this incharge). */
-    AVAILABLE: (_id: string | number) => '',
-    /** POST to allocate (add) one or more beats to a sales incharge. */
-    ALLOCATE: (_id: string | number) => '',
-    /** DELETE to remove one allocated beat from a sales incharge. */
-    REMOVE: (_id: string | number, _beatId: string | number) => '',
+    AVAILABLE: (id: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/available-beats`,
+    /** POST to allocate (add) one beat to a sales incharge (`{ beat_id }`). */
+    ALLOCATE: (id: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/beats`,
+    /** DELETE to de-allocate one beat from a sales incharge. */
+    REMOVE: (id: string | number, beatId: string | number) =>
+      `/sales-incharge-admin/sales-incharges/${id}/beats/${beatId}`,
   },
   /**
    * Geography masters. A strict hierarchy — each level filters by its parent's
