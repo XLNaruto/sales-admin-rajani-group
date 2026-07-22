@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
 import { useForegroundPush } from '@/features/notifications'
 import { useAppConfig } from '@/features/config'
+import { CompanySelectGate } from '@/features/company'
 import { asset } from '@/lib/asset'
 import { Sidebar } from './components/sidebar'
 import { Topbar } from './components/topbar'
@@ -57,6 +58,9 @@ export function DashboardLayout() {
           </footer>
         </main>
       </div>
+
+      {/* Required post-login company selection (multi-company admins only). */}
+      <CompanySelectGate />
     </div>
   )
 }

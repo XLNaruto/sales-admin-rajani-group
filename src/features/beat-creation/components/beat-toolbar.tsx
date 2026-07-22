@@ -8,8 +8,6 @@ export interface BeatFilters {
   status: string
 }
 
-export const INITIAL_FILTERS: BeatFilters = { search: '', marketType: 'all', status: 'all' }
-
 interface BeatToolbarProps {
   filters: BeatFilters
   onChange: (patch: Partial<BeatFilters>) => void

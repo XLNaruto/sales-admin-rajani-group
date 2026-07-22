@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOtpSessionStore } from '@/stores/otp-session-store'
+import { useCompanyStore } from '@/stores/company-store'
 import { confirmOtp, firebaseSignOut, sendOtp } from './firebase-phone-auth'
 import { accountCheck, loginWithIdToken, logoutRequest } from './auth-api'
 import type { AuthSession } from '../types'
@@ -61,6 +62,7 @@ export function useVerifyOtp() {
 export function useLogout() {
   const logout = useAuthStore((s) => s.logout)
   const clearOtpSession = useOtpSessionStore((s) => s.clearSession)
+  const clearCompany = useCompanyStore((s) => s.clear)
 
   return useMutation<void, Error, void>({
     mutationFn: async () => {
@@ -71,6 +73,7 @@ export function useLogout() {
     onSettled: () => {
       logout()
       clearOtpSession()
+      clearCompany()
     },
   })
 }

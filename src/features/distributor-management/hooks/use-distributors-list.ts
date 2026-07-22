@@ -7,11 +7,15 @@ import {
   useDeleteDistributor,
   useSetDistributorStatus,
 } from "../api/use-distributors";
-import {
-  INITIAL_FILTERS,
-  type DistributorFilters,
-} from "../components/distributor-toolbar";
+import type { DistributorFilters } from "../components/distributor-toolbar";
 import type { Distributor, DistributorLifecycleStatus } from "../types";
+
+/** Empty filter state — also used to reset the toolbar. */
+const INITIAL_FILTERS: DistributorFilters = {
+  search: "",
+  firmType: "all",
+  status: "all",
+};
 
 /**
  * Orchestrates the distributor list screen: filter state, the list query,

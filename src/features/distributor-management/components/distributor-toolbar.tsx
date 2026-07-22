@@ -8,8 +8,6 @@ export interface DistributorFilters {
   status: string
 }
 
-export const INITIAL_FILTERS: DistributorFilters = { search: '', firmType: 'all', status: 'all' }
-
 interface DistributorToolbarProps {
   filters: DistributorFilters
   onChange: (patch: Partial<DistributorFilters>) => void

@@ -6,8 +6,6 @@ export interface SalesmanFilters {
   status: string
 }
 
-export const INITIAL_FILTERS: SalesmanFilters = { search: '', status: 'all' }
-
 interface SalesmanToolbarProps {
   filters: SalesmanFilters
   onChange: (patch: Partial<SalesmanFilters>) => void

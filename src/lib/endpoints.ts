@@ -17,6 +17,10 @@ export const endpoints = {
   /** The authenticated user's own profile, resolved from the access token. */
   ME: {
     GET: '/sales-incharge-admin/me',
+    /** GET the companies (tenants) the caller belongs to + the active one. */
+    COMPANIES: '/sales-incharge-admin/me/companies',
+    /** POST to switch which company (tenant) the caller operates as. */
+    SELECT_COMPANY: '/sales-incharge-admin/me/company/select',
   },
   SALES_INCHARGE: {
     LIST: '/sales-incharge-admin/sales-incharges',

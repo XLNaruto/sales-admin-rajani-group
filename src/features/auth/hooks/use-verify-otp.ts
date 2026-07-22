@@ -41,11 +41,12 @@ export function useVerifyOtpForm() {
 
   // Seed the cooldown from when the code was last requested, so it survives a
   // refresh instead of restarting at 60s.
+  const requestedAt = session?.requestedAt
   useEffect(() => {
-    if (!session) return
-    const elapsed = Math.floor((Date.now() - session.requestedAt) / 1000)
+    if (requestedAt == null) return
+    const elapsed = Math.floor((Date.now() - requestedAt) / 1000)
     setSeconds(Math.max(0, RESEND_SECONDS - elapsed))
-  }, [session?.requestedAt])
+  }, [requestedAt])
 
   useEffect(() => {
     if (seconds <= 0) return

@@ -15,6 +15,7 @@ import { useUiStore } from '@/stores/ui-store'
 import { useAuthStore } from '@/stores/auth-store'
 import { useLogout } from '@/features/auth'
 import { useMyProfile } from '@/features/profile'
+import { CompanySwitcher } from '@/features/company'
 import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
 
@@ -74,16 +75,19 @@ export function Topbar() {
           <span className="absolute right-2 top-2 size-2 rounded-full bg-destructive" />
         </Button>
         */}
+        {/* Active-company selector — sits before the profile menu */}
+        <CompanySwitcher />
+
         <DropdownMenu
           className="min-w-64 p-0"
           trigger={
             <button className="ml-1 flex cursor-pointer items-center gap-2 rounded-full pr-1">
               <Avatar name={name} src={user?.avatarUrl} />
-              <span className="hidden max-w-40 text-left leading-tight sm:block">
+              <span className="hidden max-w-40 text-left leading-tight lg:block">
                 <span className="block truncate text-sm font-semibold text-foreground">{name}</span>
                 <span className="block truncate text-xs text-muted-foreground">{phone}</span>
               </span>
-              <ChevronDown className="hidden size-4 text-muted-foreground sm:block" />
+              <ChevronDown className="hidden size-4 text-muted-foreground lg:block" />
             </button>
           }
         >

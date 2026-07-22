@@ -3,8 +3,11 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { useSalesmen } from '@/features/sales-incharge'
 import { useBeats, useDeleteBeat } from '../api/use-beats'
-import { INITIAL_FILTERS, type BeatFilters } from '../components/beat-toolbar'
+import type { BeatFilters } from '../components/beat-toolbar'
 import type { Beat } from '../types'
+
+/** Empty filter state — also used to reset the toolbar. */
+const INITIAL_FILTERS: BeatFilters = { search: '', marketType: 'all', status: 'all' }
 
 /**
  * Orchestrates the beats list screen: the list + salesmen queries, filter

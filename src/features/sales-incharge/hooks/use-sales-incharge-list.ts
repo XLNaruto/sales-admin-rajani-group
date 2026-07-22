@@ -12,15 +12,15 @@ import {
   useSalesIncharges,
   useSetSalesInchargeStatus,
 } from "../api/use-sales-incharge";
-import {
-  INITIAL_FILTERS,
-  type SalesmanFilters,
-} from "../components/salesman-toolbar";
+import type { SalesmanFilters } from "../components/salesman-toolbar";
 import type {
   SalesIncharge,
   SalesInchargeSortBy,
   SalesInchargeStatus,
 } from "../types";
+
+/** Empty filter state — also used to reset the toolbar. */
+const INITIAL_FILTERS: SalesmanFilters = { search: "", status: "all" };
 
 /** Map a table column id → the list endpoint's `sort_by` value. */
 const SORT_BY_COLUMN: Record<string, SalesInchargeSortBy> = {

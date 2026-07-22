@@ -12,6 +12,11 @@ export const queryKeys = {
     all: ['profile'] as const,
     me: () => [...queryKeys.profile.all, 'me'] as const,
   },
+  company: {
+    all: ['company'] as const,
+    /** GET /me/companies — the caller's tenants + the active selection. */
+    list: () => [...queryKeys.company.all, 'list'] as const,
+  },
   dashboard: {
     all: ['dashboard'] as const,
     kpis: () => [...queryKeys.dashboard.all, 'kpis'] as const,
