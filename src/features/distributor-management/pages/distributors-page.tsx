@@ -299,14 +299,23 @@ export function DistributorsPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Market" />
         ),
-        cell: ({ row }) => (
-          <div className="flex flex-col gap-1">
-            <span className="text-sm">{labelFor(row.original.marketType)}</span>
-            <span className="text-xs text-muted-foreground">
-              {labelFor(row.original.marketSystem)}
-            </span>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const { marketType, marketSystem } = row.original;
+          if (!marketType && !marketSystem)
+            return <span className="text-muted-foreground">N/A</span>;
+          return (
+            <div className="flex flex-col gap-1">
+              {marketType && (
+                <span className="text-sm">{labelFor(marketType)}</span>
+              )}
+              {marketSystem && (
+                <span className="text-xs text-muted-foreground">
+                  {labelFor(marketSystem)}
+                </span>
+              )}
+            </div>
+          );
+        },
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps

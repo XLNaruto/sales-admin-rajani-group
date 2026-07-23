@@ -1,9 +1,10 @@
 import { z } from 'zod'
 
-/** One company (tenant) entry. */
+/** One company (tenant) entry. `code` is tolerated if the server sends it. */
 export const companySchema = z.object({
   id: z.number(),
   name: z.string(),
+  code: z.string().nullish(),
 })
 
 /**

@@ -2,6 +2,8 @@
 export interface Company {
   id: number
   name: string
+  /** Tenant code (e.g. `DIST-T42VEJ`), when the server provides it. */
+  code?: string | null
 }
 
 /**
