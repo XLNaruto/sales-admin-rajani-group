@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import type { Beat, BeatGrade } from '@/features/beat-creation'
 
 /* -------------------------------------------------------------------------- *
@@ -102,7 +102,7 @@ async function fetchBeatPage(
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, fallbackMessage))
+    throw asApiError(error, fallbackMessage)
   }
 }
 
@@ -140,7 +140,7 @@ export async function allocateBeat(
       beat_id: Number(beatId),
     })
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to allocate the beat.'))
+    throw asApiError(error, 'Failed to allocate the beat.')
   }
 }
 
@@ -152,6 +152,6 @@ export async function removeAllocatedBeat(
   try {
     await http.delete<unknown>(endpoints.BEAT_ALLOCATION.REMOVE(inchargeId, beatId))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to remove the beat.'))
+    throw asApiError(error, 'Failed to remove the beat.')
   }
 }

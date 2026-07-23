@@ -1,103 +1,214 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import type { ComboboxOption } from '@/components/ui/combobox'
-import { useSalesIncharges } from '../api/use-sales-incharge'
 import {
-  subtreeIds,
-  useAddReport,
-  useHierarchy,
-  useRemoveNode,
-  useSetRoot,
+  useCreateHierarchyEntry,
+  useDeleteHierarchyEntry,
+  useGeoOptions,
+  useHierarchyTree,
+  useSalesInchargeAdminOptions,
+  useUpdateHierarchyEntry,
 } from '../api/use-hierarchy'
-import type { HierarchyNode } from '../types'
+import { useSalesIncharges } from '../api/use-sales-incharge'
+import { useDesignationSelect } from './use-designation-select'
+import type { PanCanvasHandle } from '../components/pan-canvas'
+import {
+  findNode,
+  GEO_SOURCE,
+  HIERARCHY_LEVELS,
+  levelRank,
+  type AssigneeRole,
+  type HierarchyLevel,
+  type StructureNode,
+} from '../lib/hierarchy'
 
-/** All incharge ids currently placed in the tree (root + every descendant). */
-function treeIds(root: HierarchyNode | null): Set<string> {
-  return root ? subtreeIds(root) : new Set<string>()
-}
+/** `add` nests under `parentId` (null → the National root); `edit` updates in place. */
+type DialogState =
+  | { mode: 'add'; parentId: string | null }
+  | { mode: 'edit'; nodeId: string }
+  | null
 
 /**
- * Orchestrates the salesman-hierarchy canvas: the hierarchy query (single-root)
- * + the sales-incharge list that feeds the pickers, the pan/zoom + centering
- * behaviour, the picker/confirm dialog state and the root / reporting-manager /
- * clear-hierarchy mutations. The page consumes this and only renders.
+ * Orchestrates the org-hierarchy canvas: the tree query, the add/edit dialog
+ * (level → designation → geography → assignee), the delete confirm, the
+ * create/update/delete mutations and the pan/zoom + centering behaviour. The
+ * page consumes this and only renders.
  */
 export function useSalesInchargeHierarchyView() {
-  const { root, isLoading } = useHierarchy()
-  const setRoot = useSetRoot()
-  const addReport = useAddReport()
-  const removeNode = useRemoveNode()
+  const { data: root = null, isLoading, isError, error } = useHierarchyTree()
 
-  // The salesman pool for the pickers comes from the live sales-incharge list
-  // (active incharges), not a mock array.
-  const { data: list } = useSalesIncharges({
-    status: 'active',
-    pageSize: 100,
-    sortBy: 'display_name',
-    sortOrder: 'asc',
-  })
-  const incharges = list?.items
+  const createEntry = useCreateHierarchyEntry()
+  const updateEntry = useUpdateHierarchyEntry()
+  const deleteEntry = useDeleteHierarchyEntry()
 
-  const [addParent, setAddParent] = useState<HierarchyNode | null>(null)
-  // Whether the "designate root" picker is open (only reachable with no root).
-  const [rootPickerOpen, setRootPickerOpen] = useState(false)
+  const [dialog, setDialog] = useState<DialogState>(null)
+  const [newLevel, setNewLevel] = useState<HierarchyLevel>(HIERARCHY_LEVELS[0])
+  const [newDesignationId, setNewDesignationId] = useState('')
+  const [newGeoId, setNewGeoId] = useState('')
+  const [newAssigneeId, setNewAssigneeId] = useState('')
   const [pendingRemove, setPendingRemove] = useState<{
-    node: HierarchyNode
+    node: StructureNode
     isRoot: boolean
   } | null>(null)
 
-  const optionOf = (id: string, label: string): ComboboxOption => ({ value: id, label })
+  const dialogOpen = !!dialog
+  const isEditMode = dialog?.mode === 'edit'
+  // A City node is staffed by a Sales Incharge; any higher level by an Admin.
+  const isCityLevel = newLevel === 'City'
+  const geoSource = GEO_SOURCE[newLevel]
 
-  // Any active incharge may be designated the first root — nobody is placed yet.
-  const rootOptions = useMemo<ComboboxOption[]>(
+  // ── Option sources — each fetched lazily, only while the dialog is open. ──
+  const designationSelect = useDesignationSelect()
+
+  const geoQuery = useGeoOptions(newLevel, dialogOpen && !!geoSource)
+
+  const salesInchargeQuery = useSalesIncharges(
+    { status: 'active', pageSize: 100, sortBy: 'display_name', sortOrder: 'asc' },
+    { enabled: dialogOpen && isCityLevel },
+  )
+  const salesInchargeOptions = useMemo<ComboboxOption[]>(
     () =>
-      (incharges ?? []).map((s) =>
-        optionOf(
-          String(s.id),
-          s.designation ? `${s.displayName} — ${s.designation}` : s.displayName,
-        ),
-      ),
-    [incharges],
+      (salesInchargeQuery.data?.items ?? []).map((s) => ({
+        value: String(s.id),
+        label: s.displayName,
+      })),
+    [salesInchargeQuery.data],
+  )
+  const adminQuery = useSalesInchargeAdminOptions(dialogOpen && !isCityLevel)
+
+  // The assignee select adapts to the chosen level: label, master and options
+  // all switch on `isCityLevel`.
+  const assignee = useMemo(
+    () =>
+      isCityLevel
+        ? {
+            role: 'sales-incharge' as AssigneeRole,
+            label: 'Sales Incharge',
+            options: salesInchargeOptions,
+            loading: salesInchargeQuery.isFetching,
+          }
+        : {
+            role: 'sales-incharge-admin' as AssigneeRole,
+            label: 'Sales Incharge Admin',
+            options: adminQuery.data ?? [],
+            loading: adminQuery.isFetching,
+          },
+    [
+      isCityLevel,
+      salesInchargeOptions,
+      salesInchargeQuery.isFetching,
+      adminQuery.data,
+      adminQuery.isFetching,
+    ],
   )
 
-  // Placing a salesman under `addParent` may draw from anyone not already in
-  // the tree (the server requires the node be unplaced; it also rejects cycles).
-  const availableOptions = useMemo<ComboboxOption[]>(() => {
-    if (!addParent) return []
-    const placed = treeIds(root)
-    return (incharges ?? [])
-      .filter((s) => !placed.has(String(s.id)))
-      .map((s) =>
-        optionOf(
-          String(s.id),
-          s.designation ? `${s.displayName} — ${s.designation}` : s.displayName,
-        ),
-      )
-  }, [incharges, addParent, root])
+  // ── Dialog context: which node we're nesting under / editing, and the levels
+  // valid there (a child must sit deeper than its parent). The root itself is
+  // provisioned from the Super Admin panel, so it's never created/edited here. ──
+  const addParent =
+    dialog?.mode === 'add' && dialog.parentId && root ? findNode(root, dialog.parentId) : null
+  const editNode = dialog?.mode === 'edit' && root ? findNode(root, dialog.nodeId) : null
+  const allowedLevels = addParent
+    ? HIERARCHY_LEVELS.filter((l) => levelRank(l) > levelRank(addParent.level))
+    : HIERARCHY_LEVELS
 
+  const resetFields = (level: HierarchyLevel) => {
+    setNewLevel(level)
+    setNewDesignationId('')
+    setNewGeoId('')
+    setNewAssigneeId('')
+  }
+
+  // Open the add dialog under `node`, pre-selecting the first valid child level.
+  const handleAdd = useCallback((node: StructureNode) => {
+    const firstAllowed = HIERARCHY_LEVELS.filter((l) => levelRank(l) > levelRank(node.level))[0]
+    setDialog({ mode: 'add', parentId: node.id })
+    resetFields(firstAllowed ?? HIERARCHY_LEVELS[0])
+  }, [])
+
+  // Open the edit dialog for an existing node, prefilling its values. The level
+  // is fixed to the node's own (its geography can't move it to another level).
+  const handleEdit = useCallback((node: StructureNode) => {
+    setDialog({ mode: 'edit', nodeId: node.id })
+    setNewLevel(node.level)
+    setNewDesignationId(node.designationId ?? '')
+    setNewGeoId(node.geoId ?? '')
+    setNewAssigneeId(node.assigneeId ?? '')
+  }, [])
+
+  const closeDialog = () => setDialog(null)
+
+  // Changing the level swaps the geo + assignee masters, so the previously
+  // picked entity/assignee no longer apply — clear them.
+  const changeLevel = (level: HierarchyLevel) => {
+    setNewLevel(level)
+    setNewGeoId('')
+    setNewAssigneeId('')
+  }
+
+  const submitting = createEntry.isPending || updateEntry.isPending
+
+  // Save the dialog — POST to add or PATCH to update — then refetch the tree.
+  const confirmDialog = () => {
+    if (!dialog) return
+    if (dialog.mode === 'add' && !addParent) return
+    if (dialog.mode === 'add' && addParent && levelRank(newLevel) <= levelRank(addParent.level))
+      return
+    if (dialog.mode === 'edit' && !editNode) return
+    if (!newDesignationId || !newAssigneeId || (geoSource && !newGeoId)) return
+
+    const input = {
+      level: newLevel,
+      designationId: Number(newDesignationId),
+      geoId: geoSource ? Number(newGeoId) : null,
+      assigneeId: Number(newAssigneeId),
+      isCityLevel,
+    }
+
+    if (dialog.mode === 'add') {
+      createEntry.mutate(
+        { parentId: dialog.parentId != null ? Number(dialog.parentId) : null, input },
+        {
+          onSuccess: () => {
+            toast.success('Hierarchy entry added')
+            closeDialog()
+          },
+          onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add entry'),
+        },
+      )
+    } else {
+      updateEntry.mutate(
+        { id: dialog.nodeId, input },
+        {
+          onSuccess: () => {
+            toast.success('Hierarchy entry updated')
+            closeDialog()
+          },
+          onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to update entry'),
+        },
+      )
+    }
+  }
+
+  const confirmRemove = () => {
+    if (!pendingRemove) return
+    const { node } = pendingRemove
+    deleteEntry.mutate(node.id, {
+      onSuccess: () =>
+        toast.success('Removed from the structure', {
+          description: `"${node.designation || 'Entry'}" and everything under it were removed.`,
+        }),
+      onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to remove entry'),
+    })
+  }
+
+  // ── Pan / zoom ──
   const [zoom, setZoom] = useState(1)
   const clampZoom = (z: number) => Math.min(2, Math.max(0.5, Math.round(z * 10) / 10))
   const zoomBy = (delta: number) => setZoom((z) => clampZoom(z + delta * 0.1))
 
-  // Scroll the canvas so the first root node is horizontally centered in the
-  // viewport, regardless of screen size.
-  const canvasRef = useRef<HTMLDivElement>(null)
-  const centerRoot = () => {
-    const el = canvasRef.current
-    if (!el) return
-    const rootEl = el.querySelector<HTMLElement>('[data-hierarchy-root]')
-    if (!rootEl) {
-      el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2)
-      el.scrollTop = 0
-      return
-    }
-    const canvas = el.getBoundingClientRect()
-    const rootRect = rootEl.getBoundingClientRect()
-    const rootCenterX = rootRect.left - canvas.left + el.scrollLeft + rootRect.width / 2
-    const rootTop = rootRect.top - canvas.top + el.scrollTop
-    el.scrollLeft = Math.max(0, rootCenterX - el.clientWidth / 2)
-    el.scrollTop = Math.max(0, rootTop - 32)
-  }
+  const canvasRef = useRef<PanCanvasHandle>(null)
+  const centerRoot = () => canvasRef.current?.center()
   const resetView = () => {
     setZoom(1)
     requestAnimationFrame(() => requestAnimationFrame(centerRoot))
@@ -106,81 +217,45 @@ export function useSalesInchargeHierarchyView() {
     if (root) requestAnimationFrame(() => requestAnimationFrame(centerRoot))
   }, [root])
 
-  const handleAdd = (salesmanId: string) => {
-    if (!addParent) return
-    addReport.mutate(
-      { id: Number(salesmanId), reportsTo: Number(addParent.id) },
-      {
-        onSuccess: () => {
-          toast.success('Reporting updated', {
-            description: `Now reports to ${addParent.name || 'the selected manager'}.`,
-          })
-          setAddParent(null)
-        },
-        onError: () =>
-          toast.error('Unable to update reporting', {
-            description: 'Please try again in a moment.',
-          }),
-      },
-    )
-  }
-
-  const handleSetRoot = (salesmanId: string) => {
-    setRoot.mutate(Number(salesmanId), {
-      onSuccess: () => {
-        toast.success('Top manager set', {
-          description: 'This sales incharge is now at the top — everyone else reports under them.',
-        })
-        setRootPickerOpen(false)
-      },
-      onError: () =>
-        toast.error('Unable to set the top manager', {
-          description: 'Please try again in a moment.',
-        }),
-    })
-  }
-
-  const confirmRemove = () => {
-    if (!pendingRemove) return
-    const { node } = pendingRemove
-    removeNode.mutate(Number(node.id), {
-      onSuccess: (cleared) =>
-        toast.success('Removed from the team chart', {
-          description:
-            cleared > 1
-              ? `${node.name || 'This sales incharge'} and ${cleared - 1} team member${cleared - 1 === 1 ? '' : 's'} under them were removed.`
-              : `${node.name || 'This sales incharge'} was removed.`,
-        }),
-      onError: () =>
-        toast.error('Unable to remove from the team chart', {
-          description: 'Please try again in a moment.',
-        }),
-    })
-  }
-
-  const removedName = pendingRemove?.node.name ?? ''
-
   return {
     root,
     isLoading,
-    availableOptions,
-    rootOptions,
+    isError,
+    error,
+    // canvas
     zoom,
     zoomBy,
     resetView,
     canvasRef,
-    setRoot,
-    addReport,
-    removeNode,
+    // dialog
+    dialog,
+    dialogOpen,
+    isEditMode,
     addParent,
-    setAddParent,
-    rootPickerOpen,
-    setRootPickerOpen,
+    editNode,
+    allowedLevels,
+    geoSource,
+    newLevel,
+    newDesignationId,
+    setNewDesignationId,
+    newGeoId,
+    setNewGeoId,
+    newAssigneeId,
+    setNewAssigneeId,
+    changeLevel,
+    designationSelect,
+    geoOptions: geoQuery.data ?? [],
+    geoLoading: geoQuery.isFetching,
+    assignee,
+    submitting,
+    handleAdd,
+    handleEdit,
+    closeDialog,
+    confirmDialog,
+    // delete
     pendingRemove,
     setPendingRemove,
-    handleAdd,
-    handleSetRoot,
     confirmRemove,
-    removedName,
+    removing: deleteEntry.isPending,
   }
 }

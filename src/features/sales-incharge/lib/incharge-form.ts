@@ -43,6 +43,26 @@ export const salesInchargeSchema = z
     message: 'Exit date must be after the joining date',
     path: ['dateOfExit'],
   })
+  // Alternate number, when given, must differ from the primary mobile.
+  .refine((v) => !v.alternateMobile || v.alternateMobile !== v.mobile, {
+    message: 'Alternate number must be different from the mobile number',
+    path: ['alternateMobile'],
+  })
+  // Anniversary can't fall on/before the date of birth.
+  .refine(
+    (v) => !v.marriageAnniversary || !v.dateOfBirth || v.marriageAnniversary > v.dateOfBirth,
+    { message: 'Anniversary must be after the date of birth', path: ['marriageAnniversary'] },
+  )
+  // Joining can't fall before the date of birth.
+  .refine((v) => !v.dateOfJoining || !v.dateOfBirth || v.dateOfJoining > v.dateOfBirth, {
+    message: 'Joining date must be after the date of birth',
+    path: ['dateOfJoining'],
+  })
+  // Exit can't fall before the date of birth.
+  .refine((v) => !v.dateOfExit || !v.dateOfBirth || v.dateOfExit > v.dateOfBirth, {
+    message: 'Exit date must be after the date of birth',
+    path: ['dateOfExit'],
+  })
 
 export type SalesInchargeFormValues = z.infer<typeof salesInchargeSchema>
 

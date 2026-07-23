@@ -3,6 +3,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { ChevronDown, PanelLeft, PanelLeftClose, X } from 'lucide-react'
 import { navGroups, type NavItem } from '@/config/navigation'
 import { useUiStore } from '@/stores/ui-store'
+import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import { asset } from '@/lib/asset'
 
@@ -80,25 +81,27 @@ export function Sidebar() {
             />
           )}
           {/* Desktop collapse toggle */}
-          <button
-            onClick={toggle}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className="hidden size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:grid"
-          >
-            {collapsed ? (
-              <PanelLeft className="size-[18px]" />
-            ) : (
-              <PanelLeftClose className="size-[18px]" />
-            )}
-          </button>
+          <Hint label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} side="right">
+            <button
+              onClick={toggle}
+              className="hidden size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:grid"
+            >
+              {collapsed ? (
+                <PanelLeft className="size-[18px]" />
+              ) : (
+                <PanelLeftClose className="size-[18px]" />
+              )}
+            </button>
+          </Hint>
           {/* Mobile close button */}
-          <button
-            onClick={closeMobile}
-            title="Close menu"
-            className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:hidden"
-          >
-            <X className="size-[18px]" />
-          </button>
+          <Hint label="Close menu">
+            <button
+              onClick={closeMobile}
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground lg:hidden"
+            >
+              <X className="size-[18px]" />
+            </button>
+          </Hint>
         </div>
 
         {/* Navigation: section labels → main menu → submenu */}

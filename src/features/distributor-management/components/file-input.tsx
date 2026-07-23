@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FileUploader } from 'react-drag-drop-files'
 import { UploadCloud, FileText, X } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { mediaUrl } from '@/lib/media'
 
 /** Does a storage path/filename point at a previewable image? */
@@ -138,17 +139,18 @@ export function FileInput({
               )}
 
               {onRemoveExisting && (
-                <button
-                  type="button"
-                  title="Remove"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    onRemoveExisting(i)
-                  }}
-                  className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
-                >
-                  <X className="size-3" />
-                </button>
+                <Hint label="Remove">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      onRemoveExisting(i)
+                    }}
+                    className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
+                  >
+                    <X className="size-3" />
+                  </button>
+                </Hint>
               )}
             </a>
           ))}
@@ -173,17 +175,18 @@ export function FileInput({
                 </span>
               )}
 
-              <button
-                type="button"
-                title="Remove"
-                onClick={(e) => {
-                  e.preventDefault()
-                  removeAt(i)
-                }}
-                className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
-              >
-                <X className="size-3" />
-              </button>
+              <Hint label="Remove">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault()
+                    removeAt(i)
+                  }}
+                  className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
+                >
+                  <X className="size-3" />
+                </button>
+              </Hint>
             </a>
           ))}
         </div>

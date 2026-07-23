@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { MapPinned, Pencil, Plus, Store, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
@@ -58,23 +59,25 @@ export function BeatsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              title="Edit"
-              onClick={() => openEdit(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-            >
-              <Pencil className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="Delete"
-              onClick={() => setPendingDelete(row.original)}
-              disabled={isDeleting}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-            >
-              <Trash2 className="size-4" />
-            </button>
+            <Hint label="Edit">
+              <button
+                type="button"
+                onClick={() => openEdit(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+              >
+                <Pencil className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="Delete">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(row.original)}
+                disabled={isDeleting}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </Hint>
           </div>
         ),
       },
@@ -104,12 +107,15 @@ export function BeatsPage() {
         accessorFn: (b) => b.distributorName ?? b.distributorId,
         enableSorting: false,
         header: ({ column }) => <DataTableColumnHeader column={column} title="Distributor" />,
-        cell: ({ row }) => (
-          <span className="inline-flex items-center gap-1.5 text-sm">
-            <Store className="size-3.5 text-muted-foreground" />
-            {row.original.distributorName ?? row.original.distributorId ?? '—'}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.distributorName ? (
+            <span className="inline-flex items-center gap-1.5 text-sm">
+              <Store className="size-3.5 text-muted-foreground" />
+              {row.original.distributorName}
+            </span>
+          ) : (
+            <span className="text-sm text-muted-foreground">N/A</span>
+          ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps

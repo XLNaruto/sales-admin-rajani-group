@@ -38,6 +38,14 @@ const MAX_BIRTH_DATE = (() => {
   return d;
 })();
 
+/** Parse a 'yyyy-MM-dd' form value into a local Date (or undefined when blank),
+ *  for use as a date-picker bound. */
+const toDate = (v?: string) => {
+  if (!v) return undefined;
+  const [y, m, d] = v.split("-").map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : undefined;
+};
+
 /**
  * Owns the sales-incharge form for both create and edit. In edit mode (`id`
  * set) it loads the record via GET, seeds the form, and submits via PUT —
@@ -58,12 +66,17 @@ export function useSalesInchargeForm(id?: string) {
     control,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<SalesInchargeFormValues>({
     resolver: zodResolver(salesInchargeSchema),
     mode: "onTouched",
     defaultValues: salesInchargeDefaults as SalesInchargeFormValues,
   });
+
+  // Date-of-birth drives the lower bound of the anniversary / joining / exit
+  // pickers, so watch it and re-derive the bound as it changes.
+  const birthDate = toDate(watch("dateOfBirth"));
 
   // Photos already saved on the record — shown as previews and retained on
   // update unless the user removes them or picks a replacement. Server-managed
@@ -131,6 +144,10 @@ export function useSalesInchargeForm(id?: string) {
     goBack,
     currentYear: new Date().getFullYear(),
     maxBirthDate: MAX_BIRTH_DATE,
+    /** Today — latest selectable date, so future dates can't be picked. */
+    today: new Date(),
+    /** Selected date of birth as a Date — lower bound for later date fields. */
+    birthDate,
     /** Seeded designation label (edit mode) so its option shows before its
      *  page loads in the lazy dropdown. */
     designationName: detail.data?.designationName ?? null,

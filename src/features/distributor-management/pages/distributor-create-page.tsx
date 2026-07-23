@@ -66,7 +66,14 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     goBack,
     currentYear,
     maxBirthDate,
+    maxDate,
+    birthDate,
   } = useDistributorForm(id || undefined);
+
+  // Keep a mobile input to digits only, capped at 10 — mirrors the login page.
+  const digitsOnly = (max: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.value = e.target.value.replace(/\D/g, "").slice(0, max);
+  };
 
   const title = isEdit ? "Edit Distributor" : "Add Distributor";
   const description = isEdit
@@ -178,9 +185,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             error={errors.ownerMobile?.message}
           >
             <Input
+              type="text"
               inputMode="numeric"
+              maxLength={10}
               placeholder="10-digit mobile number"
-              {...register("ownerMobile")}
+              {...register("ownerMobile", { onChange: digitsOnly(10) })}
             />
           </Field>
 
@@ -218,6 +227,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                   onChange={field.onChange}
                   fromYear={1960}
                   toYear={currentYear}
+                  minDate={birthDate}
+                  maxDate={maxDate}
                 />
               )}
             />
@@ -229,9 +240,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             error={errors.communicationMobile?.message}
           >
             <Input
+              type="text"
               inputMode="numeric"
+              maxLength={10}
               placeholder="10-digit mobile number"
-              {...register("communicationMobile")}
+              {...register("communicationMobile", { onChange: digitsOnly(10) })}
             />
           </Field>
 

@@ -120,7 +120,6 @@ export function BeatAllocationPanel({
           return (
             <button
               type="button"
-              title={action.label}
               onClick={() => action.onClick(row.original)}
               disabled={actionsDisabled}
               className={cn(

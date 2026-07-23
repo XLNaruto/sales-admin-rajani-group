@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, Check, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
+import { BadgeOverflowList } from "@/components/common/badge-overflow-list";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { Hint } from "@/components/common/hint";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -87,51 +89,56 @@ export function DistributorsPage() {
         meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              title="Edit"
-              onClick={() => goToEdit(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-            >
-              <Pencil className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="View details"
-              onClick={() => setViewId(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
-            >
-              <Eye className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="Delete"
-              onClick={() => setPendingDelete(row.original)}
-              disabled={isDeleting}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-            >
-              <Trash2 className="size-4" />
-            </button>
+            <Hint label="Edit">
+              <button
+                type="button"
+                onClick={() => goToEdit(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+              >
+                <Pencil className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="View details">
+              <button
+                type="button"
+                onClick={() => setViewId(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
+              >
+                <Eye className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="Delete">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(row.original)}
+                disabled={isDeleting}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </Hint>
             {row.original.onboardingStatus === "pending" && (
               <>
-                <button
-                  type="button"
-                  title="Approve"
-                  onClick={() => setPendingApprove(row.original)}
-                  disabled={isSettingOnboarding}
-                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
-                >
-                  <Check className="size-4" />
-                </button>
-                <button
-                  type="button"
-                  title="Reject"
-                  onClick={() => setPendingReject(row.original)}
-                  disabled={isSettingOnboarding}
-                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-                >
-                  <X className="size-4" />
-                </button>
+                <Hint label="Approve">
+                  <button
+                    type="button"
+                    onClick={() => setPendingApprove(row.original)}
+                    disabled={isSettingOnboarding}
+                    className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-400"
+                  >
+                    <Check className="size-4" />
+                  </button>
+                </Hint>
+                <Hint label="Reject">
+                  <button
+                    type="button"
+                    onClick={() => setPendingReject(row.original)}
+                    disabled={isSettingOnboarding}
+                    className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </Hint>
               </>
             )}
           </div>
@@ -264,13 +271,12 @@ export function DistributorsPage() {
           if (names.length === 0)
             return <span className="text-muted-foreground">N/A</span>;
           return (
-            <div className="flex max-w-56 flex-wrap gap-1">
-              {names.map((name) => (
-                <Badge key={name} variant="outline" className="font-medium">
-                  {name}
-                </Badge>
-              ))}
-            </div>
+            <BadgeOverflowList
+              items={names}
+              max={2}
+              title={`${row.original.firmName} — Product Divisions`}
+              itemLabel="divisions"
+            />
           );
         },
       },

@@ -123,38 +123,6 @@ export interface SalesInchargeDetailView {
 
 // --- Reporting hierarchy (GET …/sales-incharges/hierarchy) ------------------
 
-/**
- * A node on the salesman-hierarchy canvas. Each node is a sales incharge;
- * `id`/`salesmanId` both carry the incharge's id (as a string) and the node
- * carries its own display fields so the tree renders without a side lookup.
- */
-export interface HierarchyNode {
-  id: string
-  salesmanId: string
-  name: string
-  designation: string | null
-  photoUrl?: string
-  children: HierarchyNode[]
-}
-
-/**
- * A node in the sales-incharge reporting tree (client-facing). Each node is a
- * sales incharge; `reports` holds their direct reports (recursively). The tree
- * is single-rooted — the endpoint returns the one root node (`isRoot: true`)
- * or `null` when none has been designated.
- */
-export interface SalesInchargeHierarchyNode {
-  id: number
-  name: string
-  designation: string | null
-  /** Full media URL for the profile photo (resolved from the S3 key), if any. */
-  photoUrl?: string
-  status: SalesInchargeStatus | null
-  /** True only for the single top-of-org node. */
-  isRoot: boolean
-  reports: SalesInchargeHierarchyNode[]
-}
-
 // --- Designations master (GET /sales-incharge-admin/designations) -----------
 
 /** A single designation row (client-facing). */

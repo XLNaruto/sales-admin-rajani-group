@@ -4,6 +4,7 @@ import { ChevronDown, LogOut, Menu, Moon, User } from 'lucide-react'
 // import { Bell } from 'lucide-react' // notifications button (hidden)
 import { Breadcrumbs } from './breadcrumbs'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
+import { Hint } from '@/components/common/hint'
 import { Button } from '@/components/ui/button'
 import { Avatar } from '@/components/ui/avatar'
 import {
@@ -45,15 +46,16 @@ export function Topbar() {
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/80 px-6 backdrop-blur">
       <div className="flex min-w-0 items-center gap-2">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="lg:hidden"
-          title="Open menu"
-          onClick={toggleMobileSidebar}
-        >
-          <Menu className="size-5" />
-        </Button>
+        <Hint label="Open menu">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
+            onClick={toggleMobileSidebar}
+          >
+            <Menu className="size-5" />
+          </Button>
+        </Hint>
         <div className="hidden lg:block">
           <Breadcrumbs />
         </div>

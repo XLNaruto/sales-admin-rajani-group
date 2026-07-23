@@ -103,60 +103,74 @@ export const designationListResponseSchema = z.object({
 
 export type DesignationRow = z.infer<typeof designationRowSchema>
 
-/**
- * A node in GET /sales-incharge-admin/sales-incharges/hierarchy. The spec ships
- * this schema empty (a `$ref` to an unemitted component), so we validate
- * defensively: an incharge-shaped node plus its nested reports. The child array
- * key isn't pinned by the spec, so `childReports` accepts whichever of the
- * common names the server uses (`reports`/`children`/`direct_reports`/
- * `subordinates`) and normalises it to `reports`.
- */
-export interface SalesInchargeHierarchyNodeRaw {
-  id: number
-  display_name: string
-  designation_name?: string | null
-  profile_photo_path?: string | null
-  status?: SalesInchargeStatusValue
-  is_root?: boolean
-  reports: SalesInchargeHierarchyNodeRaw[]
-}
+/* ------------------------------ Org hierarchy ----------------------------- */
 
-type SalesInchargeStatusValue = z.infer<typeof salesInchargeStatusSchema>
-
-/** Copy whichever child-array key the node uses into a canonical `reports`. */
-const normaliseReports = (raw: unknown): unknown => {
-  if (raw == null || typeof raw !== 'object') return raw
-  const o = raw as Record<string, unknown>
-  const reports = o.reports ?? o.children ?? o.direct_reports ?? o.subordinates ?? []
-  return { ...o, reports }
-}
-
-export const salesInchargeHierarchyNodeSchema: z.ZodType<SalesInchargeHierarchyNodeRaw> =
-  z.lazy(() =>
-    z.preprocess(
-      normaliseReports,
-      z
-        .object({
-          id: z.number(),
-          display_name: z.string(),
-          designation_name: z.string().nullish(),
-          profile_photo_path: z.string().nullish(),
-          status: salesInchargeStatusSchema.optional(),
-          is_root: z.boolean().optional(),
-          reports: z.array(salesInchargeHierarchyNodeSchema),
-        })
-        .passthrough(),
-    ) as z.ZodType<SalesInchargeHierarchyNodeRaw>,
-  )
+/** Ids arrive as numbers, but tolerate stringified ids too. */
+const idField = z.union([z.number(), z.string()]).nullish()
 
 /**
- * Envelope for GET …/hierarchy. The tree is single-rooted: `hierarchy` is the
- * one designated root node (its reports nested under `children`), or `null`
- * when no root has been designated yet.
+ * A flat row from GET /sales-incharge-admin/hierarchy. The tree relationships
+ * live in `parent_id`; a row's level is inferred from the deepest geo id set
+ * (city → City, … state → State, none → National). The `*_name` fields let the
+ * tree render geography labels without a side lookup.
  */
-export const salesInchargeHierarchyResponseSchema = z.object({
-  hierarchy: salesInchargeHierarchyNodeSchema.nullable(),
+export const hierarchyItemSchema = z
+  .object({
+    id: z.union([z.number(), z.string()]),
+    parent_id: idField,
+    designation_id: idField,
+    designation_name: z.string().nullish(),
+    sales_incharge_id: idField,
+    sales_incharge_admin_id: idField,
+    state_id: idField,
+    zone_id: idField,
+    district_id: idField,
+    city_id: idField,
+    state_name: z.string().nullish(),
+    zone_name: z.string().nullish(),
+    district_name: z.string().nullish(),
+    city_name: z.string().nullish(),
+    user_type: z.string().nullish(),
+    user_name: z.string().nullish(),
+    created_at: z.string().nullish(),
+  })
+  .passthrough()
+
+export type HierarchyItem = z.infer<typeof hierarchyItemSchema>
+
+/** Envelope for GET …/hierarchy — the flat rows to assemble into the tree. */
+export const hierarchyListResponseSchema = z.object({
+  items: z.array(hierarchyItemSchema).default([]),
 })
+
+/**
+ * A sales-incharge-admin account row — the assignee pool for non-City levels.
+ * From GET /sales-incharge-admin/hierarchy/available-sales-incharge-admins →
+ * salesInchargeAdminListAvailableSalesInchargeAdmins. Only the fields the
+ * assignee combobox needs are pinned; the rest is tolerated via passthrough.
+ */
+export const salesInchargeAdminRowSchema = z
+  .object({
+    id: z.number(),
+    display_name: z.string(),
+    phone: z.string().nullish(),
+    email: z.string().nullish(),
+    employee_code: z.string().nullish(),
+    designation_name: z.string().nullish(),
+    status: salesInchargeStatusSchema.catch('inactive'),
+  })
+  .passthrough()
+
+/** Envelope: a page of rows plus the standard `total`/`page`/… pagination. */
+export const salesInchargeAdminListResponseSchema = z.object({
+  sales_incharge_admins: z.array(salesInchargeAdminRowSchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+  total_pages: z.number(),
+})
+
+export type SalesInchargeAdminRow = z.infer<typeof salesInchargeAdminRowSchema>
 
 /**
  * Response from POST …/documents/presign — one slot per file, echoing its

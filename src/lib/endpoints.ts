@@ -30,16 +30,19 @@ export const endpoints = {
     STATUS: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/status`,
     DELETE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/sales-incharges/documents/presign',
-    /** GET the reporting hierarchy tree (the single root with nested children). */
-    HIERARCHY: '/sales-incharge-admin/sales-incharges/hierarchy',
-    /** PATCH to designate this incharge as THE single top-of-org root. */
-    ROOT: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/root`,
-    /** PATCH who a sales incharge reports to (`reports_to` id, or null → root). */
-    REPORTING_MANAGER: (id: string | number) =>
-      `/sales-incharge-admin/sales-incharges/${id}/reporting-manager`,
-    /** DELETE a sales incharge's hierarchy links (the node + its whole subtree). */
-    HIERARCHY_CLEAR: (id: string | number) =>
-      `/sales-incharge-admin/sales-incharges/${id}/hierarchy`,
+  },
+  /**
+   * Org-structure hierarchy. Flat rows (each a designation staffed at a geo
+   * level by a sales incharge / admin) that the client assembles into a tree.
+   */
+  HIERARCHY: {
+    LIST: '/sales-incharge-admin/hierarchy',
+    CREATE: '/sales-incharge-admin/hierarchy',
+    UPDATE: (id: string | number) => `/sales-incharge-admin/hierarchy/${id}`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/hierarchy/${id}`,
+    /** Sales-incharge-admin accounts available to staff a non-City node
+     *  (National/State/Zone/District). Paged + searchable. */
+    AVAILABLE_ADMINS: '/sales-incharge-admin/hierarchy/available-sales-incharge-admins',
   },
   DESIGNATION: {
     LIST: '/sales-incharge-admin/designations',

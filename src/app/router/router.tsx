@@ -1,6 +1,6 @@
 import { createRouter } from '@tanstack/react-router'
 import { routeTree } from '@/routeTree.gen'
-import { NotFound } from '@/features/error'
+import { NotFound, RouteError } from '@/features/error'
 import { queryClient } from '@/lib/query-client'
 
 export const router = createRouter({
@@ -19,6 +19,10 @@ export const router = createRouter({
   scrollRestoration: true,
   // Any unmatched path renders the themed 404 screen.
   defaultNotFoundComponent: () => <NotFound />,
+  // Any error thrown from a route `loader`/`beforeLoad` renders the themed error
+  // screen — a 403 shows the dedicated "Access denied" page, everything else a
+  // generic retry screen. Renders inside the dashboard shell for in-app routes.
+  defaultErrorComponent: ({ error, reset }) => <RouteError error={error} reset={reset} />,
 })
 
 declare module '@tanstack/react-router' {

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 
 /** Shape of `GET /sales-incharge-admin/config` — client-safe settings only. */
 const configResponseSchema = z.object({
@@ -20,6 +20,6 @@ export async function fetchAppConfig(): Promise<AppConfig> {
     const { media_base_url } = configResponseSchema.parse(raw)
     return { mediaBaseUrl: media_base_url }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load application config.'))
+    throw asApiError(error, 'Failed to load application config.')
   }
 }

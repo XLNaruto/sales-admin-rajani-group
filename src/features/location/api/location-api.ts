@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import {
   cityListResponseSchema,
   districtListResponseSchema,
@@ -94,7 +94,7 @@ export async function fetchStates(
       stateListResponseSchema.parse(raw)
     return { items: items.map(toState), total, page, pageSize, totalPages }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load states.'))
+    throw asApiError(error, 'Failed to load states.')
   }
 }
 
@@ -110,7 +110,7 @@ export async function fetchZones(
       zoneListResponseSchema.parse(raw)
     return { items: items.map(toZone), total, page, pageSize, totalPages }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load zones.'))
+    throw asApiError(error, 'Failed to load zones.')
   }
 }
 
@@ -126,7 +126,7 @@ export async function fetchDistricts(
       districtListResponseSchema.parse(raw)
     return { items: items.map(toDistrict), total, page, pageSize, totalPages }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load districts.'))
+    throw asApiError(error, 'Failed to load districts.')
   }
 }
 
@@ -142,7 +142,7 @@ export async function fetchTalukas(
       talukaListResponseSchema.parse(raw)
     return { items: items.map(toTaluka), total, page, pageSize, totalPages }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load talukas.'))
+    throw asApiError(error, 'Failed to load talukas.')
   }
 }
 
@@ -158,6 +158,6 @@ export async function fetchCities(
       cityListResponseSchema.parse(raw)
     return { items: items.map(toCity), total, page, pageSize, totalPages }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load cities.'))
+    throw asApiError(error, 'Failed to load cities.')
   }
 }

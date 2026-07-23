@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import { productDivisionListResponseSchema } from '../schemas'
 import type { ProductDivisionListResult } from '../types'
 
@@ -42,6 +42,6 @@ export async function fetchProductDivisions(
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load product divisions.'))
+    throw asApiError(error, 'Failed to load product divisions.')
   }
 }

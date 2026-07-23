@@ -1,7 +1,7 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { env } from '@/config/env'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import type { AuthUser } from '@/stores/auth-store'
 import type { ConfirmedIdentity } from './firebase-phone-auth'
 import type { AuthSession, TokenResponse } from '../types'
@@ -43,7 +43,7 @@ export async function accountCheck(phone: string): Promise<void> {
       { phone: string; user_type: string }
     >(endpoints.AUTH.ACCOUNT_CHECK, { phone, user_type: USER_TYPE })
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Sign-in failed. Please try again.'))
+    throw asApiError(error, 'Sign-in failed. Please try again.')
   }
   // The endpoint answers 200 with a flag rather than a non-2xx for unknown
   // numbers, so gate on the body.
@@ -71,7 +71,7 @@ export async function loginWithIdToken(
       expiresIn: data.expires_in,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Sign-in failed. Please try again.'))
+    throw asApiError(error, 'Sign-in failed. Please try again.')
   }
 }
 

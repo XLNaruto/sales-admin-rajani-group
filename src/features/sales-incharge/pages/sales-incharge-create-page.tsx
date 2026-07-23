@@ -49,6 +49,8 @@ export function SalesInchargeCreatePage({
     goBack,
     currentYear,
     maxBirthDate,
+    today,
+    birthDate,
     designationName,
   } = useSalesInchargeForm(id || undefined);
 
@@ -234,6 +236,8 @@ export function SalesInchargeCreatePage({
                   onChange={field.onChange}
                   fromYear={1970}
                   toYear={currentYear}
+                  minDate={birthDate}
+                  maxDate={today}
                 />
               )}
             />
@@ -279,6 +283,7 @@ export function SalesInchargeCreatePage({
                   onChange={field.onChange}
                   fromYear={2000}
                   toYear={currentYear + 1}
+                  minDate={birthDate}
                 />
               )}
             />
@@ -298,6 +303,8 @@ export function SalesInchargeCreatePage({
                   onChange={field.onChange}
                   fromYear={2000}
                   toYear={currentYear + 5}
+                  minDate={birthDate}
+                  maxDate={today}
                 />
               )}
             />

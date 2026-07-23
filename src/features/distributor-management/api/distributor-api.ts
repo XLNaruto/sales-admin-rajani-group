@@ -1,7 +1,7 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { mediaUrl } from '@/lib/media'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import {
   distributorDetailSchema,
   distributorListResponseSchema,
@@ -83,7 +83,7 @@ export async function fetchDistributors(
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load distributors.'))
+    throw asApiError(error, 'Failed to load distributors.')
   }
 }
 
@@ -128,7 +128,7 @@ export async function uploadImages(presignEndpoint: string, files: File[]): Prom
     }
     return keys
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to upload images.'))
+    throw asApiError(error, 'Failed to upload images.')
   }
 }
 
@@ -173,7 +173,7 @@ async function uploadDocuments(docs: DocFile[]): Promise<Record<DocType, string[
     }
     return keys
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to upload documents.'))
+    throw asApiError(error, 'Failed to upload documents.')
   }
 }
 
@@ -310,7 +310,7 @@ export async function createDistributor(input: DistributorCreateInput): Promise<
     }
     await http.post<unknown>(endpoints.DISTRIBUTOR.CREATE, body)
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to create the distributor.'))
+    throw asApiError(error, 'Failed to create the distributor.')
   }
 }
 
@@ -391,7 +391,7 @@ export async function fetchDistributor(id: string): Promise<{
     }
     return { id: r.id, values, existing }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the distributor.'))
+    throw asApiError(error, 'Failed to load the distributor.')
   }
 }
 
@@ -466,7 +466,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       bankName: r.bank_name ?? null,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the distributor.'))
+    throw asApiError(error, 'Failed to load the distributor.')
   }
 }
 
@@ -491,7 +491,7 @@ export async function updateDistributor(input: DistributorUpdateInput): Promise<
     }
     await http.patch<unknown>(endpoints.DISTRIBUTOR.UPDATE(input.id), body)
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the distributor.'))
+    throw asApiError(error, 'Failed to update the distributor.')
   }
 }
 
@@ -500,7 +500,7 @@ export async function deleteDistributor(id: string): Promise<void> {
   try {
     await http.delete<unknown>(endpoints.DISTRIBUTOR.DELETE(id))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to delete the distributor.'))
+    throw asApiError(error, 'Failed to delete the distributor.')
   }
 }
 
@@ -512,7 +512,7 @@ export async function setDistributorStatus(
   try {
     await http.patch<unknown>(endpoints.DISTRIBUTOR.STATUS(id), { status })
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the status.'))
+    throw asApiError(error, 'Failed to update the status.')
   }
 }
 
@@ -531,8 +531,6 @@ export async function updateDistributorOnboarding(
     if (trimmed) body.reason = trimmed
     await http.patch<unknown>(endpoints.DISTRIBUTOR.ONBOARDING(id), body)
   } catch (error) {
-    throw new Error(
-      getApiErrorMessage(error, 'Failed to update the onboarding status.'),
-    )
+    throw asApiError(error, 'Failed to update the onboarding status.')
   }
 }

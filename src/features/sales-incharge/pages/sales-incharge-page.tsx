@@ -10,6 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { Hint } from "@/components/common/hint";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
@@ -82,39 +83,43 @@ export function SalesInchargePage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              title="Edit"
-              onClick={() => goToEdit(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-            >
-              <Pencil className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="View details"
-              onClick={() => setViewId(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
-            >
-              <Eye className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="Beat allocation"
-              onClick={() => goToBeatAllocation(row.original.id)}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
-            >
-              <MapPinned className="size-4" />
-            </button>
-            <button
-              type="button"
-              title="Delete"
-              onClick={() => setPendingDelete(row.original)}
-              disabled={isDeleting}
-              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-            >
-              <Trash2 className="size-4" />
-            </button>
+            <Hint label="Edit">
+              <button
+                type="button"
+                onClick={() => goToEdit(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+              >
+                <Pencil className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="View details">
+              <button
+                type="button"
+                onClick={() => setViewId(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
+              >
+                <Eye className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="Beat allocation">
+              <button
+                type="button"
+                onClick={() => goToBeatAllocation(row.original.id)}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+              >
+                <MapPinned className="size-4" />
+              </button>
+            </Hint>
+            <Hint label="Delete">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(row.original)}
+                disabled={isDeleting}
+                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+              >
+                <Trash2 className="size-4" />
+              </button>
+            </Hint>
           </div>
         ),
       },

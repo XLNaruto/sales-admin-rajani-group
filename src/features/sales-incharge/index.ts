@@ -8,12 +8,8 @@ export {
   useDeleteSalesman,
   useSalesIncharges,
   useDeleteSalesIncharge,
-  useSalesInchargeHierarchy,
-  salesInchargeHierarchyQueryOptions,
-  useSetSalesInchargeRoot,
-  useSetReportingManager,
-  useClearSalesInchargeHierarchy,
 } from './api/use-sales-incharge'
+export { hierarchyTreeQueryOptions } from './api/use-hierarchy'
 export type {
   Salesman,
   SalesmanInput,
@@ -23,5 +19,4 @@ export type {
   SalesInchargeSortBy,
   SalesInchargeListParams,
   SalesInchargeListResult,
-  SalesInchargeHierarchyNode,
 } from './types'

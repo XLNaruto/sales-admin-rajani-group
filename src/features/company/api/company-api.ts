@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import { companiesResponseSchema } from '../schemas'
 import type { CompaniesState } from '../types'
 import type { CompaniesResponse } from '../schemas'
@@ -26,7 +26,7 @@ export async function fetchMyCompanies(): Promise<CompaniesState> {
     return toCompaniesState(companiesResponseSchema.parse(raw))
   } catch (error) {
     if (import.meta.env.DEV) console.error('[companies] fetch/parse failed:', error)
-    throw new Error(getApiErrorMessage(error, "Couldn't load your companies."))
+    throw asApiError(error, "Couldn't load your companies.")
   }
 }
 
@@ -44,6 +44,6 @@ export async function selectMyCompany(companyId: number): Promise<CompaniesState
     )
     return toCompaniesState(companiesResponseSchema.parse(raw))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Couldn't switch company."))
+    throw asApiError(error, "Couldn't switch company.")
   }
 }

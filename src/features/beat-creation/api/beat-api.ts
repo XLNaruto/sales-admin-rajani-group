@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import {
   beatDetailSchema,
   beatListResponseSchema,
@@ -61,7 +61,7 @@ export async function fetchBeats(params: BeatListParams = {}): Promise<BeatListR
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load beats.'))
+    throw asApiError(error, 'Failed to load beats.')
   }
 }
 
@@ -99,7 +99,7 @@ export async function fetchBeat(id: string): Promise<BeatEditRecord> {
       },
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the beat.'))
+    throw asApiError(error, 'Failed to load the beat.')
   }
 }
 
@@ -108,7 +108,7 @@ export async function createBeat(input: BeatInput): Promise<void> {
   try {
     await http.post<unknown>(endpoints.BEAT.CREATE, toBody(input))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to create the beat.'))
+    throw asApiError(error, 'Failed to create the beat.')
   }
 }
 
@@ -117,7 +117,7 @@ export async function updateBeat(id: string, input: BeatInput): Promise<void> {
   try {
     await http.patch<unknown>(endpoints.BEAT.UPDATE(id), toBody(input))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the beat.'))
+    throw asApiError(error, 'Failed to update the beat.')
   }
 }
 
@@ -126,6 +126,6 @@ export async function deleteBeat(id: string): Promise<void> {
   try {
     await http.delete<unknown>(endpoints.BEAT.DELETE(id))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to delete the beat.'))
+    throw asApiError(error, 'Failed to delete the beat.')
   }
 }

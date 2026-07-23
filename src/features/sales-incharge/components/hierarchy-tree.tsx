@@ -1,81 +1,130 @@
-import { Plus, Trash2 } from 'lucide-react'
-import { Avatar } from '@/components/ui/avatar'
+import { Layers, MapPin, Pencil, Plus, Trash2, UserRound } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
-import type { HierarchyNode } from '../types'
+import {
+  HIERARCHY_LEVELS,
+  levelRank,
+  type HierarchyLevel,
+  type StructureNode,
+} from '../lib/hierarchy'
 
-interface TreeHandlers {
-  onAdd: (node: HierarchyNode) => void
-  onRemove: (node: HierarchyNode, isRoot: boolean) => void
+/** A distinct accent per level so the tree reads at a glance. */
+const LEVEL_STYLES: Record<HierarchyLevel, string> = {
+  National: 'bg-violet-500/10 text-violet-600 dark:text-violet-400',
+  State: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  Zone: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400',
+  District: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
+  City: 'bg-rose-500/10 text-rose-600 dark:text-rose-400',
 }
 
-/** A single org-chart card: avatar, name, designation + add/remove actions. */
+interface TreeHandlers {
+  onAdd: (node: StructureNode) => void
+  onEdit: (node: StructureNode) => void
+  onRemove: (node: StructureNode, isRoot: boolean) => void
+}
+
+/** A single org-chart card: level badge, designation, geography + assignee. */
 function NodeCard({
   node,
   isRoot,
   onAdd,
+  onEdit,
   onRemove,
-}: { node: HierarchyNode; isRoot: boolean } & TreeHandlers) {
+}: { node: StructureNode; isRoot: boolean } & TreeHandlers) {
+  // The lowest level (City) can't nest any further, so there's nothing to add.
+  const canAddChild = levelRank(node.level) < HIERARCHY_LEVELS.length - 1
+
   return (
     <div
       data-hierarchy-root={isRoot ? '' : undefined}
       className={cn(
-        'group relative w-40 rounded-xl border bg-card p-3 text-center shadow-sm transition-colors sm:w-56 sm:p-4',
+        'relative flex w-52 flex-col items-center rounded-2xl border bg-card px-4 pb-4 pt-6 text-center shadow-sm transition-colors',
         isRoot ? 'border-primary/40 ring-1 ring-primary/20' : 'border-border hover:border-ring/40',
       )}
     >
       {isRoot && (
-        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary-foreground">
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground shadow">
           Root
         </span>
       )}
 
-      <div className="flex flex-col items-center gap-2">
-        <Avatar
-          name={node.name || '?'}
-          src={node.photoUrl}
-          className="size-11 text-xs sm:size-14 sm:text-sm"
-        />
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-foreground sm:text-base">
-            {node.name || 'Unknown salesman'}
-          </p>
-          {node.designation && (
-            <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:text-xs">
-              {node.designation}
-            </p>
-          )}
-        </div>
-      </div>
+      <span
+        className={cn(
+          'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+          LEVEL_STYLES[node.level],
+        )}
+      >
+        <Layers className="size-3" />
+        {node.level}
+      </span>
 
-      {/* Actions — always visible. */}
-      <div className="mt-2.5 flex items-center justify-center gap-2 sm:mt-3">
-        <button
-          type="button"
-          title="Add report"
-          onClick={() => onAdd(node)}
-          className="grid size-7 cursor-pointer place-items-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary/20 sm:size-8"
-        >
-          <Plus className="size-3.5 sm:size-4" />
-        </button>
-        <button
-          type="button"
-          title={isRoot ? 'Detach root (and its reports)' : 'Detach from hierarchy'}
-          onClick={() => onRemove(node, isRoot)}
-          className="grid size-7 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400 sm:size-8"
-        >
-          <Trash2 className="size-3.5 sm:size-4" />
-        </button>
+      <p className="mt-3 font-semibold leading-tight text-foreground">
+        {node.designation || 'Untitled'}
+      </p>
+
+      {node.geoName && (
+        <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+          <MapPin className="size-3" />
+          {node.geoName}
+        </span>
+      )}
+
+      {node.assigneeName && (
+        <Hint label={node.assigneeName}>
+          <span className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-full bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+            <UserRound className="size-3 shrink-0" />
+            <span className="min-w-0 truncate">{node.assigneeName}</span>
+          </span>
+        </Hint>
+      )}
+
+      <div className="mt-3 flex items-center justify-center gap-2">
+        {canAddChild && (
+          <Hint label="Add sub-level">
+            <button
+              type="button"
+              onClick={() => onAdd(node)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-primary/10 text-primary transition-colors hover:bg-primary hover:text-primary-foreground"
+            >
+              <Plus className="size-4" />
+            </button>
+          </Hint>
+        )}
+        {/* The root is provisioned from the Super Admin panel — it can gain
+            children here, but its own record can't be edited or removed. */}
+        {!isRoot && (
+          <Hint label="Edit">
+            <button
+              type="button"
+              onClick={() => onEdit(node)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-muted text-foreground transition-colors hover:bg-foreground hover:text-background"
+            >
+              <Pencil className="size-4" />
+            </button>
+          </Hint>
+        )}
+        {!isRoot && (
+          <Hint label="Remove">
+            <button
+              type="button"
+              onClick={() => onRemove(node, isRoot)}
+              className="grid size-8 cursor-pointer place-items-center rounded-lg bg-destructive/10 text-destructive transition-colors hover:bg-destructive hover:text-destructive-foreground"
+            >
+              <Trash2 className="size-4" />
+            </button>
+          </Hint>
+        )}
       </div>
     </div>
   )
 }
 
-/** Recursive tree node: renders its card, then a child row if it has reports. */
+/** Recursive tree node: renders its card, then a child row if it has children. */
 function TreeNode({
   node,
   isRoot,
   ...handlers
-}: { node: HierarchyNode; isRoot: boolean } & TreeHandlers) {
+}: { node: StructureNode; isRoot: boolean } & TreeHandlers) {
   return (
     <li>
       <NodeCard node={node} isRoot={isRoot} {...handlers} />
@@ -91,21 +140,19 @@ function TreeNode({
 }
 
 /**
- * The full org-chart. The tree is multi-root, so every top-level incharge is
- * rendered as its own root branch. `w-max` lets it overflow the pan canvas
- * horizontally.
+ * The full org-chart, rendered from the single root down. `w-max` lets it
+ * overflow the pan canvas horizontally; the pure-CSS `.org-tree` connectors
+ * draw the parent/child lines.
  */
 export function HierarchyTree({
-  roots,
+  root,
   ...handlers
-}: { roots: HierarchyNode[] } & TreeHandlers) {
+}: { root: StructureNode } & TreeHandlers) {
   return (
-    <div className="org-tree mx-auto flex w-max items-start gap-12 px-12 py-10">
-      {roots.map((root) => (
-        <ul key={root.id}>
-          <TreeNode node={root} isRoot {...handlers} />
-        </ul>
-      ))}
+    <div className="org-tree mx-auto flex w-max items-start justify-center px-12 py-10">
+      <ul>
+        <TreeNode node={root} isRoot {...handlers} />
+      </ul>
     </div>
   )
 }

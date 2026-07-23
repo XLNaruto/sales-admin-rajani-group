@@ -1,14 +1,12 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { mediaUrl } from '@/lib/media'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import {
   designationListResponseSchema,
   inchargePresignResponseSchema,
   salesInchargeDetailSchema,
-  salesInchargeHierarchyResponseSchema,
   salesInchargeListResponseSchema,
-  type SalesInchargeHierarchyNodeRaw,
   type SalesInchargeRow,
 } from '../schemas'
 import type { SalesInchargeFormValues } from '../lib/incharge-form'
@@ -19,7 +17,6 @@ import type {
   SalesIncharge,
   SalesInchargeDetailView,
   SalesInchargeExistingFiles,
-  SalesInchargeHierarchyNode,
   SalesInchargeListParams,
   SalesInchargeListResult,
   SalesInchargePreservedFields,
@@ -76,7 +73,7 @@ export async function fetchSalesIncharges(
       totalPages: res.total_pages,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load sales incharges.'))
+    throw asApiError(error, 'Failed to load sales incharges.')
   }
 }
 
@@ -115,7 +112,7 @@ export async function fetchDesignations(
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load designations.'))
+    throw asApiError(error, 'Failed to load designations.')
   }
 }
 
@@ -124,7 +121,7 @@ export async function deleteSalesIncharge(id: number): Promise<void> {
   try {
     await http.delete<void>(endpoints.SALES_INCHARGE.DELETE(id))
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to delete sales incharge.'))
+    throw asApiError(error, 'Failed to delete sales incharge.')
   }
 }
 
@@ -262,7 +259,7 @@ export async function createSalesIncharge(values: SalesInchargeFormValues): Prom
     }
     await http.post<unknown>(endpoints.SALES_INCHARGE.CREATE, body)
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to create the sales incharge.'))
+    throw asApiError(error, 'Failed to create the sales incharge.')
   }
 }
 
@@ -329,7 +326,7 @@ export async function fetchSalesIncharge(id: string): Promise<{
     }
     return { id: String(r.id), values, existing, preserved, designationName: r.designation_name ?? null }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the sales incharge.'))
+    throw asApiError(error, 'Failed to load the sales incharge.')
   }
 }
 
@@ -373,7 +370,7 @@ export async function fetchSalesInchargeDetail(
       aadharBackUrl: mediaUrl(r.aadhar_back_photo_path),
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the sales incharge.'))
+    throw asApiError(error, 'Failed to load the sales incharge.')
   }
 }
 
@@ -398,7 +395,7 @@ export async function updateSalesIncharge(
     }
     await http.patch<unknown>(endpoints.SALES_INCHARGE.UPDATE(id), body)
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the sales incharge.'))
+    throw asApiError(error, 'Failed to update the sales incharge.')
   }
 }
 
@@ -410,83 +407,7 @@ export async function setSalesInchargeStatus(
   try {
     await http.patch<unknown>(endpoints.SALES_INCHARGE.STATUS(id), { status })
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the status.'))
+    throw asApiError(error, 'Failed to update the status.')
   }
 }
 
-/* ---------------------------- Reporting hierarchy ------------------------- */
-
-/** Map a validated raw hierarchy node (recursively) to the client-facing shape. */
-function toHierarchyNode(raw: SalesInchargeHierarchyNodeRaw): SalesInchargeHierarchyNode {
-  return {
-    id: raw.id,
-    name: raw.display_name,
-    designation: raw.designation_name ?? null,
-    photoUrl: raw.profile_photo_path ? mediaUrl(raw.profile_photo_path) : undefined,
-    status: raw.status ?? null,
-    isRoot: raw.is_root ?? false,
-    reports: raw.reports.map(toHierarchyNode),
-  }
-}
-
-/**
- * GET /sales-incharge-admin/sales-incharges/hierarchy — the reporting tree.
- * The tree is single-rooted: returns the one designated root node (with its
- * nested reports), or `null` when no root has been designated yet.
- */
-export async function fetchSalesInchargeHierarchy(): Promise<SalesInchargeHierarchyNode | null> {
-  try {
-    const raw = await http.get<unknown>(endpoints.SALES_INCHARGE.HIERARCHY)
-    const res = salesInchargeHierarchyResponseSchema.parse(raw)
-    return res.hierarchy ? toHierarchyNode(res.hierarchy) : null
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to load the hierarchy.'))
-  }
-}
-
-/**
- * PATCH /sales-incharge-admin/sales-incharges/{id}/root — designate this
- * incharge as THE single root (top of org). Any current root is atomically
- * demoted and re-parented under the new one. Idempotent if already the root.
- */
-export async function setSalesInchargeRoot(id: number): Promise<void> {
-  try {
-    await http.patch<unknown>(endpoints.SALES_INCHARGE.ROOT(id), {})
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to set the root.'))
-  }
-}
-
-/**
- * PATCH /sales-incharge-admin/sales-incharges/{id}/reporting-manager — set who a
- * sales incharge reports to. `reportsTo = null` detaches them (makes a root).
- * The server rejects self-references and cycles.
- */
-export async function setReportingManager(
-  id: number,
-  reportsTo: number | null,
-): Promise<void> {
-  try {
-    await http.patch<unknown>(endpoints.SALES_INCHARGE.REPORTING_MANAGER(id), {
-      reports_to: reportsTo,
-    })
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to update the reporting manager.'))
-  }
-}
-
-/**
- * DELETE /sales-incharge-admin/sales-incharges/{id}/hierarchy — detach the node
- * and its entire subtree (they all become unassigned roots). Returns the number
- * of incharges detached.
- */
-export async function clearSalesInchargeHierarchy(id: number): Promise<number> {
-  try {
-    const raw = await http.delete<{ cleared?: number }>(
-      endpoints.SALES_INCHARGE.HIERARCHY_CLEAR(id),
-    )
-    return raw?.cleared ?? 0
-  } catch (error) {
-    throw new Error(getApiErrorMessage(error, 'Failed to clear the hierarchy.'))
-  }
-}

@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RotateCcw, Search, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
@@ -200,14 +201,16 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
             >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <p className="text-sm font-semibold">Filters</p>
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  aria-label="Close filters"
-                  className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <X className="size-4" />
-                </button>
+                <Hint label="Close">
+                  <button
+                    type="button"
+                    onClick={() => setOpen(false)}
+                    aria-label="Close filters"
+                    className="cursor-pointer text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </Hint>
               </div>
 
               <div className="max-h-[min(70vh,28rem)] space-y-4 overflow-y-auto px-4 py-4">
@@ -287,17 +290,19 @@ function SearchBox({ search }: { search: FilterSearch }) {
         className="h-10 truncate border-border/50 pl-9 pr-9"
       />
       {active ? (
-        <button
-          type="button"
-          onClick={() => {
-            setLocal('')
-            onChangeRef.current('')
-          }}
-          aria-label="Clear search"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
+        <Hint label="Clear search">
+          <button
+            type="button"
+            onClick={() => {
+              setLocal('')
+              onChangeRef.current('')
+            }}
+            aria-label="Clear search"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </Hint>
       ) : null}
     </div>
   )
@@ -308,14 +313,16 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 py-1 pl-2.5 pr-1 text-xs font-medium text-primary">
       <span className="max-w-40 truncate">{label}</span>
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label={`Remove ${label} filter`}
-        className="flex size-4 cursor-pointer items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/20 hover:text-primary"
-      >
-        <X className="size-3" />
-      </button>
+      <Hint label="Remove filter">
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${label} filter`}
+          className="flex size-4 cursor-pointer items-center justify-center rounded-full text-primary/70 transition-colors hover:bg-primary/20 hover:text-primary"
+        >
+          <X className="size-3" />
+        </button>
+      </Hint>
     </span>
   )
 }

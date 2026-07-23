@@ -81,6 +81,11 @@ export const distributorSchema = z.object({
   bankIfsc: z.string().optional(),
   bankName: z.string().optional(),
 })
+  // Anniversary can't fall on/before the owner's date of birth.
+  .refine(
+    (v) => !v.ownerAnniversaryDate || !v.ownerBirthDate || v.ownerAnniversaryDate > v.ownerBirthDate,
+    { message: 'Anniversary must be after the birth date', path: ['ownerAnniversaryDate'] },
+  )
 
 export type DistributorFormValues = z.infer<typeof distributorSchema>
 

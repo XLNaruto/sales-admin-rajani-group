@@ -69,6 +69,18 @@ const MAX_BIRTH_DATE = (() => {
   return d;
 })();
 
+/** Today — used as the latest selectable date so future dates (e.g. marriage
+ *  anniversary) can't be picked. */
+const TODAY = new Date();
+
+/** Parse a 'yyyy-MM-dd' form value into a local Date (or undefined when blank),
+ *  for use as a date-picker bound. */
+const toDate = (v?: string) => {
+  if (!v) return undefined;
+  const [y, m, d] = v.split("-").map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : undefined;
+};
+
 /** Parse an optional numeric-text field into a number (or undefined when blank). */
 const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
 /** Trim an optional text field, collapsing blanks to undefined. */
@@ -207,6 +219,10 @@ export function useDistributorForm(id?: string) {
       [field]: prev[field].filter((_, i) => i !== index),
     }));
 
+  // Owner's birth date bounds the anniversary picker — watch it and re-derive
+  // the lower bound as it changes.
+  const birthDate = toDate(watch("ownerBirthDate"));
+
   // Cascading territory selection — watch parents to build child options.
   const stateId = watch("stateId");
   const zoneId = watch("zoneId");
@@ -261,5 +277,8 @@ export function useDistributorForm(id?: string) {
     goBack,
     currentYear: CURRENT_YEAR,
     maxBirthDate: MAX_BIRTH_DATE,
+    maxDate: TODAY,
+    /** Owner's birth date as a Date — lower bound for the anniversary picker. */
+    birthDate,
   };
 }

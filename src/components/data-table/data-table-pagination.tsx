@@ -1,5 +1,6 @@
 import type { Table } from '@tanstack/react-table'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
@@ -77,16 +78,18 @@ export function DataTablePagination<TData>({
       {/* Center: page controls — hidden when everything fits on one page. */}
       {pageCount > 1 ? (
         <div className="flex items-center gap-1 sm:justify-self-center">
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 cursor-pointer rounded-sm border-border/50"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="size-4" />
-          </Button>
+          <Hint label="Previous page">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 cursor-pointer rounded-sm border-border/50"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+          </Hint>
 
           {pageList(pageIndex + 1, pageCount).map((p, i) =>
             p === 'ellipsis' ? (
@@ -115,16 +118,18 @@ export function DataTablePagination<TData>({
             ),
           )}
 
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-8 cursor-pointer rounded-sm border-border/50"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            aria-label="Next page"
-          >
-            <ChevronRight className="size-4" />
-          </Button>
+          <Hint label="Next page">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-8 cursor-pointer rounded-sm border-border/50"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </Hint>
         </div>
       ) : (
         <div aria-hidden="true" />

@@ -56,7 +56,19 @@ export const queryKeys = {
       [...queryKeys.salesIncharge.all, 'detail-view', id] as const,
     designations: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'designations', filters ?? {}] as const,
-    hierarchy: () => [...queryKeys.salesIncharge.all, 'hierarchy'] as const,
+  },
+  /** Sales-incharge-admin accounts — assignee pool for non-City hierarchy nodes. */
+  salesInchargeAdmin: {
+    all: ['sales-incharge-admin'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.salesInchargeAdmin.all, 'list', filters ?? {}] as const,
+  },
+  /** Org-structure hierarchy tree (assembled from the flat /hierarchy rows). */
+  hierarchy: {
+    all: ['hierarchy'] as const,
+    tree: () => [...queryKeys.hierarchy.all, 'tree'] as const,
+    geoOptions: (level: string) =>
+      [...queryKeys.hierarchy.all, 'geo-options', level] as const,
   },
   beats: {
     all: ['beats'] as const,

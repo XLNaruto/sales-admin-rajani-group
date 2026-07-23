@@ -1,6 +1,6 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
-import { getApiErrorMessage } from '@/lib/api-error'
+import { asApiError } from '@/lib/api-error'
 import { myProfileResponseSchema } from '../schemas'
 import type { MyProfile } from '../types'
 
@@ -23,6 +23,6 @@ export async function fetchMyProfile(): Promise<MyProfile> {
       dateOfJoining: p.date_of_joining ?? null,
     }
   } catch (error) {
-    throw new Error(getApiErrorMessage(error, "Couldn't load your profile."))
+    throw asApiError(error, "Couldn't load your profile.")
   }
 }

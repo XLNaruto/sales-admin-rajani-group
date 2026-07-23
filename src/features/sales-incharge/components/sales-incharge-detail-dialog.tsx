@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Hint } from "@/components/common/hint";
 import { cn } from "@/lib/utils";
 import { useSalesInchargeDetail } from "../api/use-sales-incharge";
 import type { SalesInchargeStatus } from "../types";
@@ -101,14 +102,16 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
               Full profile and onboarding details.
             </DialogDescription>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
+          <Hint label="Close">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </Hint>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto p-6">

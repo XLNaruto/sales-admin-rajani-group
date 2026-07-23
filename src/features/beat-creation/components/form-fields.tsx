@@ -69,6 +69,7 @@ export function DatePicker({
   fromYear = 1950,
   toYear = 2035,
   maxDate,
+  minDate,
 }: {
   value: string
   onChange: (v: string) => void
@@ -77,6 +78,9 @@ export function DatePicker({
   /** Latest selectable date. Overrides the `toYear` end-of-year default when set
    *  (e.g. to enforce a minimum age on a birth-date field). */
   maxDate?: Date
+  /** Earliest selectable date. Overrides the `fromYear` start-of-year default
+   *  when set (e.g. to bar dates before the owner's date of birth). */
+  minDate?: Date
 }) {
   const parsed = value ? parse(value, 'yyyy-MM-dd', new Date()) : null
   const selected = parsed && isValid(parsed) ? parsed : null
@@ -98,7 +102,7 @@ export function DatePicker({
       dayPlaceholder="dd"
       monthPlaceholder="mm"
       yearPlaceholder="yyyy"
-      minDate={new Date(fromYear, 0, 1)}
+      minDate={minDate ?? new Date(fromYear, 0, 1)}
       maxDate={maxDate ?? new Date(toYear, 11, 31)}
       calendarProps={openMonth ? { defaultActiveStartDate: openMonth } : undefined}
       calendarIcon={<CalendarIcon className="size-4 text-muted-foreground" />}
