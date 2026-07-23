@@ -8,6 +8,10 @@ export const endpoints = {
   CONFIG: {
     GET: '/sales-incharge-admin/config',
   },
+  /** Flat list of permission keys the authenticated user holds. */
+  PERMISSIONS: {
+    GET: '/sales-incharge-admin/permissions',
+  },
   AUTH: {
     ACCOUNT_CHECK: '/sales-incharge-admin/auth/account-check',
     LOGIN: '/sales-incharge-admin/auth/login',

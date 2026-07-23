@@ -40,7 +40,7 @@ export function BadgeOverflowList({
 
   return (
     <>
-      <div className={cn('flex max-w-56 flex-wrap gap-1', className)}>
+      <div className={cn('flex flex-nowrap items-center gap-1', className)}>
         {visible.map((name) => (
           <Badge key={name} variant="outline" className="font-medium">
             {name}

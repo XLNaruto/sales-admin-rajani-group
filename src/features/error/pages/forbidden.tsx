@@ -47,11 +47,6 @@ export function Forbidden({
           </div>
         </div>
 
-        {/* 403 code */}
-        <div className="cs-rise mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur [animation-delay:.15s]">
-          Error 403 · Forbidden
-        </div>
-
         {/* Heading with animated gradient sweep */}
         <h1 className="cs-rise font-heading text-5xl font-bold tracking-tight sm:text-6xl [animation-delay:.25s]">
           <span className="cs-pan bg-gradient-to-r from-destructive via-rose-400 to-destructive bg-clip-text text-transparent">

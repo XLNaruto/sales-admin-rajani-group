@@ -15,6 +15,8 @@ export interface NavItem {
   children?: NavItem[];
   /** Match the active highlight only on an exact path (use when a sibling route extends this one). */
   exact?: boolean;
+  /** Permission key gating this item; when set, hide it unless the user holds it. */
+  permission?: string;
 }
 
 export interface NavGroup {
@@ -32,13 +34,24 @@ export const navGroups: NavGroup[] = [
   {
     title: "Sales Network",
     items: [
-      { label: "Sales Incharge", to: "/sales-incharge", icon: UserCog },
+      {
+        label: "Sales Incharge",
+        to: "/sales-incharge",
+        icon: UserCog,
+        permission: "sales-incharge:list",
+      },
       {
         label: "Sales Incharge Hierarchy",
         to: "/sales-incharge-hierarchy",
         icon: Network,
+        permission: "hierarchy:list",
       },
-      { label: "Distributor Management", to: "/distributors", icon: Building2 },
+      {
+        label: "Distributor Management",
+        to: "/distributors",
+        icon: Building2,
+        permission: "distributor-master:list",
+      },
     ],
   },
   {

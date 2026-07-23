@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { ChevronDown, PanelLeft, PanelLeftClose, X } from 'lucide-react'
 import { navGroups, type NavItem } from '@/config/navigation'
+import { useCan } from '@/features/permissions'
 import { useUiStore } from '@/stores/ui-store'
 import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
@@ -10,6 +11,30 @@ import { asset } from '@/lib/asset'
 function isActivePath(to: string | undefined, pathname: string) {
   if (!to) return false
   return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`)
+}
+
+/**
+ * Drop nav items the user can't access. An item is kept when it has no
+ * `permission` gate or the user holds it; a parent is kept only if it survives
+ * its own gate AND still has at least one visible child; empty groups vanish.
+ */
+function filterNavByPermission(
+  groups: typeof navGroups,
+  can: (key?: string | null) => boolean,
+) {
+  const keepItem = (item: NavItem): NavItem | null => {
+    if (item.permission && !can(item.permission)) return null
+    if (!item.children?.length) return item
+    const children = item.children.map(keepItem).filter((c): c is NavItem => c !== null)
+    if (!children.length && !item.to) return null
+    return { ...item, children }
+  }
+  return groups
+    .map((group) => ({
+      ...group,
+      items: group.items.map(keepItem).filter((i): i is NavItem => i !== null),
+    }))
+    .filter((group) => group.items.length > 0)
 }
 
 /** Tracks a CSS media query in React state. */
@@ -32,6 +57,10 @@ export function Sidebar() {
   const mobileOpen = useUiStore((s) => s.sidebarMobileOpen)
   const setMobileSidebar = useUiStore((s) => s.setMobileSidebar)
   const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const { can } = useCan()
+
+  // Hide menu entries the current user has no permission for.
+  const visibleGroups = useMemo(() => filterNavByPermission(navGroups, can), [can])
 
   // Rail-collapse only applies on desktop; the mobile drawer is always full width.
   const collapsed = isDesktop && collapsedRaw
@@ -106,7 +135,7 @@ export function Sidebar() {
 
         {/* Navigation: section labels → main menu → submenu */}
         <nav className="sidebar-scroll flex-1 space-y-4 overflow-y-auto px-2 py-2">
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.title} className="space-y-0.5">
               <p
                 className={cn(

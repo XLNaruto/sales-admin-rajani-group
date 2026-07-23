@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
 import { useForegroundPush } from '@/features/notifications'
 import { useAppConfig } from '@/features/config'
+import { usePermissions } from '@/features/permissions'
 import { CompanySelectGate } from '@/features/company'
 import { asset } from '@/lib/asset'
 import { Sidebar } from './components/sidebar'
@@ -22,6 +23,9 @@ export function DashboardLayout() {
   // Load the media base URL once, globally, so `mediaUrl()` can resolve image
   // paths on every page inside the authenticated shell.
   useAppConfig()
+  // Load the user's permissions once, globally, so `useCan()` / `<Can>` gates
+  // resolve synchronously on every page inside the authenticated shell.
+  usePermissions()
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />

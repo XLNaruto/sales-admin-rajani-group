@@ -12,6 +12,11 @@ export const queryKeys = {
     all: ['profile'] as const,
     me: () => [...queryKeys.profile.all, 'me'] as const,
   },
+  /** Permission keys the current user holds — drives menu/button visibility. */
+  permissions: {
+    all: ['permissions'] as const,
+    list: () => [...queryKeys.permissions.all, 'list'] as const,
+  },
   company: {
     all: ['company'] as const,
     /** GET /me/companies — the caller's tenants + the active selection. */

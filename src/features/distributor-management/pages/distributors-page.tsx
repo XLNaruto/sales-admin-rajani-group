@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Hint } from "@/components/common/hint";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
+import { useCan } from "@/features/permissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export function DistributorsPage() {
   } = useDistributorsList();
 
   const [viewId, setViewId] = useState<string | null>(null);
+  const { can } = useCan();
 
   const columns = useMemo<ColumnDef<Distributor>[]>(
     () => [
@@ -89,15 +91,17 @@ export function DistributorsPage() {
         meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <Hint label="Edit">
-              <button
-                type="button"
-                onClick={() => goToEdit(row.original.id)}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-              >
-                <Pencil className="size-4" />
-              </button>
-            </Hint>
+            {can("distributor-master:update") && (
+              <Hint label="Edit">
+                <button
+                  type="button"
+                  onClick={() => goToEdit(row.original.id)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+                >
+                  <Pencil className="size-4" />
+                </button>
+              </Hint>
+            )}
             <Hint label="View details">
               <button
                 type="button"
@@ -107,16 +111,18 @@ export function DistributorsPage() {
                 <Eye className="size-4" />
               </button>
             </Hint>
-            <Hint label="Delete">
-              <button
-                type="button"
-                onClick={() => setPendingDelete(row.original)}
-                disabled={isDeleting}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </Hint>
+            {can("distributor-master:delete") && (
+              <Hint label="Delete">
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(row.original)}
+                  disabled={isDeleting}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </Hint>
+            )}
             {row.original.onboardingStatus === "pending" && (
               <>
                 <Hint label="Approve">
@@ -149,13 +155,14 @@ export function DistributorsPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Distributor" />
         ),
+        meta: { className: "min-w-64" },
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
               <Building2 className="size-4.5" />
             </span>
             <div className="leading-tight">
-              <p className="font-medium text-foreground">
+              <p className="font-medium text-foreground whitespace-nowrap">
                 {row.original.firmName}
               </p>
               <p className="text-xs text-muted-foreground">
@@ -266,6 +273,7 @@ export function DistributorsPage() {
         id: "productDivisions",
         header: "Product Divisions",
         enableSorting: false,
+        meta: { className: "w-64 min-w-64 max-w-64" },
         cell: ({ row }) => {
           const names = row.original.productDivisionNames ?? [];
           if (names.length === 0)
@@ -319,7 +327,7 @@ export function DistributorsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDeleting, isSettingStatus, isSettingOnboarding],
+    [isDeleting, isSettingStatus, isSettingOnboarding, can],
   );
 
   return (
@@ -328,9 +336,11 @@ export function DistributorsPage() {
         title="Distributor Management"
         description="Onboard and manage distributors — firm, coverage, business and financial details."
         actions={
-          <Button className="cursor-pointer" onClick={goToCreate}>
-            <Plus /> Add Distributor
-          </Button>
+          can("distributor-master:create") ? (
+            <Button className="cursor-pointer" onClick={goToCreate}>
+              <Plus /> Add Distributor
+            </Button>
+          ) : null
         }
       />
       <DataTable
@@ -376,7 +386,7 @@ export function DistributorsPage() {
                     : "Add your first distributor to get started."}
               </p>
             </div>
-            {!hasActiveFilters && !isError && (
+            {!hasActiveFilters && !isError && can("distributor-master:create") && (
               <Button className="cursor-pointer" onClick={goToCreate}>
                 <Plus /> Add Distributor
               </Button>
