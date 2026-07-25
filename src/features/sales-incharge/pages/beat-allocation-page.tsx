@@ -1,6 +1,8 @@
 import { ArrowLeft, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
+import { isForbiddenError } from "@/lib/api-error";
 import { decryptParams } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
+import { Forbidden } from "@/features/error";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,11 +50,16 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
     detail,
     available,
     allocated,
+    listError,
     addBeat,
     removeBeat,
     pendingId,
     isMutating,
   } = useBeatAllocation(id || undefined);
+
+  // A forbidden beat-list load means no access to allocation — show the
+  // dedicated Access-denied screen instead of the panels.
+  if (isForbiddenError(listError)) return <Forbidden />;
 
   return (
     <div>
@@ -144,6 +151,9 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           search={available.search}
           onSearchChange={available.setSearch}
           searchPlaceholder="Search available beats…"
+          onLoadMore={available.onLoadMore}
+          hasMore={available.hasMore}
+          isFetchingMore={available.isFetchingMore}
           pagination={available.pagination}
           onPaginationChange={(updater) =>
             available.setPagination(
@@ -175,6 +185,9 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           search={allocated.search}
           onSearchChange={allocated.setSearch}
           searchPlaceholder="Search allocated beats…"
+          onLoadMore={allocated.onLoadMore}
+          hasMore={allocated.hasMore}
+          isFetchingMore={allocated.isFetchingMore}
           pagination={allocated.pagination}
           onPaginationChange={(updater) =>
             allocated.setPagination(

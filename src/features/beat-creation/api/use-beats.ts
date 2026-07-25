@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { createBeat, deleteBeat, fetchBeat, fetchBeats, updateBeat } from './beat-api'
 import type { BeatInput, BeatListParams } from '../types'
@@ -9,6 +15,26 @@ export function useBeats(params: BeatListParams = {}, options: { enabled?: boole
     queryKey: queryKeys.beats.list(params as Record<string, unknown>),
     queryFn: () => fetchBeats(params),
     placeholderData: keepPreviousData,
+    enabled: options.enabled ?? true,
+  })
+}
+
+/**
+ * GET /sales-incharge-admin/beats — infinite ("All") variant. Loads one batch of
+ * `pageSize` rows per page and appends the next batch as the list is scrolled;
+ * drives the DataTable's infinite-scroll mode. `params` should NOT include
+ * `page` (the hook owns paging) but may carry search/grade/sort.
+ */
+export function useBeatsInfinite(
+  params: Omit<BeatListParams, 'page'> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.beats.listInfinite(params as Record<string, unknown>),
+    queryFn: ({ pageParam }) => fetchBeats({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     enabled: options.enabled ?? true,
   })
 }

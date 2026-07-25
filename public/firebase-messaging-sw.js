@@ -16,12 +16,30 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging()
 
+// Raw push receipt — fires for every push that reaches this SW, even if the
+// FCM handler below never runs. Use this to confirm the push arrives at all.
+self.addEventListener('push', (event) => {
+  let raw
+  try {
+    raw = event.data?.json()
+  } catch {
+    raw = event.data?.text()
+  }
+  console.log('[fcm-sw] push event received:', raw)
+})
+
 // Show a notification when a push arrives while the app is in the background.
 messaging.onBackgroundMessage((payload) => {
+  console.log('[fcm-sw] onBackgroundMessage payload:', payload)
   const title = payload.notification?.title ?? 'Rajani Group'
-  self.registration.showNotification(title, {
+  const options = {
     body: payload.notification?.body ?? '',
     icon: '/media/logos/logo.png',
     data: payload.data ?? {},
-  })
+  }
+  console.log('[fcm-sw] showing notification:', title, options)
+  self.registration
+    .showNotification(title, options)
+    .then(() => console.log('[fcm-sw] notification shown'))
+    .catch((err) => console.error('[fcm-sw] showNotification failed:', err))
 })

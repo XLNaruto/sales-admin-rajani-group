@@ -12,17 +12,23 @@ const SW_URL = `${import.meta.env.BASE_URL}firebase-messaging-sw.js`
 
 export async function requestPushToken(): Promise<string | null> {
   const messaging = await getMessagingInstance()
-  if (!messaging) return null
+  if (!messaging) {
+    console.warn('[fcm] messaging unsupported in this browser')
+    return null
+  }
 
   // Requires a user gesture on some browsers; harmless if already decided.
   const permission = await Notification.requestPermission()
+  console.log('[fcm] notification permission:', permission)
   if (permission !== 'granted') return null
 
   const registration = await navigator.serviceWorker.register(SW_URL)
+  console.log('[fcm] service worker registered:', registration.scope)
   const token = await getToken(messaging, {
     vapidKey: env.VITE_FIREBASE_VAPID_KEY,
     serviceWorkerRegistration: registration,
   })
+  console.log('[fcm] device token:', token || '(none)')
   return token || null
 }
 

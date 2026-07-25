@@ -82,7 +82,7 @@ export function useDistributorsList() {
   } as const;
 
   // Only one of the two queries is enabled at a time (based on `isAll`).
-  const { data, isLoading, isError } = useDistributors(
+  const { data, isLoading, isError, error } = useDistributors(
     {
       ...baseParams,
       page: pagination.pageIndex + 1,
@@ -108,6 +108,8 @@ export function useDistributorsList() {
   const rowCount = isAll ? infiniteTotal : (data?.total ?? 0);
   const listIsLoading = isAll ? infinite.isLoading : isLoading;
   const listIsError = isAll ? infinite.isError : isError;
+  // Surfaced so the page can render the Forbidden screen on a 403.
+  const listError = isAll ? infinite.error : error;
 
   const hasActiveFilters =
     filters.search !== "" ||
@@ -210,6 +212,7 @@ export function useDistributorsList() {
     onSortingChange,
     isLoading: listIsLoading,
     isError: listIsError,
+    error: listError,
     // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
     onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
     hasMore: isAll ? infinite.hasNextPage : false,

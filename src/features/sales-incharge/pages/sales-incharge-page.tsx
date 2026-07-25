@@ -15,7 +15,9 @@ import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { isForbiddenError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { Forbidden } from "@/features/error";
 import { format, parseISO } from "date-fns";
 import { SalesInchargeDetailDialog } from "../components/sales-incharge-detail-dialog";
 import { SalesmanToolbar } from "../components/salesman-toolbar";
@@ -45,6 +47,7 @@ export function SalesInchargePage() {
     onSortingChange,
     isLoading,
     isError,
+    error,
     onLoadMore,
     hasMore,
     isFetchingMore,
@@ -251,6 +254,10 @@ export function SalesInchargePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [isDeleting, isSettingStatus],
   );
+
+  // A forbidden list load means no access to this module — show the dedicated
+  // Access-denied screen instead of the table.
+  if (isForbiddenError(error)) return <Forbidden />;
 
   return (
     <div>

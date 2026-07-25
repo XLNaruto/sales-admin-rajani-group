@@ -2,12 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import type { PaginationState } from '@tanstack/react-table'
 import { toast } from 'sonner'
+import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
 import type { Beat } from '@/features/beat-creation'
 import { useSalesInchargeDetail } from '../api/use-sales-incharge'
 import {
   useAllocateBeat,
   useAllocatedBeats,
+  useAllocatedBeatsInfinite,
   useAvailableBeats,
+  useAvailableBeatsInfinite,
   useRemoveAllocatedBeat,
 } from '../api/use-beat-allocation'
 
@@ -18,6 +21,38 @@ interface ListState {
 }
 
 const INITIAL_PAGINATION: PaginationState = { pageIndex: 0, pageSize: 5 }
+
+type PagedBeatQuery = ReturnType<typeof useAvailableBeats>
+type InfiniteBeatQuery = ReturnType<typeof useAvailableBeatsInfinite>
+
+/**
+ * Collapse a list's paged + infinite queries into the single shape the panel
+ * consumes. Exactly one of the two is enabled, so reading from whichever `isAll`
+ * points at is safe. The infinite fields are inert outside "All" mode.
+ */
+function listView(
+  isAll: boolean,
+  paged: PagedBeatQuery,
+  infinite: InfiniteBeatQuery,
+) {
+  const rows = isAll
+    ? (infinite.data?.pages.flatMap((p) => p.items) ?? [])
+    : (paged.data?.items ?? [])
+
+  return {
+    rows,
+    rowCount: isAll
+      ? (infinite.data?.pages.at(-1)?.total ?? rows.length)
+      : (paged.data?.total ?? 0),
+    isLoading: isAll ? infinite.isLoading : paged.isLoading,
+    isError: isAll ? infinite.isError : paged.isError,
+    // Surfaced so the page can render the Forbidden screen on a 403.
+    error: isAll ? infinite.error : paged.error,
+    onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
+    hasMore: isAll ? infinite.hasNextPage : false,
+    isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
+  }
+}
 
 /**
  * Orchestrates the beat-allocation screen for one sales incharge: the detail
@@ -41,16 +76,49 @@ export function useBeatAllocation(inchargeId: string | undefined) {
     pagination: INITIAL_PAGINATION,
   })
 
-  const availableQuery = useAvailableBeats(inchargeId, {
-    search: available.search.trim() || undefined,
-    page: available.pagination.pageIndex + 1,
-    pageSize: available.pagination.pageSize,
-  })
-  const allocatedQuery = useAllocatedBeats(inchargeId, {
-    search: allocated.search.trim() || undefined,
-    page: allocated.pagination.pageIndex + 1,
-    pageSize: allocated.pagination.pageSize,
-  })
+  // "All" selected → that list switches to its lazy/infinite query. Each list
+  // decides independently, so only one of its two queries is ever enabled.
+  const availableIsAll = available.pagination.pageSize === ALL_PAGE_SIZE
+  const allocatedIsAll = allocated.pagination.pageSize === ALL_PAGE_SIZE
+
+  const availableQuery = useAvailableBeats(
+    inchargeId,
+    {
+      search: available.search.trim() || undefined,
+      page: available.pagination.pageIndex + 1,
+      pageSize: available.pagination.pageSize,
+    },
+    { enabled: !availableIsAll },
+  )
+  const availableInfinite = useAvailableBeatsInfinite(
+    inchargeId,
+    {
+      search: available.search.trim() || undefined,
+      pageSize: INFINITE_BATCH_SIZE,
+    },
+    { enabled: availableIsAll },
+  )
+
+  const allocatedQuery = useAllocatedBeats(
+    inchargeId,
+    {
+      search: allocated.search.trim() || undefined,
+      page: allocated.pagination.pageIndex + 1,
+      pageSize: allocated.pagination.pageSize,
+    },
+    { enabled: !allocatedIsAll },
+  )
+  const allocatedInfinite = useAllocatedBeatsInfinite(
+    inchargeId,
+    {
+      search: allocated.search.trim() || undefined,
+      pageSize: INFINITE_BATCH_SIZE,
+    },
+    { enabled: allocatedIsAll },
+  )
+
+  const availableView = listView(availableIsAll, availableQuery, availableInfinite)
+  const allocatedView = listView(allocatedIsAll, allocatedQuery, allocatedInfinite)
 
   // A search change resets that list to its first page.
   const setAvailableSearch = (search: string) =>
@@ -100,21 +168,17 @@ export function useBeatAllocation(inchargeId: string | undefined) {
       setSearch: setAvailableSearch,
       pagination: available.pagination,
       setPagination: setAvailablePagination,
-      rows: availableQuery.data?.items ?? [],
-      rowCount: availableQuery.data?.total ?? 0,
-      isLoading: availableQuery.isLoading,
-      isError: availableQuery.isError,
+      ...availableView,
     },
     allocated: {
       search: allocated.search,
       setSearch: setAllocatedSearch,
       pagination: allocated.pagination,
       setPagination: setAllocatedPagination,
-      rows: allocatedQuery.data?.items ?? [],
-      rowCount: allocatedQuery.data?.total ?? 0,
-      isLoading: allocatedQuery.isLoading,
-      isError: allocatedQuery.isError,
+      ...allocatedView,
     },
+    // Either beat list coming back forbidden means no access to allocation.
+    listError: availableView.error ?? allocatedView.error,
     addBeat,
     removeBeat,
     pendingId,

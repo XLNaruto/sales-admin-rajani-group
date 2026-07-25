@@ -1,5 +1,6 @@
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -17,6 +18,7 @@ import {
 export function useAllocatedBeats(
   inchargeId: string | undefined,
   params: BeatAllocationListParams = {},
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: queryKeys.beatAllocation.allocated(
@@ -25,7 +27,7 @@ export function useAllocatedBeats(
     ),
     queryFn: () => fetchAllocatedBeats(inchargeId as string, params),
     placeholderData: keepPreviousData,
-    enabled: !!inchargeId,
+    enabled: !!inchargeId && (options.enabled ?? true),
   })
 }
 
@@ -33,6 +35,7 @@ export function useAllocatedBeats(
 export function useAvailableBeats(
   inchargeId: string | undefined,
   params: BeatAllocationListParams = {},
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: queryKeys.beatAllocation.available(
@@ -41,7 +44,50 @@ export function useAvailableBeats(
     ),
     queryFn: () => fetchAvailableBeats(inchargeId as string, params),
     placeholderData: keepPreviousData,
-    enabled: !!inchargeId,
+    enabled: !!inchargeId && (options.enabled ?? true),
+  })
+}
+
+/**
+ * Infinite ("All") variants of the two lists. One batch of `pageSize` rows per
+ * page, appended as the panel is scrolled; drives the DataTable's infinite-
+ * scroll mode. `params` must NOT carry `page` (the hook owns paging).
+ */
+export function useAllocatedBeatsInfinite(
+  inchargeId: string | undefined,
+  params: Omit<BeatAllocationListParams, 'page'> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.beatAllocation.allocatedInfinite(
+      inchargeId ?? '',
+      params as Record<string, unknown>,
+    ),
+    queryFn: ({ pageParam }) =>
+      fetchAllocatedBeats(inchargeId as string, { ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: !!inchargeId && (options.enabled ?? true),
+  })
+}
+
+export function useAvailableBeatsInfinite(
+  inchargeId: string | undefined,
+  params: Omit<BeatAllocationListParams, 'page'> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.beatAllocation.availableInfinite(
+      inchargeId ?? '',
+      params as Record<string, unknown>,
+    ),
+    queryFn: ({ pageParam }) =>
+      fetchAvailableBeats(inchargeId as string, { ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: !!inchargeId && (options.enabled ?? true),
   })
 }
 

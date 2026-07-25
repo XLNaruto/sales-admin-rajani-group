@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
 import { toast } from 'sonner'
-import { useBeats, useDeleteBeat } from '../api/use-beats'
+import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
+import { useBeats, useBeatsInfinite, useDeleteBeat } from '../api/use-beats'
 import type { BeatFilters } from '../components/beat-toolbar'
 import type { Beat, BeatGrade, BeatSortBy } from '../types'
 
@@ -41,17 +42,41 @@ export function useBeatsList() {
   const sort = sorting[0]
   const sortBy = sort ? SORT_BY_COLUMN[sort.id] : undefined
 
-  const { data, isLoading, isError } = useBeats({
+  // "All" selected → lazy/infinite mode; otherwise classic page-by-page.
+  const isAll = pagination.pageSize === ALL_PAGE_SIZE
+
+  // Shared server-side filter/sort params (page/size differ per mode).
+  const baseParams = {
     search: filters.search.trim() || undefined,
     grade: filters.grade !== 'all' ? (filters.grade as BeatGrade) : undefined,
     sortBy,
     sortOrder: sortBy ? (sort.desc ? 'desc' : 'asc') : undefined,
-    page: pagination.pageIndex + 1,
-    pageSize: pagination.pageSize,
-  })
+  } as const
 
-  const rows = data?.items ?? []
-  const rowCount = data?.total ?? 0
+  // Only one of the two queries is enabled at a time (based on `isAll`).
+  const { data, isLoading, isError, error } = useBeats(
+    {
+      ...baseParams,
+      page: pagination.pageIndex + 1,
+      pageSize: pagination.pageSize,
+    },
+    { enabled: !isAll },
+  )
+
+  const infinite = useBeatsInfinite(
+    { ...baseParams, pageSize: INFINITE_BATCH_SIZE },
+    { enabled: isAll },
+  )
+
+  const infiniteRows = infinite.data?.pages.flatMap((p) => p.items) ?? []
+  const infiniteTotal = infinite.data?.pages.at(-1)?.total ?? infiniteRows.length
+
+  const rows = isAll ? infiniteRows : (data?.items ?? [])
+  const rowCount = isAll ? infiniteTotal : (data?.total ?? 0)
+  const listIsLoading = isAll ? infinite.isLoading : isLoading
+  const listIsError = isAll ? infinite.isError : isError
+  // Surfaced so the page can render the Forbidden screen on a 403.
+  const listError = isAll ? infinite.error : error
   const hasActiveFilters = filters.search !== '' || filters.grade !== 'all'
 
   // Add/edit modal — `editId === null` in create mode, an id string in edit mode.
@@ -92,8 +117,13 @@ export function useBeatsList() {
     setPagination,
     sorting,
     onSortingChange,
-    isLoading,
-    isError,
+    isLoading: listIsLoading,
+    isError: listIsError,
+    error: listError,
+    // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
+    onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
+    hasMore: isAll ? infinite.hasNextPage : false,
+    isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     hasActiveFilters,
     modalOpen,
     editId,

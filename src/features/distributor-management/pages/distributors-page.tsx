@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, Check, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  Building2,
+  Check,
+  Eye,
+  Layers,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { BadgeOverflowList } from "@/components/common/badge-overflow-list";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Hint } from "@/components/common/hint";
@@ -9,7 +18,10 @@ import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { useCan } from "@/features/permissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { isForbiddenError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
+import { Forbidden } from "@/features/error";
+import { DistributorCategoryMappingDialog } from "../components/distributor-category-mapping-dialog";
 import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
 import { DistributorToolbar } from "../components/distributor-toolbar";
 import { useDistributorsList } from "../hooks/use-distributors-list";
@@ -39,6 +51,7 @@ export function DistributorsPage() {
     onSortingChange,
     isLoading,
     isError,
+    error,
     onLoadMore,
     hasMore,
     isFetchingMore,
@@ -63,6 +76,7 @@ export function DistributorsPage() {
   } = useDistributorsList();
 
   const [viewId, setViewId] = useState<string | null>(null);
+  const [mappingRow, setMappingRow] = useState<Distributor | null>(null);
   const { can } = useCan();
 
   const columns = useMemo<ColumnDef<Distributor>[]>(
@@ -102,6 +116,17 @@ export function DistributorsPage() {
                 </button>
               </Hint>
             )}
+            {/* {can("distributor-master:update") && (
+              <Hint label="Category mapping">
+                <button
+                  type="button"
+                  onClick={() => setMappingRow(row.original)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-violet-600/10 text-violet-600 transition-colors hover:bg-violet-600/20 dark:text-violet-400"
+                >
+                  <Layers className="size-4" />
+                </button>
+              </Hint>
+            )} */}
             <Hint label="View details">
               <button
                 type="button"
@@ -330,6 +355,10 @@ export function DistributorsPage() {
     [isDeleting, isSettingStatus, isSettingOnboarding, can],
   );
 
+  // A forbidden list load means no access to this module — show the dedicated
+  // Access-denied screen instead of the table.
+  if (isForbiddenError(error)) return <Forbidden />;
+
   return (
     <div>
       <PageHeader
@@ -396,6 +425,11 @@ export function DistributorsPage() {
       />
 
       <DistributorDetailDialog id={viewId} onClose={() => setViewId(null)} />
+
+      <DistributorCategoryMappingDialog
+        distributor={mappingRow}
+        onClose={() => setMappingRow(null)}
+      />
 
       <ConfirmDialog
         open={pendingDelete !== null}

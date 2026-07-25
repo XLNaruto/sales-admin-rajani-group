@@ -82,7 +82,7 @@ export function useSalesInchargeList() {
   } as const;
 
   // Only one of the two queries is enabled at a time (based on `isAll`).
-  const { data, isLoading, isError } = useSalesIncharges(
+  const { data, isLoading, isError, error } = useSalesIncharges(
     {
       ...baseParams,
       page: pagination.pageIndex + 1,
@@ -104,6 +104,8 @@ export function useSalesInchargeList() {
   const rowCount = isAll ? infiniteTotal : (data?.total ?? 0);
   const listIsLoading = isAll ? infinite.isLoading : isLoading;
   const listIsError = isAll ? infinite.isError : isError;
+  // Surfaced so the page can render the Forbidden screen on a 403.
+  const listError = isAll ? infinite.error : error;
   const hasActiveFilters = filters.search !== "" || filters.status !== "all";
 
   const goToCreate = () => navigate({ to: "/sales-incharge/create" });
@@ -162,6 +164,7 @@ export function useSalesInchargeList() {
     onSortingChange,
     isLoading: listIsLoading,
     isError: listIsError,
+    error: listError,
     // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
     onLoadMore: isAll ? () => infinite.fetchNextPage() : undefined,
     hasMore: isAll ? infinite.hasNextPage : false,

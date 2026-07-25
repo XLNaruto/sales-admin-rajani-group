@@ -31,6 +31,10 @@ interface BeatAllocationPanelProps {
   searchPlaceholder: string
   pagination: PaginationState
   onPaginationChange: OnChangeFn<PaginationState>
+  /** Infinite ("All") mode wiring — omit/false outside "All". */
+  onLoadMore?: () => void
+  hasMore?: boolean
+  isFetchingMore?: boolean
   action: PanelAction
   /** Id of the beat with an in-flight add/remove (its button spins + disables). */
   pendingId: string | null
@@ -57,6 +61,9 @@ export function BeatAllocationPanel({
   searchPlaceholder,
   pagination,
   onPaginationChange,
+  onLoadMore,
+  hasMore,
+  isFetchingMore,
   action,
   pendingId,
   actionsDisabled,
@@ -188,6 +195,9 @@ export function BeatAllocationPanel({
           pagination={pagination}
           onPaginationChange={onPaginationChange}
           rowCount={rowCount}
+          onLoadMore={onLoadMore}
+          hasMore={hasMore}
+          isFetchingMore={isFetchingMore}
           emptyState={
             <div className="flex flex-col items-center gap-2 py-10 text-center">
               <span className="grid size-10 place-items-center rounded-full bg-muted text-muted-foreground">

@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Outlet } from '@tanstack/react-router'
-import { useForegroundPush } from '@/features/notifications'
+import { useForegroundPush, useRegisterPushToken } from '@/features/notifications'
 import { useAppConfig } from '@/features/config'
 import { usePermissions } from '@/features/permissions'
 import { CompanySelectGate } from '@/features/company'
@@ -8,12 +8,17 @@ import { asset } from '@/lib/asset'
 import { Sidebar } from './components/sidebar'
 import { Topbar } from './components/topbar'
 
-/** Register this device for FCM push once, and toast foreground messages. */
+/**
+ * Register this device for FCM push, and toast foreground messages. Runs once
+ * per mount (i.e. every refresh): when notification permission isn't already
+ * granted this prompts for it, then obtains and saves the token. Idempotent —
+ * safe to fire on every load.
+ */
 function usePushBootstrap() {
-  // const register = useRegisterPushToken()
+  const register = useRegisterPushToken()
   useForegroundPush()
   useEffect(() => {
-    // register.mutate()
+    register.mutate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 }

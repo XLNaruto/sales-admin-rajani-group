@@ -22,10 +22,8 @@ function toCompaniesState(raw: CompaniesResponse): CompaniesState {
 export async function fetchMyCompanies(): Promise<CompaniesState> {
   try {
     const raw = await http.get<unknown>(endpoints.ME.COMPANIES)
-    if (import.meta.env.DEV) console.debug('[companies] raw response:', raw)
     return toCompaniesState(companiesResponseSchema.parse(raw))
   } catch (error) {
-    if (import.meta.env.DEV) console.error('[companies] fetch/parse failed:', error)
     throw asApiError(error, "Couldn't load your companies.")
   }
 }

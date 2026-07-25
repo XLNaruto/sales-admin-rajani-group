@@ -108,4 +108,9 @@ export const endpoints = {
     TALUKAS: '/sales-incharge-admin/talukas',
     CITIES: '/sales-incharge-admin/cities',
   },
+  /** Firebase Cloud Messaging — register/refresh this device's push token. */
+  FCM: {
+    /** POST { token, platform?, device_id? } — idempotent per token. */
+    TOKEN: '/sales-incharge-admin/fcm-token',
+  },
 } as const

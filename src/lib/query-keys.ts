@@ -79,6 +79,8 @@ export const queryKeys = {
     all: ['beats'] as const,
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.beats.all, 'list', filters ?? {}] as const,
+    listInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.beats.all, 'list-infinite', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.beats.all, 'detail', id] as const,
   },
   beatAllocation: {
@@ -86,9 +88,25 @@ export const queryKeys = {
     /** Beats already allocated to a sales incharge (per-incharge + filters). */
     allocated: (inchargeId: string, filters?: Record<string, unknown>) =>
       [...queryKeys.beatAllocation.all, 'allocated', inchargeId, filters ?? {}] as const,
+    /** Infinite ("All") variant of the allocated list. */
+    allocatedInfinite: (inchargeId: string, filters?: Record<string, unknown>) =>
+      [
+        ...queryKeys.beatAllocation.all,
+        'allocated-infinite',
+        inchargeId,
+        filters ?? {},
+      ] as const,
     /** Beats available to allocate to a sales incharge (per-incharge + filters). */
     available: (inchargeId: string, filters?: Record<string, unknown>) =>
       [...queryKeys.beatAllocation.all, 'available', inchargeId, filters ?? {}] as const,
+    /** Infinite ("All") variant of the available list. */
+    availableInfinite: (inchargeId: string, filters?: Record<string, unknown>) =>
+      [
+        ...queryKeys.beatAllocation.all,
+        'available-infinite',
+        inchargeId,
+        filters ?? {},
+      ] as const,
   },
   notifications: {
     all: ['notifications'] as const,

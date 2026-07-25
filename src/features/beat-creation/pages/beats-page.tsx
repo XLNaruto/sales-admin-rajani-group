@@ -7,6 +7,8 @@ import { PageHeader } from '@/components/common/page-header'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { isForbiddenError } from '@/lib/api-error'
+import { Forbidden } from '@/features/error'
 import { BeatFormDialog } from '../components/beat-form-dialog'
 import { BeatToolbar } from '../components/beat-toolbar'
 import { gradeLabel } from '../lib/beat-reference'
@@ -26,6 +28,10 @@ export function BeatsPage() {
     onSortingChange,
     isLoading,
     isError,
+    error,
+    onLoadMore,
+    hasMore,
+    isFetchingMore,
     hasActiveFilters,
     modalOpen,
     editId,
@@ -122,6 +128,10 @@ export function BeatsPage() {
     [isDeleting],
   )
 
+  // A forbidden list load means no access to this module — show the dedicated
+  // Access-denied screen instead of the table.
+  if (isForbiddenError(error)) return <Forbidden />
+
   return (
     <div>
       <PageHeader
@@ -148,6 +158,9 @@ export function BeatsPage() {
         manualSorting
         sorting={sorting}
         onSortingChange={onSortingChange}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        isFetchingMore={isFetchingMore}
         toolbar={
           <BeatToolbar filters={filters} onChange={patchFilters} onReset={resetFilters} />
         }

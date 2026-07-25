@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { env } from '@/config/env'
-import { apiClient } from '@/lib/api-client'
 import { onForegroundMessage, requestPushToken } from '../lib/messaging'
+import { saveFcmToken } from './fcm-api'
 
 /**
  * Register this device for FCM push: request permission, obtain the token, and
@@ -20,8 +20,8 @@ export function useRegisterPushToken() {
     mutationFn: async () => {
       const token = await requestPushToken()
       if (token && !env.VITE_USE_MOCK_API) {
-        // TODO: confirm the real device-registration endpoint & payload.
-        await apiClient.post('/sales-incharge-admin/notifications/devices', { token })
+        // This is a browser portal, so the token is always a web registration.
+        await saveFcmToken({ token, platform: 'web' })
       }
       return token
     },
