@@ -7,6 +7,13 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useOtpSessionStore } from "@/stores/otp-session-store";
 import "@/styles/globals.css";
 
+// Silence console output in the shipped build — logs are dev-time aids and
+// leak internals (tokens, ids, payloads) in the browser console otherwise.
+// Guarded so `npm run dev` keeps its logs; drop the `if` to silence everywhere.
+if (import.meta.env.PROD) {
+  console.log = console.warn = console.error = () => {};
+}
+
 // The persisted stores use async (encrypted) storage with `skipHydration`, so
 // rehydrate them BEFORE mounting the router — otherwise the synchronous
 // `beforeLoad` guards would run against empty state and bounce a signed-in user
