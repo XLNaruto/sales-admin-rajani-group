@@ -33,10 +33,12 @@ export function DistributorCategoryMappingDialog({
   const open = distributor !== null;
   const productDivisions = useProductDivisions();
 
+  // `MultiSelect` is string-keyed, so the numeric division id is stringified
+  // here; convert back with `Number()` when the save mutation is wired up.
   const options = useMemo(
     () =>
       (productDivisions.data?.items ?? []).map((d) => ({
-        value: d.id,
+        value: String(d.id),
         label: d.name,
       })),
     [productDivisions.data],
