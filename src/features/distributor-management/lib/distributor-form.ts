@@ -54,6 +54,8 @@ export const distributorSchema = z.object({
   retailersRural: optNum('Enter a valid count'),
   marketSystem: z.enum(['ready_stock', 'booking']).optional(),
   weeklyOff: z.string().optional(),
+  // Captured by the map picker as "lat, lng"; split into the API's
+  // geo_latitude / geo_longitude string columns on submit.
   geoLocation: z.string().optional(),
   officeImages: fileList(),
   godownImages: fileList(),

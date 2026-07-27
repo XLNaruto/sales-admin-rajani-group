@@ -96,7 +96,11 @@ export const distributorDetailSchema = z.object({
   retailers_rural_market: z.number().nullish(),
   market_system: z.string().nullish(),
   weekly_off: z.string().nullish(),
-  geo_location: z.string().nullish(),
+  // Geo point is stored as two separate string columns (see the API docs —
+  // `geo_latitude` / `geo_longitude`); the form joins them into one
+  // "lat, lng" value for the map picker.
+  geo_latitude: z.string().nullish(),
+  geo_longitude: z.string().nullish(),
   office_image_paths: z.array(z.string()).nullish(),
   godown_image_paths: z.array(z.string()).nullish(),
   other_agencies_details: z.string().nullish(),
@@ -144,25 +148,3 @@ export const productDivisionListResponseSchema = z.object({
 })
 
 export type ProductDivisionRow = z.infer<typeof productDivisionRowSchema>
-
-/**
- * Response from the presigned-upload endpoints
- * (POST .../{office-images|godown-images|…}/presign). For each requested file
- * the backend returns the storage `key` to persist and a short-lived
- * `upload_url` the client PUTs the raw file bytes to.
- */
-export const presignItemSchema = z.object({
-  filename: z.string(),
-  key: z.string(),
-  upload_url: z.string().url(),
-  // Echoed back by the shared documents endpoint; used to route each key to the
-  // right *_photo_path field. Optional so the image endpoints still validate.
-  doc_type: z.string().nullish(),
-})
-
-export const presignResponseSchema = z.object({
-  items: z.array(presignItemSchema),
-})
-
-export type PresignItem = z.infer<typeof presignItemSchema>
-export type PresignResponse = z.infer<typeof presignResponseSchema>

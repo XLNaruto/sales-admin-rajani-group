@@ -1,22 +1,21 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { SalesInchargeCreatePage } from '@/features/sales-incharge'
+import { RetailerCreatePage } from '@/features/retailer-management'
 import { requirePermission } from '@/features/permissions'
+import { validateDataSearch } from '@/lib/route-search'
 
 /** `?data=<encrypted-id>` switches the create page into edit mode. */
-export const Route = createFileRoute('/_authenticated/sales-incharge/create')({
+export const Route = createFileRoute('/_authenticated/retailers/create')({
   // Doubles as the edit route (via `?data=`), so allow create OR update.
   beforeLoad: ({ context }) =>
     requirePermission(context.queryClient, [
-      'sales-incharge:create',
-      'sales-incharge:update',
+      'retailer-master:create',
+      'retailer-master:update',
     ]),
-  validateSearch: (search: Record<string, unknown>): { data?: string } => ({
-    data: typeof search.data === 'string' ? search.data : undefined,
-  }),
+  validateSearch: validateDataSearch,
   component: RouteComponent,
 })
 
 function RouteComponent() {
   const { data } = Route.useSearch()
-  return <SalesInchargeCreatePage data={data} />
+  return <RetailerCreatePage data={data} />
 }

@@ -2,13 +2,14 @@ import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { mediaUrl } from '@/lib/media'
 import { asApiError } from '@/lib/api-error'
+import { presignResponseSchema, putToStorage, uploadFiles } from '@/lib/upload'
 import {
   distributorDetailSchema,
   distributorListResponseSchema,
-  presignResponseSchema,
   type DistributorRow,
 } from '../schemas'
 import type { DistributorFormValues } from '../lib/distributor-form'
+import { joinLatLng, splitLatLng } from '../lib/distributor-reference'
 import type {
   Distributor,
   DistributorCreateInput,
@@ -88,49 +89,10 @@ export async function fetchDistributors(
 }
 
 /* ----------------------------- Image uploads ----------------------------- *
- * Each image category has a presign endpoint that returns, per file, a storage
- * `key` and a short-lived `upload_url`. The flow is: presign the batch → PUT the
- * raw bytes to each `upload_url` → keep the `key`s to persist on the record.
+ * Single-category images go through the shared `uploadFiles` helper. PAN / GST
+ * / cheque photos share one endpoint and need per-file `doc_type` tagging, so
+ * they get the bespoke `uploadDocuments` flow below.
  * -------------------------------------------------------------------------- */
-
-/** PUT the raw file to its presigned URL. Uses bare `fetch` so the app's axios
- *  interceptors (Authorization header, baseURL) don't touch the storage URL. */
-async function putToStorage(uploadUrl: string, file: File): Promise<void> {
-  const res = await fetch(uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  })
-  if (!res.ok) throw new Error(`Upload failed for ${file.name} (${res.status})`)
-}
-
-/**
- * Presign + upload a batch of files for one category, returning the storage
- * `key`s in the same order as the input files. Empty input short-circuits.
- */
-export async function uploadImages(presignEndpoint: string, files: File[]): Promise<string[]> {
-  if (files.length === 0) return []
-  try {
-    const raw = await http.post<unknown>(presignEndpoint, {
-      files: files.map((f) => ({
-        filename: f.name,
-        content_type: f.type || 'application/octet-stream',
-      })),
-    })
-    const { items } = presignResponseSchema.parse(raw)
-    // Match each presigned slot back to its file by filename, preserving order.
-    const keys: string[] = []
-    for (const file of files) {
-      const slot = items.find((i) => i.filename === file.name)
-      if (!slot) throw new Error(`No upload URL returned for ${file.name}`)
-      await putToStorage(slot.upload_url, file)
-      keys.push(slot.key)
-    }
-    return keys
-  } catch (error) {
-    throw asApiError(error, 'Failed to upload images.')
-  }
-}
 
 /** The three distributor document categories, tagged on each presign entry. */
 export type DocType = 'pan_card' | 'gst' | 'advance_cheque'
@@ -194,10 +156,16 @@ function toId(value?: string): number | string | undefined {
 /** Collapse a blank/whitespace-only string to undefined so it's dropped from the body. */
 const str = (v?: string) => (v && v.trim() !== '' ? v.trim() : undefined)
 
-/** Normalise a "lat, lng" string to clean comma-separated "lat,lng" (no spaces). */
-const geo = (v?: string) => {
-  const s = str(v)
-  return s ? s.replace(/\s+/g, '') : undefined
+/**
+ * Split the form's single "lat, lng" picker value into the API's two string
+ * columns. A blank/malformed value drops both keys from the body.
+ */
+const geoFields = (v?: string) => {
+  const { latitude, longitude } = splitLatLng(v)
+  return {
+    geo_latitude: str(latitude),
+    geo_longitude: str(longitude),
+  }
 }
 
 /** Upload every image category for a submission and return the fresh keys. */
@@ -217,8 +185,8 @@ async function uploadAllImages(input: DistributorCreateInput): Promise<{
     })),
   ]
   const [officeKeys, godownKeys, docKeys] = await Promise.all([
-    uploadImages(D.OFFICE_IMAGES_PRESIGN, input.officeImages ?? []),
-    uploadImages(D.GODOWN_IMAGES_PRESIGN, input.godownImages ?? []),
+    uploadFiles(D.OFFICE_IMAGES_PRESIGN, input.officeImages ?? []),
+    uploadFiles(D.GODOWN_IMAGES_PRESIGN, input.godownImages ?? []),
     uploadDocuments(docs),
   ])
   return { officeKeys, godownKeys, docKeys }
@@ -269,7 +237,7 @@ function buildScalarBody(input: DistributorCreateInput) {
     retailers_rural_market: input.retailersRural,
     market_system: input.marketSystem,
     weekly_off: str(input.weeklyOff),
-    geo_location: geo(input.geoLocation),
+    ...geoFields(input.geoLocation),
     other_agencies_details: str(input.otherAgencies),
     similar_category_agencies: str(input.similarAgencies),
     assigned_products: str(input.assignedProducts),
@@ -359,7 +327,7 @@ export async function fetchDistributor(id: string): Promise<{
       retailersRural: r.retailers_rural_market != null ? String(r.retailers_rural_market) : '',
       marketSystem: (r.market_system ?? undefined) as MarketSystem | undefined,
       weeklyOff: r.weekly_off ?? '',
-      geoLocation: r.geo_location ?? '',
+      geoLocation: joinLatLng(r.geo_latitude, r.geo_longitude) ?? '',
       officeImages: [],
       godownImages: [],
       otherAgencies: r.other_agencies_details ?? '',
@@ -437,7 +405,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       marketType: r.market_type ?? null,
       marketSystem: r.market_system ?? null,
       weeklyOff: r.weekly_off ?? null,
-      geoLocation: r.geo_location ?? null,
+      geoLocation: joinLatLng(r.geo_latitude, r.geo_longitude),
       retailersLocal: r.retailers_local_market ?? null,
       retailersRural: r.retailers_rural_market ?? null,
       officeImageUrls: (r.office_image_paths ?? []).map((p) => mediaUrl(p)),

@@ -8,6 +8,7 @@ import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { isForbiddenError } from '@/lib/api-error'
+import { useCan } from '@/features/permissions'
 import { Forbidden } from '@/features/error'
 import { BeatFormDialog } from '../components/beat-form-dialog'
 import { BeatToolbar } from '../components/beat-toolbar'
@@ -44,6 +45,8 @@ export function BeatsPage() {
     isDeleting,
   } = useBeatsList()
 
+  const { can } = useCan()
+
   const columns = useMemo<ColumnDef<Beat>[]>(
     () => [
       {
@@ -65,25 +68,29 @@ export function BeatsPage() {
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <Hint label="Edit">
-              <button
-                type="button"
-                onClick={() => openEdit(row.original.id)}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-              >
-                <Pencil className="size-4" />
-              </button>
-            </Hint>
-            <Hint label="Delete">
-              <button
-                type="button"
-                onClick={() => setPendingDelete(row.original)}
-                disabled={isDeleting}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </Hint>
+            {can('beat:update') && (
+              <Hint label="Edit">
+                <button
+                  type="button"
+                  onClick={() => openEdit(row.original.id)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+                >
+                  <Pencil className="size-4" />
+                </button>
+              </Hint>
+            )}
+            {can('beat:delete') && (
+              <Hint label="Delete">
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(row.original)}
+                  disabled={isDeleting}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </Hint>
+            )}
           </div>
         ),
       },
@@ -125,7 +132,7 @@ export function BeatsPage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDeleting],
+    [isDeleting, can],
   )
 
   // A forbidden list load means no access to this module — show the dedicated
@@ -138,9 +145,11 @@ export function BeatsPage() {
         title="Beat Creation"
         description="Create and manage beats — name, grade and distributor."
         actions={
-          <Button className="cursor-pointer" onClick={openCreate}>
-            <Plus /> Add Beat
-          </Button>
+          can('beat:create') ? (
+            <Button className="cursor-pointer" onClick={openCreate}>
+              <Plus /> Add Beat
+            </Button>
+          ) : null
         }
       />
       <DataTable
@@ -181,7 +190,7 @@ export function BeatsPage() {
                     : 'Create your first beat to get started.'}
               </p>
             </div>
-            {!hasActiveFilters && !isError && (
+            {!hasActiveFilters && !isError && can('beat:create') && (
               <Button className="cursor-pointer" onClick={openCreate}>
                 <Plus /> Add Beat
               </Button>

@@ -5,7 +5,7 @@ import {
 } from '@/features/sales-incharge'
 import { requirePermission } from '@/features/permissions'
 
-export const Route = createFileRoute('/_authenticated/sales-incharge-hierarchy')({
+export const Route = createFileRoute('/_authenticated/sales-incharge/hierarchy')({
   beforeLoad: ({ context }) =>
     requirePermission(context.queryClient, 'hierarchy:list'),
   // Prefetch the org tree into the query cache. With `defaultPreload: 'intent'`

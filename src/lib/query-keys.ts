@@ -48,6 +48,17 @@ export const queryKeys = {
     productDivisions: (filters?: Record<string, unknown>) =>
       [...queryKeys.distributors.all, 'product-divisions', filters ?? {}] as const,
   },
+  retailers: {
+    all: ['retailers'] as const,
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.retailers.all, 'list', filters ?? {}] as const,
+    listInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.retailers.all, 'list-infinite', filters ?? {}] as const,
+    detail: (id: string) => [...queryKeys.retailers.all, 'detail', id] as const,
+    detailView: (id: string) => [...queryKeys.retailers.all, 'detail-view', id] as const,
+    outletTypes: (filters?: Record<string, unknown>) =>
+      [...queryKeys.retailers.all, 'outlet-types', filters ?? {}] as const,
+  },
   salesIncharge: {
     all: ['sales-incharge'] as const,
     list: (filters?: Record<string, unknown>) =>

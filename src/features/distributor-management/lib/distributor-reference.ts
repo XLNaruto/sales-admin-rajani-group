@@ -150,3 +150,26 @@ export const labelFor = (value?: string) => (value ? (LABELS[value] ?? value) : 
 /** Convert a list of reference nodes into combobox options. */
 export const toOptions = (rows: RefNode[]): ComboboxOption[] =>
   rows.map((r) => ({ value: r.id, label: r.name }))
+
+/**
+ * Split the picker's "lat, lng" string into the two columns the API stores
+ * (`geo_latitude` / `geo_longitude`). Returns empty strings when the value is
+ * blank or malformed so a cleared picker clears both fields. The API pattern is
+ * `^-?\d{1,3}(\.\d+)?$`, so each half must be a plain finite number.
+ */
+export function splitLatLng(value?: string): { latitude: string; longitude: string } {
+  const [lat, lng] = (value ?? '').split(',').map((s) => s.trim())
+  if (!lat || !lng || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+    return { latitude: '', longitude: '' }
+  }
+  return { latitude: lat, longitude: lng }
+}
+
+/** Join the API's two geo columns back into the "lat, lng" string the UI uses. */
+export function joinLatLng(
+  lat: string | number | null | undefined,
+  lng: string | number | null | undefined,
+): string | null {
+  if (lat == null || lng == null || lat === '' || lng === '') return null
+  return `${lat}, ${lng}`
+}

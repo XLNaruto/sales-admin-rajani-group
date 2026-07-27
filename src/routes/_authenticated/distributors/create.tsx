@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { DistributorCreatePage } from '@/features/distributor-management'
 import { requirePermission } from '@/features/permissions'
+import { validateDataSearch } from '@/lib/route-search'
 
 /** `?data=<encrypted-id>` switches the create page into edit mode. */
 export const Route = createFileRoute('/_authenticated/distributors/create')({
@@ -10,9 +11,7 @@ export const Route = createFileRoute('/_authenticated/distributors/create')({
       'distributor-master:create',
       'distributor-master:update',
     ]),
-  validateSearch: (search: Record<string, unknown>): { data?: string } => ({
-    data: typeof search.data === 'string' ? search.data : undefined,
-  }),
+  validateSearch: validateDataSearch,
   component: RouteComponent,
 })
 

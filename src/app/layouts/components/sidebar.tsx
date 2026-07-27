@@ -13,6 +13,27 @@ function isActivePath(to: string | undefined, pathname: string) {
   return to === '/' ? pathname === '/' : pathname === to || pathname.startsWith(`${to}/`)
 }
 
+/** Every `to` in the nav — lets a leaf tell whether a deeper item also matches. */
+const navTargets = navGroups
+  .flatMap((g) => g.items.flatMap((i) => [i.to, ...(i.children ?? []).map((c) => c.to)]))
+  .filter((to): to is string => Boolean(to))
+
+/**
+ * A leaf is active when it matches the URL and no *deeper* nav item matches it
+ * too. The second half matters for nested siblings: without it
+ * `/sales-incharge` would light up while the user sits on
+ * `/sales-incharge/hierarchy`. Plain child pages with no nav entry of their own
+ * (`/sales-incharge/create`) still highlight their parent.
+ */
+function isActiveLeaf(item: NavItem, pathname: string) {
+  if (!item.to) return false
+  if (item.exact || item.to === '/') return pathname === item.to
+  if (!isActivePath(item.to, pathname)) return false
+  return !navTargets.some(
+    (to) => to.startsWith(`${item.to}/`) && isActivePath(to, pathname),
+  )
+}
+
 /**
  * Drop nav items the user can't access. An item is kept when it has no
  * `permission` gate or the user holds it; a parent is kept only if it survives
@@ -159,6 +180,7 @@ export function Sidebar() {
                     key={item.to}
                     item={item}
                     collapsed={collapsed}
+                    pathname={pathname}
                     onNavigate={closeMobile}
                   />
                 ),
@@ -183,25 +205,39 @@ const leafClasses = (collapsed: boolean) =>
 function NavLeaf({
   item,
   collapsed,
+  pathname,
   onNavigate,
 }: {
   item: NavItem
   collapsed: boolean
+  pathname: string
   onNavigate?: () => void
 }) {
   const Icon = item.icon
   if (!item.to) return null
-  return (
+  const link = (
     <Link
       to={item.to}
-      activeOptions={{ exact: item.exact ?? item.to === '/' }}
-      title={collapsed ? item.label : undefined}
       onClick={onNavigate}
-      className={leafClasses(collapsed)}
+      // `active` is applied by hand rather than via `activeOptions`, which has
+      // no way to express "unless a deeper nav item matches" — see isActiveLeaf.
+      // The router's own defaults are cleared, otherwise its fuzzy match would
+      // add `active` to `/sales-incharge` while on `/sales-incharge/hierarchy`.
+      activeProps={{ className: '' }}
+      inactiveProps={{ className: '' }}
+      className={cn(leafClasses(collapsed), isActiveLeaf(item, pathname) && 'active')}
     >
       <Icon className="size-[18px] shrink-0 transition-colors group-[.active]:text-sidebar-primary" />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
+  )
+  // On the collapsed rail only the icon shows, so surface the label as a hint.
+  return collapsed ? (
+    <Hint label={item.label} side="right">
+      {link}
+    </Hint>
+  ) : (
+    link
   )
 }
 
@@ -231,7 +267,7 @@ function NavParent({
     return (
       <div className="space-y-0.5">
         {children.map((c) => (
-          <NavLeaf key={c.to} item={c} collapsed onNavigate={onNavigate} />
+          <NavLeaf key={c.to} item={c} collapsed pathname={pathname} onNavigate={onNavigate} />
         ))}
       </div>
     )
@@ -258,7 +294,7 @@ function NavParent({
         <ul className="mt-0.5 ml-4 space-y-0.5 border-l border-sidebar-border pl-3">
           {children.map((c) => (
             <li key={c.to}>
-              <NavLeaf item={c} collapsed={false} onNavigate={onNavigate} />
+              <NavLeaf item={c} collapsed={false} pathname={pathname} onNavigate={onNavigate} />
             </li>
           ))}
         </ul>

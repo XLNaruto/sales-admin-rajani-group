@@ -1,5 +1,6 @@
 import { Building2, Check, ChevronDown, Loader2 } from 'lucide-react'
 import { DropdownMenu, DropdownLabel, DropdownSeparator } from '@/components/ui/dropdown-menu'
+import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import { useCompanies } from '../api/use-companies'
 import { useSelectCompany } from '../api/use-select-company'
@@ -29,13 +30,12 @@ export function CompanySwitcher() {
 
   if (isError) {
     return (
-      <div
-        className={cn(chip, 'border-destructive/40 text-destructive')}
-        title={error?.message}
-      >
-        <Building2 className="size-4" />
-        <span className="hidden lg:block">Companies unavailable</span>
-      </div>
+      <Hint label={error?.message ?? 'Companies unavailable'} side="bottom">
+        <div className={cn(chip, 'border-destructive/40 text-destructive')}>
+          <Building2 className="size-4" />
+          <span className="hidden lg:block">Companies unavailable</span>
+        </div>
+      </Hint>
     )
   }
 
@@ -50,15 +50,16 @@ export function CompanySwitcher() {
     <DropdownMenu
       className="min-w-56 p-1"
       trigger={
-        <button
-          type="button"
-          className={cn(chip, 'cursor-pointer transition-colors hover:bg-accent')}
-          title="Switch company"
-        >
-          <Building2 className="size-4 text-muted-foreground" />
-          <span className="hidden max-w-40 truncate lg:block">{label}</span>
-          <ChevronDown className="size-4 text-muted-foreground" />
-        </button>
+        <Hint label="Switch company" side="bottom">
+          <button
+            type="button"
+            className={cn(chip, 'cursor-pointer transition-colors hover:bg-accent')}
+          >
+            <Building2 className="size-4 text-muted-foreground" />
+            <span className="hidden max-w-40 truncate lg:block">{label}</span>
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </button>
+        </Hint>
       }
     >
       <DropdownLabel>Companies</DropdownLabel>

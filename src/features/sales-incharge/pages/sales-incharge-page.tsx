@@ -16,6 +16,7 @@ import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isForbiddenError } from "@/lib/api-error";
+import { useCan } from "@/features/permissions";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
 import { format, parseISO } from "date-fns";
@@ -64,6 +65,7 @@ export function SalesInchargePage() {
   } = useSalesInchargeList();
 
   const [viewId, setViewId] = useState<number | null>(null);
+  const { can } = useCan();
 
   const columns = useMemo<ColumnDef<SalesIncharge>[]>(
     () => [
@@ -104,15 +106,17 @@ export function SalesInchargePage() {
                 <Eye className="size-4" />
               </button>
             </Hint>
-            <Hint label="Beat allocation">
-              <button
-                type="button"
-                onClick={() => goToBeatAllocation(row.original.id)}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
-              >
-                <MapPinned className="size-4" />
-              </button>
-            </Hint>
+            {can("beat:allocate") && (
+              <Hint label="Beat allocation">
+                <button
+                  type="button"
+                  onClick={() => goToBeatAllocation(row.original.id)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-500/10 text-emerald-600 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+                >
+                  <MapPinned className="size-4" />
+                </button>
+              </Hint>
+            )}
             <Hint label="Delete">
               <button
                 type="button"
@@ -252,7 +256,7 @@ export function SalesInchargePage() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDeleting, isSettingStatus],
+    [isDeleting, isSettingStatus, can],
   );
 
   // A forbidden list load means no access to this module — show the dedicated

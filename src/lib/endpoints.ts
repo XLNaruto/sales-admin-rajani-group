@@ -67,6 +67,25 @@ export const endpoints = {
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/distributors/documents/presign',
   },
+  /**
+   * Retailers — the outlets a beat covers. Mirrors the distributor resource:
+   * CRUD plus a lifecycle `status` PATCH and an `onboarding` approve/reject PATCH.
+   */
+  RETAILER: {
+    LIST: '/sales-incharge-admin/retailers',
+    CREATE: '/sales-incharge-admin/retailers',
+    GET: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
+    STATUS: (id: string | number) => `/sales-incharge-admin/retailers/${id}/status`,
+    ONBOARDING: (id: string | number) => `/sales-incharge-admin/retailers/${id}/onboarding`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
+    /** Presign the shop photo upload (same contract as the distributor presigns). */
+    SHOP_PHOTO_PRESIGN: '/sales-incharge-admin/retailers/shop-photos/presign',
+  },
+  /** Outlet-type master — backs the retailer form's "Outlet Type" select. */
+  OUTLET_TYPE: {
+    LIST: '/sales-incharge-admin/outlet-types',
+  },
   /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
   BEAT: {
     LIST: '/sales-incharge-admin/beats',

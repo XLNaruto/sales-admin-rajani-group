@@ -5,6 +5,7 @@ import {
   Network,
   Building2,
   MapPinned,
+  Store,
 } from "lucide-react";
 
 export interface NavItem {
@@ -42,7 +43,7 @@ export const navGroups: NavGroup[] = [
       },
       {
         label: "Sales Incharge Hierarchy",
-        to: "/sales-incharge-hierarchy",
+        to: "/sales-incharge/hierarchy",
         icon: Network,
         permission: "hierarchy:list",
       },
@@ -52,11 +53,24 @@ export const navGroups: NavGroup[] = [
         icon: Building2,
         permission: "distributor-master:list",
       },
+      {
+        label: "Retailer Management",
+        to: "/retailers",
+        icon: Store,
+        permission: "retailer-master:list",
+      },
     ],
   },
   {
     title: 'Beat Foundation',
-    items: [{ label: 'Beat Creation', to: '/beats', icon: MapPinned }],
+    items: [
+      {
+        label: 'Beat Creation',
+        to: '/beats',
+        icon: MapPinned,
+        permission: 'beat:list',
+      },
+    ],
   },
 ];
 

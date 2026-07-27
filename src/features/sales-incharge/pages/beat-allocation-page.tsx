@@ -185,9 +185,6 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           search={allocated.search}
           onSearchChange={allocated.setSearch}
           searchPlaceholder="Search allocated beats…"
-          onLoadMore={allocated.onLoadMore}
-          hasMore={allocated.hasMore}
-          isFetchingMore={allocated.isFetchingMore}
           pagination={allocated.pagination}
           onPaginationChange={(updater) =>
             allocated.setPagination(

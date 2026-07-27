@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
 import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
-import { FileInput } from "../components/file-input";
+import { FileInput } from "@/components/common/file-input";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { useProductDivisions } from "../api/use-distributors";
 import {
