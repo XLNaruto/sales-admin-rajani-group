@@ -9,6 +9,7 @@ export {
   useCreateRetailer,
   useUpdateRetailer,
   useSetRetailerStatus,
+  useSetRetailerBeat,
   useUpdateRetailerOnboarding,
   useDeleteRetailer,
 } from './api/use-retailers'

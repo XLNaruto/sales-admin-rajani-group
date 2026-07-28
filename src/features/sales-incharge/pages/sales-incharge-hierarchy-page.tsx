@@ -2,6 +2,7 @@ import { Loader2, Minus, Network, Plus, RotateCcw, Save, Trash2 } from 'lucide-r
 import { PageHeader } from '@/components/common/page-header'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
+import { RefreshControl } from '@/components/common/refresh-control'
 import { isForbiddenError } from '@/lib/api-error'
 import { Forbidden } from '@/features/error'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,7 @@ export function SalesInchargeHierarchyPage() {
     isLoading,
     isError,
     error,
+    refresh,
     zoom,
     zoomBy,
     resetView,
@@ -81,6 +83,17 @@ export function SalesInchargeHierarchyPage() {
           className="pointer-events-none absolute inset-0 opacity-60 bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-size-[22px_22px]"
         />
 
+        {/* Refresh + data age — sits opposite the zoom cluster so it's reachable
+            from the tree, the error state and the empty state alike. */}
+        {!isLoading ? (
+          <div
+            data-nopan
+            className="absolute left-4 top-4 z-10 flex items-center gap-1 rounded-xl border border-border bg-card/90 p-1 pl-3 shadow-md backdrop-blur"
+          >
+            <RefreshControl {...refresh} size="sm" />
+          </div>
+        ) : null}
+
         {isLoading ? (
           <div className="grid h-full place-items-center">
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
@@ -116,7 +129,9 @@ export function SalesInchargeHierarchyPage() {
             {/* Zoom controls */}
             <div
               data-nopan
-              className="absolute right-4 top-4 z-10 flex items-center gap-1 rounded-xl border border-border bg-card/90 p-1 shadow-md backdrop-blur"
+              // On mobile the refresh pill (with its age label) owns the top
+              // row, so the zoom cluster drops to the bottom-right corner.
+              className="absolute bottom-4 right-4 z-10 flex items-center gap-1 rounded-xl border border-border bg-card/90 p-1 shadow-md backdrop-blur sm:bottom-auto sm:top-4"
             >
               <Hint label="Zoom out">
                 <button

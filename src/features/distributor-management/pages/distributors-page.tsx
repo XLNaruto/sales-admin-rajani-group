@@ -4,6 +4,7 @@ import {
   Building2,
   Check,
   Eye,
+  Layers,
   // Layers,
   Pencil,
   Plus,
@@ -49,6 +50,7 @@ export function DistributorsPage() {
     setPagination,
     sorting,
     onSortingChange,
+    refresh,
     isLoading,
     isError,
     error,
@@ -116,7 +118,7 @@ export function DistributorsPage() {
                 </button>
               </Hint>
             )}
-            {/* {can("distributor-master:update") && (
+            {can("distributor-master:update") && (
               <Hint label="Category mapping">
                 <button
                   type="button"
@@ -126,7 +128,7 @@ export function DistributorsPage() {
                   <Layers className="size-4" />
                 </button>
               </Hint>
-            )} */}
+            )}
             <Hint label="View details">
               <button
                 type="button"
@@ -394,6 +396,7 @@ export function DistributorsPage() {
             filters={filters}
             onChange={patchFilters}
             onReset={resetFilters}
+            refresh={refresh}
           />
         }
         emptyState={

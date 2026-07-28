@@ -15,6 +15,7 @@ import {
   useReactTable,
 } from '@tanstack/react-table'
 import { cn } from '@/lib/utils'
+import type { RefreshState } from '@/components/common/refresh-control'
 import {
   Table,
   TableBody,
@@ -54,6 +55,11 @@ interface DataTableProps<TData, TValue> {
   searchPlaceholder?: string
   /** Custom toolbar rendered above the table (replaces the built-in search). */
   toolbar?: ReactNode
+  /**
+   * Refresh button + "Fetched x ago" in the built-in toolbar. Ignored when a
+   * custom `toolbar` is supplied — pass it to that toolbar's own FilterBar.
+   */
+  refresh?: RefreshState
   /** Initial rows per page. */
   pageSize?: number
   /** Page-size choices; pass to show a "N / page" selector in the footer. */
@@ -114,6 +120,7 @@ export function DataTable<TData, TValue>({
   searchColumn,
   searchPlaceholder,
   toolbar,
+  refresh,
   pageSize = 5,
   pageSizeOptions,
   itemName,
@@ -161,7 +168,8 @@ export function DataTable<TData, TValue>({
       hidePagination || manualPagination ? undefined : getPaginationRowModel(),
   })
 
-  const showSearch = searchColumn != null || searchPlaceholder != null
+  const showSearch =
+    searchColumn != null || searchPlaceholder != null || refresh != null
   // Hide the pagination footer when there's nothing to page through.
   const hasRows = table.getRowModel().rows.length > 0
 
@@ -202,6 +210,7 @@ export function DataTable<TData, TValue>({
             table={table}
             searchColumn={searchColumn}
             searchPlaceholder={searchPlaceholder}
+            refresh={refresh}
           />
         ))}
 

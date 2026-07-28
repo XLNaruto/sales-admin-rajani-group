@@ -61,9 +61,9 @@ export function useBeatForm({ id, onSaved }: UseBeatFormOptions) {
     onSubmit,
     isEdit,
     isPending,
-    // Label for the currently-selected distributor (edit mode), so its lazy
-    // dropdown can show the selection before its page is loaded.
-    distributorName: data?.distributorName ?? null,
+    // Labels for the currently-selected distributors (edit mode), so the lazy
+    // dropdown can show the selection before their pages are loaded.
+    selectedDistributors: data?.distributors ?? [],
     // Edit-mode load state (create mode is always ready).
     isSeeding: isEdit && isLoading,
     isError: isEdit && isError,

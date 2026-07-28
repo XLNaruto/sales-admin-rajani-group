@@ -35,7 +35,25 @@ type DialogState =
  * page consumes this and only renders.
  */
 export function useSalesInchargeHierarchyView() {
-  const { data: root = null, isLoading, isError, error } = useHierarchyTree()
+  const {
+    data: root = null,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    dataUpdatedAt,
+    isFetching,
+  } = useHierarchyTree()
+
+  // Manual refresh for the canvas — the structure can be edited by another
+  // admin while this tree sits on screen from cache.
+  const refresh = {
+    onRefresh: () => {
+      void refetch()
+    },
+    updatedAt: dataUpdatedAt,
+    isFetching,
+  }
 
   const createEntry = useCreateHierarchyEntry()
   const updateEntry = useUpdateHierarchyEntry()
@@ -219,6 +237,7 @@ export function useSalesInchargeHierarchyView() {
 
   return {
     root,
+    refresh,
     isLoading,
     isError,
     error,

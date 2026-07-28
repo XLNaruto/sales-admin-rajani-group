@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { dismissHints } from '@/lib/hint-bus'
 
 interface DialogProps {
   open: boolean
@@ -17,6 +18,9 @@ interface DialogProps {
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
   React.useEffect(() => {
     if (!open) return
+    // The trigger that opened us still counts as hovered, so its tooltip would
+    // stay pinned above the overlay — close any open hint.
+    dismissHints()
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onOpenChange(false)
     }

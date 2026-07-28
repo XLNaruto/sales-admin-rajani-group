@@ -1,5 +1,6 @@
 import { ClipboardCheck, Store, ToggleLeft } from 'lucide-react'
 import { FilterBar, type FilterFacet } from '@/components/common/filter-bar'
+import type { RefreshState } from '@/components/common/refresh-control'
 import { ONBOARDING_STATUSES, RETAILER_STATUSES } from '../lib/retailer-reference'
 import { useOutletTypeOptions } from '../hooks/use-retailer-selects'
 
@@ -14,10 +15,17 @@ interface RetailerToolbarProps {
   filters: RetailerFilters
   onChange: (patch: Partial<RetailerFilters>) => void
   onReset: () => void
+  /** Refresh button + "Fetched x ago" shown in the filter card. */
+  refresh?: RefreshState
 }
 
 /** Filter card above the retailers table — driven by the shared FilterBar. */
-export function RetailerToolbar({ filters, onChange, onReset }: RetailerToolbarProps) {
+export function RetailerToolbar({
+  filters,
+  onChange,
+  onReset,
+  refresh,
+}: RetailerToolbarProps) {
   const outletTypes = useOutletTypeOptions()
 
   const facets: FilterFacet[] = [
@@ -59,6 +67,7 @@ export function RetailerToolbar({ filters, onChange, onReset }: RetailerToolbarP
       }}
       facets={facets}
       onReset={onReset}
+      refresh={refresh}
     />
   )
 }

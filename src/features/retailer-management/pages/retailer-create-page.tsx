@@ -200,10 +200,6 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
             />
           </Field>
 
-          <Field label="Retailer Code" optional error={errors.code?.message}>
-            <Input placeholder="Auto-generated if left blank" {...register('code')} />
-          </Field>
-
           {/* ---------------------- Address -------------------- */}
           <FormSection
             icon={MapPin}

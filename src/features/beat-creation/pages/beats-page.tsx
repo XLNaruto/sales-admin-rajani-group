@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { MapPinned, Pencil, Plus, Store, Trash2 } from 'lucide-react'
+import { MapPinned, Pencil, Plus, Trash2 } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { isForbiddenError } from '@/lib/api-error'
 import { useCan } from '@/features/permissions'
 import { Forbidden } from '@/features/error'
+import { BeatDistributorsCell } from '../components/beat-distributors-cell'
 import { BeatFormDialog } from '../components/beat-form-dialog'
 import { BeatToolbar } from '../components/beat-toolbar'
 import { gradeLabel } from '../lib/beat-reference'
@@ -27,6 +28,7 @@ export function BeatsPage() {
     setPagination,
     sorting,
     onSortingChange,
+    refresh,
     isLoading,
     isError,
     error,
@@ -117,18 +119,17 @@ export function BeatsPage() {
       },
       {
         id: 'distributor',
-        accessorFn: (b) => b.distributorName ?? b.distributorId,
+        accessorFn: (b) => b.distributors.map((d) => d.name).join(', '),
         enableSorting: false,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Distributor" />,
-        cell: ({ row }) =>
-          row.original.distributorName ? (
-            <span className="inline-flex items-center gap-1.5 text-sm">
-              <Store className="size-3.5 text-muted-foreground" />
-              {row.original.distributorName}
-            </span>
-          ) : (
-            <span className="text-sm text-muted-foreground">N/A</span>
-          ),
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Distributors" />,
+        // Give the names room so two fit side-by-side instead of stacking.
+        meta: { className: 'min-w-72' },
+        cell: ({ row }) => (
+          <BeatDistributorsCell
+            beatName={row.original.beatName}
+            distributors={row.original.distributors}
+          />
+        ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -143,7 +144,7 @@ export function BeatsPage() {
     <div>
       <PageHeader
         title="Beat Creation"
-        description="Create and manage beats — name, grade and distributor."
+        description="Create and manage beats — name, grade and distributors."
         actions={
           can('beat:create') ? (
             <Button className="cursor-pointer" onClick={openCreate}>
@@ -171,7 +172,12 @@ export function BeatsPage() {
         hasMore={hasMore}
         isFetchingMore={isFetchingMore}
         toolbar={
-          <BeatToolbar filters={filters} onChange={patchFilters} onReset={resetFilters} />
+          <BeatToolbar
+            filters={filters}
+            onChange={patchFilters}
+            onReset={resetFilters}
+            refresh={refresh}
+          />
         }
         emptyState={
           <div className="flex flex-col items-center gap-3 py-14 text-center">

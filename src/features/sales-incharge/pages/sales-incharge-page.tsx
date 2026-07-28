@@ -46,6 +46,7 @@ export function SalesInchargePage() {
     setPagination,
     sorting,
     onSortingChange,
+    refresh,
     isLoading,
     isError,
     error,
@@ -297,6 +298,7 @@ export function SalesInchargePage() {
             filters={filters}
             onChange={patchFilters}
             onReset={resetFilters}
+            refresh={refresh}
           />
         }
         emptyState={

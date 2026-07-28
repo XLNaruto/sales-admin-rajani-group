@@ -44,6 +44,8 @@ const beatRowSchema = z.object({
   id: z.union([z.number(), z.string()]).transform(String),
   name: z.string(),
   grade: z.string().nullish(),
+  distributor_ids: z.array(z.union([z.number(), z.string()])).nullish(),
+  distributor_names: z.array(z.string()).nullish(),
   distributor_id: z.union([z.number(), z.string()]).nullish(),
   distributor_name: z.string().nullish(),
   city_id: z.union([z.number(), z.string()]).nullish(),
@@ -65,8 +67,21 @@ function toBeat(row: z.infer<typeof beatRowSchema>): Beat {
     // `grade` is a free-form string server-side; the display helper falls back
     // to the raw value for anything outside the known grade set.
     beatGrade: (row.grade ?? '') as BeatGrade,
-    distributorId: row.distributor_id != null ? String(row.distributor_id) : '',
-    distributorName: row.distributor_name ?? undefined,
+    // A beat maps to many distributors; the legacy singular fields are still
+    // accepted for endpoints that haven't switched to the arrays yet.
+    distributors: row.distributor_ids?.length
+      ? row.distributor_ids.map((id, i) => ({
+          id: String(id),
+          name: row.distributor_names?.[i] ?? String(id),
+        }))
+      : row.distributor_id != null
+        ? [
+            {
+              id: String(row.distributor_id),
+              name: row.distributor_name ?? String(row.distributor_id),
+            },
+          ]
+        : [],
     // These lists only ever surface active, allocatable beats.
   }
 }

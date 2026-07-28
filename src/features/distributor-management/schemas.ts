@@ -32,6 +32,7 @@ export const distributorRowSchema = z.object({
   email: z.string().nullish(),
   city_id: z.union([z.number(), z.string()]).nullish(),
   city_name: z.string().nullish(),
+  product_divisions: z.array(z.union([z.number(), z.string()])).nullish(),
   product_division_names: z.array(z.string()).nullish(),
   market_type: z.string().nullish(),
   market_system: z.string().nullish(),
@@ -148,3 +149,15 @@ export const productDivisionListResponseSchema = z.object({
 })
 
 export type ProductDivisionRow = z.infer<typeof productDivisionRowSchema>
+
+/**
+ * The slice of the updated distributor we read back from
+ * PATCH /sales-incharge-admin/distributors/{id}/product-divisions. The endpoint
+ * echoes the full record; only the new mapping is of interest here, so the rest
+ * is ignored rather than re-validated.
+ */
+export const distributorProductDivisionsResponseSchema = z.object({
+  id: z.union([z.number(), z.string()]).transform(String),
+  product_divisions: z.array(z.union([z.number(), z.string()])).nullish(),
+  product_division_names: z.array(z.string()).nullish(),
+})

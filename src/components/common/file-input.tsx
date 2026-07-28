@@ -25,7 +25,8 @@ const baseName = (p: string) => p.split('/').pop() || p
  * In edit mode, `existing` holds storage paths already saved on the record;
  * they render as thumbnails (resolved to full URLs via `mediaUrl`) ahead of any
  * newly-picked files. `onRemoveExisting` drops one so the update no longer
- * retains it.
+ * retains it. In single-file mode a new pick hides the saved thumbnail, since
+ * the upload replaces it on submit anyway.
  */
 export function FileInput({
   value,
@@ -75,6 +76,11 @@ export function FileInput({
   const removeAt = (index: number) =>
     onChange(value.filter((_, i) => i !== index))
 
+  // Single-file mode: a fresh pick REPLACES whatever is saved, so the stored
+  // thumbnail steps aside while one is selected instead of sitting next to it.
+  // Display-only — dropping the new pick brings the saved one straight back.
+  const shownExisting = !multiple && value.length > 0 ? [] : existing
+
   return (
     <div className="space-y-2">
       <FileUploader
@@ -115,9 +121,9 @@ export function FileInput({
         </div>
       </FileUploader>
 
-      {(existing.length > 0 || value.length > 0) && (
+      {(shownExisting.length > 0 || value.length > 0) && (
         <div className="flex flex-wrap gap-2">
-          {existing.map((path, i) => (
+          {shownExisting.map((path, i) => (
             <a
               key={`existing-${path}-${i}`}
               href={mediaUrl(path)}

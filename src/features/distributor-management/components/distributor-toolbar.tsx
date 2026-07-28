@@ -1,5 +1,6 @@
 import { Building2, ToggleLeft } from 'lucide-react'
 import { FilterBar, type FilterFacet } from '@/components/common/filter-bar'
+import type { RefreshState } from '@/components/common/refresh-control'
 import { FIRM_TYPES } from '../lib/distributor-reference'
 
 export interface DistributorFilters {
@@ -12,10 +13,17 @@ interface DistributorToolbarProps {
   filters: DistributorFilters
   onChange: (patch: Partial<DistributorFilters>) => void
   onReset: () => void
+  /** Refresh button + "Fetched x ago" shown in the filter card. */
+  refresh?: RefreshState
 }
 
 /** Filter card above the distributors table — driven by the shared FilterBar. */
-export function DistributorToolbar({ filters, onChange, onReset }: DistributorToolbarProps) {
+export function DistributorToolbar({
+  filters,
+  onChange,
+  onReset,
+  refresh,
+}: DistributorToolbarProps) {
   const facets: FilterFacet[] = [
     {
       key: 'firmType',
@@ -50,6 +58,7 @@ export function DistributorToolbar({ filters, onChange, onReset }: DistributorTo
       }}
       facets={facets}
       onReset={onReset}
+      refresh={refresh}
     />
   )
 }

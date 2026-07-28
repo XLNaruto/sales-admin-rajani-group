@@ -7,7 +7,37 @@ import {
   type BeatRow,
 } from '../schemas'
 import type { BeatFormValues } from '../lib/beat-form'
-import type { Beat, BeatInput, BeatListParams, BeatListResult } from '../types'
+import type { Beat, BeatDistributor, BeatInput, BeatListParams, BeatListResult } from '../types'
+
+/**
+ * Normalise the row's distributor shape — expanded `distributors` objects,
+ * parallel `distributor_ids`/`distributor_names` arrays, or the legacy single
+ * `distributor_id` — into one list. Labels fall back to the id.
+ */
+function toDistributors(row: BeatRow): BeatDistributor[] {
+  if (row.distributors?.length) {
+    return row.distributors
+      .map((d) => {
+        const id = d.distributor_id ?? d.id
+        return {
+          id: id != null ? String(id) : '',
+          name: d.firm_name ?? d.name ?? d.distributor_name ?? (id != null ? String(id) : ''),
+        }
+      })
+      .filter((d) => d.id !== '')
+  }
+  if (row.distributor_ids?.length) {
+    return row.distributor_ids.map((id, i) => ({
+      id: String(id),
+      name: row.distributor_names?.[i] ?? String(id),
+    }))
+  }
+  if (row.distributor_id != null) {
+    const id = String(row.distributor_id)
+    return [{ id, name: row.distributor_name ?? id }]
+  }
+  return []
+}
 
 /** Map a validated API row to the client-facing (camelCase) `Beat`. */
 function toBeat(row: BeatRow): Beat {
@@ -15,8 +45,7 @@ function toBeat(row: BeatRow): Beat {
     id: row.id,
     beatName: row.name,
     beatGrade: row.grade ?? '',
-    distributorId: row.distributor_id != null ? String(row.distributor_id) : '',
-    distributorName: row.distributor_name ?? undefined,
+    distributors: toDistributors(row),
   }
 }
 
@@ -43,7 +72,7 @@ function toBody(values: BeatFormValues) {
   return {
     name: values.beatName.trim(),
     grade: values.beatGrade,
-    distributor_id: toId(values.distributorId),
+    distributor_ids: values.distributorIds.map(toId),
   }
 }
 
@@ -65,13 +94,13 @@ export async function fetchBeats(params: BeatListParams = {}): Promise<BeatListR
   }
 }
 
-/** A loaded beat mapped for the edit form: form values plus the distributor
- *  label so its (lazy) dropdown can show the current selection before its page
- *  is fetched. */
+/** A loaded beat mapped for the edit form: form values plus the selected
+ *  distributors' labels so its (lazy) dropdown can show the current selection
+ *  before the pages they live on are fetched. */
 export interface BeatEditRecord {
   id: string
   values: BeatFormValues
-  distributorName: string | null
+  distributors: BeatDistributor[]
 }
 
 /** Known grades the form offers — anything else falls back to the default. */
@@ -89,13 +118,14 @@ export async function fetchBeat(id: string): Promise<BeatEditRecord> {
   try {
     const raw = await http.get<unknown>(endpoints.BEAT.GET(id))
     const r = beatDetailSchema.parse(raw)
+    const distributors = toDistributors(r)
     return {
       id: r.id,
-      distributorName: r.distributor_name ?? null,
+      distributors,
       values: {
         beatName: r.name,
         beatGrade: toFormGrade(r.grade),
-        distributorId: r.distributor_id != null ? String(r.distributor_id) : '',
+        distributorIds: distributors.map((d) => d.id),
       },
     }
   } catch (error) {

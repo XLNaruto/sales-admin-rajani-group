@@ -82,7 +82,8 @@ export function useSalesInchargeList() {
   } as const;
 
   // Only one of the two queries is enabled at a time (based on `isAll`).
-  const { data, isLoading, isError, error } = useSalesIncharges(
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt, isFetching } =
+    useSalesIncharges(
     {
       ...baseParams,
       page: pagination.pageIndex + 1,
@@ -106,6 +107,17 @@ export function useSalesInchargeList() {
   const listIsError = isAll ? infinite.isError : isError;
   // Surfaced so the page can render the Forbidden screen on a 403.
   const listError = isAll ? infinite.error : error;
+
+  // Manual refresh for the toolbar: refetch the active query (paged or
+  // infinite) and surface when the rows on screen were last fetched, so a
+  // background change made by someone else is one click away.
+  const refresh = {
+    onRefresh: () => {
+      void (isAll ? infinite.refetch() : refetch());
+    },
+    updatedAt: isAll ? infinite.dataUpdatedAt : dataUpdatedAt,
+    isFetching: isAll ? infinite.isFetching : isFetching,
+  };
   const hasActiveFilters = filters.search !== "" || filters.status !== "all";
 
   const goToCreate = () => navigate({ to: "/sales-incharge/create" });
@@ -162,6 +174,7 @@ export function useSalesInchargeList() {
     setPagination,
     sorting,
     onSortingChange,
+    refresh,
     isLoading: listIsLoading,
     isError: listIsError,
     error: listError,

@@ -22,6 +22,7 @@ const TYPE_VARIANT: Record<NotificationType, 'default' | 'warning' | 'success'> 
 export function NotificationsPage() {
   const {
     notifications,
+    refresh,
     sendNotification,
     composeMessage,
     notificationRows,
@@ -89,6 +90,7 @@ export function NotificationsPage() {
             data={notificationRows}
             isLoading={notifications.isLoading}
             searchPlaceholder="Search notifications…"
+            refresh={refresh}
           />
         </TabsContent>
 

@@ -25,6 +25,17 @@ export function useNotificationsConsole() {
   const scheduled = notificationRows.filter((n) => n.status === 'scheduled').length
   const greetingsThisMonth = greetingRows.filter((g) => g.date.startsWith(THIS_MONTH)).length
 
+  // Manual refresh for the list toolbar — alerts/greetings are generated
+  // server-side, so the cached table can fall behind without any local action.
+  const refresh = {
+    onRefresh: () => {
+      void notifications.refetch()
+      void greetings.refetch()
+    },
+    updatedAt: notifications.dataUpdatedAt,
+    isFetching: notifications.isFetching || greetings.isFetching,
+  }
+
   const handleCompose = () => {
     sendNotification.mutate(
       { title: 'Broadcast Notification', body: 'Composed from the notifications console.', type: 'push' },
@@ -34,6 +45,7 @@ export function useNotificationsConsole() {
 
   return {
     notifications,
+    refresh,
     sendNotification,
     composeMessage,
     notificationRows,

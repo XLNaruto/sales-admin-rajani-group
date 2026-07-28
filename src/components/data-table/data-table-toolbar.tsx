@@ -1,11 +1,14 @@
 import type { Table } from '@tanstack/react-table'
 import { FilterBar } from '@/components/common/filter-bar'
+import type { RefreshState } from '@/components/common/refresh-control'
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>
   /** Column id to filter with the search box. Omit to filter across all columns. */
   searchColumn?: string
   searchPlaceholder?: string
+  /** Shows the refresh button + "Fetched x ago" beside the search box. */
+  refresh?: RefreshState
 }
 
 /**
@@ -17,6 +20,7 @@ export function DataTableToolbar<TData>({
   table,
   searchColumn,
   searchPlaceholder = 'Search...',
+  refresh,
 }: DataTableToolbarProps<TData>) {
   const column = searchColumn ? table.getColumn(searchColumn) : undefined
   const value = searchColumn
@@ -30,6 +34,7 @@ export function DataTableToolbar<TData>({
     <FilterBar
       search={{ value, onChange: setValue, placeholder: searchPlaceholder }}
       onReset={() => setValue('')}
+      refresh={refresh}
     />
   )
 }

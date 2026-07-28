@@ -2,6 +2,7 @@ import { useMemo, type ComponentType } from 'react'
 import type { ColumnDef, OnChangeFn, PaginationState } from '@tanstack/react-table'
 import { Loader2, MapPinned, Search } from 'lucide-react'
 import { DataTable } from '@/components/data-table'
+import { RefreshControl, type RefreshState } from '@/components/common/refresh-control'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
@@ -36,6 +37,8 @@ interface BeatAllocationPanelProps {
   hasMore?: boolean
   isFetchingMore?: boolean
   action: PanelAction
+  /** Refresh button + "Fetched x ago" in the panel header. */
+  refresh?: RefreshState
   /** Id of the beat with an in-flight add/remove (its button spins + disables). */
   pendingId: string | null
   /** Disable every action button (a mutation is in flight somewhere). */
@@ -65,6 +68,7 @@ export function BeatAllocationPanel({
   hasMore,
   isFetchingMore,
   action,
+  refresh,
   pendingId,
   actionsDisabled,
   emptyLabel,
@@ -98,9 +102,9 @@ export function BeatAllocationPanel({
             </span>
             <div className="leading-tight">
               <p className="font-medium text-foreground">{row.original.beatName}</p>
-              {row.original.distributorName && (
+              {row.original.distributors.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  {row.original.distributorName}
+                  {row.original.distributors.map((d) => d.name).join(', ')}
                 </p>
               )}
             </div>
@@ -166,6 +170,8 @@ export function BeatAllocationPanel({
             </p>
           </div>
         </div>
+
+        {refresh ? <RefreshControl {...refresh} /> : null}
       </div>
 
       {/* Search */}

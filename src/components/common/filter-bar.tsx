@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { RotateCcw, Search, SlidersHorizontal, X, type LucideIcon } from 'lucide-react'
 import { Hint } from '@/components/common/hint'
+import { RefreshControl, type RefreshState } from '@/components/common/refresh-control'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
@@ -34,6 +35,8 @@ interface FilterBarProps {
   facets?: FilterFacet[]
   /** Clears every filter back to its empty state. */
   onReset: () => void
+  /** Wire up to show the "Fetched x ago" + refresh button on the right. */
+  refresh?: RefreshState
   className?: string
 }
 
@@ -59,7 +62,13 @@ function facetChipLabel(facet: FilterFacet): string {
  * opens an anchored panel with the search box and every faceted dropdown.
  * Config-driven so any list screen can drop it in.
  */
-export function FilterBar({ search, facets = [], onReset, className }: FilterBarProps) {
+export function FilterBar({
+  search,
+  facets = [],
+  onReset,
+  refresh,
+  className,
+}: FilterBarProps) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState<PanelCoords | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -159,6 +168,10 @@ export function FilterBar({ search, facets = [], onReset, className }: FilterBar
             Clear all
           </button>
         ) : null}
+
+        {/* Manual refresh — server data can change while the cached list is on
+            screen, so every list gets an explicit "pull again" with its age. */}
+        {refresh ? <RefreshControl {...refresh} /> : null}
 
         {hasFacets ? (
           <button

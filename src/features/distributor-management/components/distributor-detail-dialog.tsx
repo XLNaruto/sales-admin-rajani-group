@@ -37,6 +37,10 @@ const STATUS_STYLES: Record<DistributorStatus, string> = {
   inactive: "border-border bg-muted text-muted-foreground",
 };
 
+/** Nothing worth rendering — null/undefined, a blank string or an empty node. */
+const isBlank = (v: React.ReactNode) =>
+  v == null || v === false || (typeof v === "string" && v.trim() === "");
+
 /** A labelled read-only field. Spans both columns when `wide`. */
 function Field({
   label,
@@ -53,7 +57,11 @@ function Field({
         {label}
       </dt>
       <dd className="mt-0.5 break-words text-sm text-foreground">
-        {value ?? "N/A"}
+        {isBlank(value) ? (
+          <span className="text-muted-foreground">N/A</span>
+        ) : (
+          value
+        )}
       </dd>
     </div>
   );
@@ -76,13 +84,21 @@ function ImageGrid({ label, urls }: { label: string; urls: string[] }) {
       <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </span>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {/* Each frame hugs its own image: capped in both directions and shown at
+          its natural aspect ratio, never cropped and never padded. */}
+      <div className="flex flex-wrap gap-3">
         {shown.map((url) => (
-          <a key={url} href={url} target="_blank" rel="noreferrer" className="block">
+          <a
+            key={url}
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="block w-fit max-w-full overflow-hidden rounded-lg border border-border"
+          >
             <img
               src={url}
               alt={label}
-              className="h-24 w-full rounded-lg border border-border object-cover"
+              className="max-h-40 w-auto max-w-64 object-contain"
             />
           </a>
         ))}
@@ -215,11 +231,11 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="Weekly Off" value={data.weeklyOff} />
                 <Field
                   label="Market Type"
-                  value={labelFor(data.marketType ?? undefined)}
+                  value={data.marketType ? labelFor(data.marketType) : null}
                 />
                 <Field
                   label="Market System"
-                  value={labelFor(data.marketSystem ?? undefined)}
+                  value={data.marketSystem ? labelFor(data.marketSystem) : null}
                 />
                 <Field label="Retailers (Local)" value={data.retailersLocal} />
                 <Field label="Retailers (Rural)" value={data.retailersRural} />
@@ -295,7 +311,7 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="GST Number" value={data.gstNumber} />
                 <Field
                   label="Payment Condition"
-                  value={labelFor(data.paymentCondition ?? undefined)}
+                  value={data.paymentCondition ? labelFor(data.paymentCondition) : null}
                 />
                 <Field
                   label="Advance Cheque Numbers"

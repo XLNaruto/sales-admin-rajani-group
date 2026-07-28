@@ -45,6 +45,8 @@ export interface Distributor {
   code: string
   status: DistributorStatus
   onboardingStatus: DistributorOnboardingStatus
+  /** Product-division ids the distributor is mapped to (`product_divisions`). */
+  productDivisionIds?: string[]
   /** Product-division names resolved by the list endpoint (`product_division_names`). */
   productDivisionNames?: string[]
 

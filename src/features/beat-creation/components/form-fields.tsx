@@ -3,7 +3,7 @@ import ReactDatePicker from 'react-date-picker'
 import 'react-calendar/dist/Calendar.css'
 import 'react-date-picker/dist/DatePicker.css'
 import { format, parse, isValid } from 'date-fns'
-import { Calendar as CalendarIcon, Check, ChevronDown, Search, X } from 'lucide-react'
+import { Calendar as CalendarIcon, Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -111,6 +111,9 @@ export function DatePicker({
   )
 }
 
+/** Scrolled within this many px of the list bottom → ask for the next page. */
+const SCROLL_END_THRESHOLD = 48
+
 /** Searchable multi-select with chips. Value is an array of option values. */
 export function MultiSelect({
   value,
@@ -118,21 +121,45 @@ export function MultiSelect({
   options,
   placeholder = 'Select…',
   searchPlaceholder = 'Search',
+  loading = false,
+  onScrollEnd,
+  onSearchChange,
 }: {
   value: string[]
   onChange: (v: string[]) => void
   options: ComboboxOption[]
   placeholder?: string
   searchPlaceholder?: string
+  /** Show a loading row at the bottom of the list (a fetch is in flight). */
+  loading?: boolean
+  /** Called when the list is scrolled near its end — fetch the next page. */
+  onScrollEnd?: () => void
+  /**
+   * When provided, filtering is delegated to the caller (server-side search):
+   * the search box value is forwarded here and `options` are shown as-is.
+   */
+  onSearchChange?: (query: string) => void
 }) {
   const [open, setOpen] = React.useState(false)
   const [query, setQuery] = React.useState('')
   const ref = useDismiss(open, () => setOpen(false))
 
   const selected = options.filter((o) => value.includes(o.value))
-  const filtered = query
-    ? options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
-    : options
+  const filtered =
+    onSearchChange || !query
+      ? options
+      : options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()))
+
+  const search = (q: string) => {
+    setQuery(q)
+    onSearchChange?.(q)
+  }
+
+  const handleScroll = (e: React.UIEvent<HTMLUListElement>) => {
+    if (!onScrollEnd) return
+    const el = e.currentTarget
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_END_THRESHOLD) onScrollEnd()
+  }
 
   const toggle = (v: string) =>
     onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v])
@@ -185,13 +212,18 @@ export function MultiSelect({
               autoFocus
               autoComplete="off"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => search(e.target.value)}
               placeholder={searchPlaceholder}
               className="h-9 w-full rounded-md bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <ul className="max-h-56 overflow-y-auto" role="listbox" aria-multiselectable>
-            {filtered.length === 0 ? (
+          <ul
+            className="max-h-56 space-y-1 overflow-y-auto"
+            role="listbox"
+            aria-multiselectable
+            onScroll={handleScroll}
+          >
+            {filtered.length === 0 && !loading ? (
               <li className="px-2 py-2 text-sm text-muted-foreground">No results</li>
             ) : (
               filtered.map((o) => {
@@ -215,6 +247,12 @@ export function MultiSelect({
                 )
               })
             )}
+            {loading ? (
+              <li className="flex items-center justify-center gap-2 px-2 py-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Loading…
+              </li>
+            ) : null}
           </ul>
         </div>
       ) : null}

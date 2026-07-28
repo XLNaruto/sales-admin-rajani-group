@@ -15,6 +15,7 @@ import {
   setDistributorStatus,
   updateDistributor,
   updateDistributorOnboarding,
+  updateDistributorProductDivisions,
 } from "./distributor-api";
 import {
   fetchProductDivisions,
@@ -126,6 +127,28 @@ export function useUpdateDistributor() {
         queryKey: queryKeys.distributors.detail(input.id),
       });
     },
+  });
+}
+
+/**
+ * PATCH /sales-incharge-admin/distributors/{id}/product-divisions — category
+ * mapping. `productDivisionIds` is the complete new set (send `[]` to clear).
+ * Every distributor list/detail query is refreshed so the mapped-division
+ * columns pick the change up.
+ */
+export function useUpdateDistributorProductDivisions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      productDivisionIds,
+    }: {
+      id: string;
+      productDivisionIds: string[];
+    }) => updateDistributorProductDivisions(id, productDivisionIds),
+    // `distributors.all` is the prefix of every list/detail key, so one
+    // invalidation refreshes the table and both detail views.
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
   });
 }
 

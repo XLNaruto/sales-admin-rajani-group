@@ -62,6 +62,9 @@ export const endpoints = {
     UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/distributors/${id}/status`,
     ONBOARDING: (id: string | number) => `/sales-incharge-admin/distributors/${id}/onboarding`,
+    /** Category mapping — replaces the distributor's whole product-division set. */
+    PRODUCT_DIVISIONS: (id: string | number) =>
+      `/sales-incharge-admin/distributors/${id}/product-divisions`,
     DELETE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     OFFICE_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/office-images/presign',
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',
@@ -78,6 +81,13 @@ export const endpoints = {
     UPDATE: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/retailers/${id}/status`,
     ONBOARDING: (id: string | number) => `/sales-incharge-admin/retailers/${id}/onboarding`,
+    /**
+     * PATCH the outlet's beat only (`{ beat_id }`, `null` to unassign). The
+     * nearest-beat lookup runs on create, so this is how a beat is changed
+     * afterwards — and since an outlet's distributors come from its beat, this
+     * is also what moves it between firms.
+     */
+    BEAT: (id: string | number) => `/sales-incharge-admin/retailers/${id}/beat`,
     DELETE: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
     /** Presign the shop photo upload (same contract as the distributor presigns). */
     SHOP_PHOTO_PRESIGN: '/sales-incharge-admin/retailers/shop-photos/presign',

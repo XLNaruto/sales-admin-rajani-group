@@ -318,6 +318,23 @@ export async function setRetailerStatus(
 }
 
 /**
+ * PATCH /sales-incharge-admin/retailers/{id}/beat — allocate the outlet to a
+ * beat, leaving the rest of the record alone. Body is exactly `{ beat_id }`;
+ * pass `null` to leave it unassigned. Because an outlet's distributors come from
+ * its beat, this is also what moves it between firms. 404s when the outlet or
+ * the beat is missing.
+ */
+export async function setRetailerBeat(id: string, beatId: string | null): Promise<void> {
+  try {
+    await http.patch<unknown>(endpoints.RETAILER.BEAT(id), {
+      beat_id: beatId ? toId(beatId) : null,
+    })
+  } catch (error) {
+    throw asApiError(error, 'Failed to allocate the beat.')
+  }
+}
+
+/**
  * PATCH /sales-incharge-admin/retailers/{id}/onboarding — review an outlet
  * captured in the field. Body is exactly `{ action: 'approve' | 'reject' }`.
  * Approving activates the outlet and assigns its nearest beat when it has none;

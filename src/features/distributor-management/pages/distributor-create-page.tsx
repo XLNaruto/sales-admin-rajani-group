@@ -19,7 +19,6 @@ import {
   useZoneSelect,
 } from "@/features/location";
 import {
-  DISTRIBUTOR_STATUSES,
   FIRM_TYPES,
   MARKET_SYSTEMS,
   MARKET_TYPES,
@@ -277,22 +276,6 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             <Input
               placeholder="Auto-generated if left blank"
               {...register("code")}
-            />
-          </Field>
-
-          <Field label="Status" error={errors.status?.message}>
-            <Controller
-              control={control}
-              name="status"
-              render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  options={DISTRIBUTOR_STATUSES}
-                  placeholder="Select…"
-                  searchable={false}
-                />
-              )}
             />
           </Field>
 

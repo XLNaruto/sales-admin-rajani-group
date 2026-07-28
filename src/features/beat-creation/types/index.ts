@@ -4,22 +4,28 @@
  */
 export type BeatGrade = 'urban' | 'semi_urban' | 'metro' | 'non_metro' | 'rural'
 
+/** A distributor attached to a beat — id plus its resolved label (if any). */
+export interface BeatDistributor {
+  id: string
+  /** Resolved distributor label from the API (falls back to the id). */
+  name: string
+}
+
 /** A beat as shown in the list — the core fields plus resolved labels. */
 export interface Beat {
   id: string
   beatName: string
   /** Free-form grade string from the API (may be empty). */
   beatGrade: string
-  distributorId: string
-  /** Resolved distributor label from the list endpoint (for display). */
-  distributorName?: string
+  /** Every distributor mapped to this beat (a beat can serve several). */
+  distributors: BeatDistributor[]
 }
 
 /** Body for creating/updating a beat (everything except the generated id). */
 export interface BeatInput {
   beatName: string
   beatGrade: BeatGrade
-  distributorId: string
+  distributorIds: string[]
 }
 
 /** Columns the list endpoint can sort by. */

@@ -46,6 +46,10 @@ const ONBOARDING_STYLES: Record<RetailerOnboardingStatus, string> = {
   rejected: 'border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-400',
 }
 
+/** Nothing worth rendering — null/undefined, a blank string or an empty node. */
+const isBlank = (v: React.ReactNode) =>
+  v == null || v === false || (typeof v === 'string' && v.trim() === '')
+
 /** A labelled read-only field. Spans both columns when `wide`. */
 function Field({
   label,
@@ -61,7 +65,9 @@ function Field({
       <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {label}
       </dt>
-      <dd className="mt-0.5 break-words text-sm text-foreground">{value ?? 'N/A'}</dd>
+      <dd className="mt-0.5 break-words text-sm text-foreground">
+        {isBlank(value) ? <span className="text-muted-foreground">N/A</span> : value}
+      </dd>
     </div>
   )
 }
@@ -124,16 +130,9 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
             <div>
               {/* Header */}
               <div className="flex items-center gap-4">
+                {/* Always the icon — the actual shop photo has its own section below. */}
                 <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-                  {data.shopPhotoUrl ? (
-                    <img
-                      src={data.shopPhotoUrl}
-                      alt={data.shopName}
-                      className="size-full object-cover"
-                    />
-                  ) : (
-                    <Store className="size-7" />
-                  )}
+                  <Store className="size-7" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-lg font-semibold text-foreground">
@@ -215,16 +214,18 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
               {data.shopPhotoUrl && (
                 <>
                   <SectionTitle>Shop Photo</SectionTitle>
+                  {/* Chat-app style preview: the whole photo stays visible inside a
+                      capped box, letterboxed on whichever axis is short. */}
                   <a
                     href={data.shopPhotoUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="block"
+                    className="block w-fit max-w-full overflow-hidden rounded-lg border border-border"
                   >
                     <img
                       src={data.shopPhotoUrl}
                       alt="Shop"
-                      className="h-40 w-full rounded-lg border border-border object-cover"
+                      className="max-h-40 w-auto max-w-64 object-contain"
                     />
                   </a>
                 </>

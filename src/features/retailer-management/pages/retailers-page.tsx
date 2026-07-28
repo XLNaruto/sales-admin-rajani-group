@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { Check, Eye, Pencil, Plus, Store, Trash2, X } from 'lucide-react'
+import { Check, Eye, Pencil, Plus, Route, Store, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { isForbiddenError } from '@/lib/api-error'
 import { cn } from '@/lib/utils'
 import { Forbidden } from '@/features/error'
+import { RetailerBeatDialog } from '../components/retailer-beat-dialog'
 import { RetailerDetailDialog } from '../components/retailer-detail-dialog'
 import { RetailerToolbar } from '../components/retailer-toolbar'
 import { useRetailersList } from '../hooks/use-retailers-list'
@@ -35,6 +36,7 @@ export function RetailersPage() {
     setPagination,
     sorting,
     onSortingChange,
+    refresh,
     isLoading,
     isError,
     error,
@@ -60,6 +62,8 @@ export function RetailersPage() {
   } = useRetailersList()
 
   const [viewId, setViewId] = useState<string | null>(null)
+  // Row whose beat mapping is being edited (null → modal closed).
+  const [beatTarget, setBeatTarget] = useState<Retailer | null>(null)
   const { can } = useCan()
 
   const columns = useMemo<ColumnDef<Retailer>[]>(
@@ -108,6 +112,17 @@ export function RetailersPage() {
                 <Eye className="size-4" />
               </button>
             </Hint>
+            {can('retailer-master:update') && (
+              <Hint label="Beat allocate">
+                <button
+                  type="button"
+                  onClick={() => setBeatTarget(row.original)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-violet-600/10 text-violet-600 transition-colors hover:bg-violet-600/20 dark:text-violet-400"
+                >
+                  <Route className="size-4" />
+                </button>
+              </Hint>
+            )}
             {can('retailer-master:delete') && (
               <Hint label="Delete">
                 <button
@@ -160,10 +175,21 @@ export function RetailersPage() {
               <p className="font-medium text-foreground whitespace-nowrap">
                 {row.original.shopName}
               </p>
-              <p className="text-xs text-muted-foreground">{row.original.code}</p>
             </div>
           </div>
         ),
+      },
+      {
+        accessorKey: 'code',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Retailer Code" />
+        ),
+        cell: ({ row }) =>
+          row.original.code ? (
+            <span className="font-mono text-xs text-foreground">{row.original.code}</span>
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          ),
       },
       {
         accessorKey: 'status',
@@ -247,6 +273,8 @@ export function RetailersPage() {
         accessorFn: (r) => r.outletTypeName,
         header: 'Outlet Type',
         enableSorting: false,
+        // Wide enough that the header stays on one line.
+        meta: { className: 'min-w-36 whitespace-nowrap' },
         cell: ({ row }) =>
           row.original.outletTypeName ? (
             <Badge variant="outline" className="font-medium">
@@ -281,17 +309,12 @@ export function RetailersPage() {
         id: 'city',
         accessorFn: (r) => r.cityName,
         header: ({ column }) => <DataTableColumnHeader column={column} title="City" />,
-        cell: ({ row }) => {
-          const { cityName, market } = row.original
-          if (!cityName && !market)
-            return <span className="text-muted-foreground">N/A</span>
-          return (
-            <div className="leading-tight">
-              <p className="text-sm text-foreground">{cityName || 'N/A'}</p>
-              {market && <p className="text-xs text-muted-foreground">{market}</p>}
-            </div>
-          )
-        },
+        cell: ({ row }) =>
+          row.original.cityName ? (
+            <span className="text-sm text-foreground">{row.original.cityName}</span>
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          ),
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -337,6 +360,7 @@ export function RetailersPage() {
             filters={filters}
             onChange={patchFilters}
             onReset={resetFilters}
+            refresh={refresh}
           />
         }
         emptyState={
@@ -366,6 +390,8 @@ export function RetailersPage() {
       />
 
       <RetailerDetailDialog id={viewId} onClose={() => setViewId(null)} />
+
+      <RetailerBeatDialog retailer={beatTarget} onClose={() => setBeatTarget(null)} />
 
       <ConfirmDialog
         open={pendingDelete !== null}

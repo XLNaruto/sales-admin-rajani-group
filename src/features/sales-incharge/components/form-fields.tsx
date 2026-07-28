@@ -492,7 +492,7 @@ export function MultiSelect({
               className="h-9 w-full rounded-md bg-transparent pl-8 pr-2 text-sm outline-none placeholder:text-muted-foreground"
             />
           </div>
-          <ul className="max-h-56 overflow-y-auto" role="listbox" aria-multiselectable>
+          <ul className="max-h-56 space-y-1 overflow-y-auto" role="listbox" aria-multiselectable>
             {filtered.length === 0 ? (
               <li className="px-2 py-2 text-sm text-muted-foreground">No results</li>
             ) : (

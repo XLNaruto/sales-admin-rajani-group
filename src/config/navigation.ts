@@ -5,6 +5,7 @@ import {
   Network,
   Building2,
   MapPinned,
+  Route,
   Store,
 } from "lucide-react";
 
@@ -33,7 +34,7 @@ export const navGroups: NavGroup[] = [
     items: [{ label: "Dashboard", to: "/dashboard", icon: LayoutDashboard }],
   },
   {
-    title: "Sales Network",
+    title: "Sales Incharge",
     items: [
       {
         label: "Sales Incharge",
@@ -42,11 +43,22 @@ export const navGroups: NavGroup[] = [
         permission: "sales-incharge:list",
       },
       {
-        label: "Sales Incharge Hierarchy",
+        label: "Hierarchy",
         to: "/sales-incharge/hierarchy",
         icon: Network,
         permission: "hierarchy:list",
       },
+      {
+        label: "Beat Allocation",
+        to: "/sales-incharge/beat-allocation",
+        icon: Route,
+        permission: "beat:allocate",
+      },
+    ],
+  },
+  {
+    title: "Network",
+    items: [
       {
         label: "Distributor Management",
         to: "/distributors",
@@ -62,13 +74,13 @@ export const navGroups: NavGroup[] = [
     ],
   },
   {
-    title: 'Beat Foundation',
+    title: "Beat Foundation",
     items: [
       {
-        label: 'Beat Creation',
-        to: '/beats',
+        label: "Beat Creation",
+        to: "/beats",
         icon: MapPinned,
-        permission: 'beat:list',
+        permission: "beat:list",
       },
     ],
   },

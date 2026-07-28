@@ -1,5 +1,6 @@
 import { ToggleLeft } from 'lucide-react'
 import { FilterBar, type FilterFacet } from '@/components/common/filter-bar'
+import type { RefreshState } from '@/components/common/refresh-control'
 
 export interface SalesmanFilters {
   search: string
@@ -10,10 +11,17 @@ interface SalesmanToolbarProps {
   filters: SalesmanFilters
   onChange: (patch: Partial<SalesmanFilters>) => void
   onReset: () => void
+  /** Refresh button + "Fetched x ago" shown in the filter card. */
+  refresh?: RefreshState
 }
 
 /** Filter card above the sales-incharge table — driven by the shared FilterBar. */
-export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarProps) {
+export function SalesmanToolbar({
+  filters,
+  onChange,
+  onReset,
+  refresh,
+}: SalesmanToolbarProps) {
   const facets: FilterFacet[] = [
     {
       key: 'status',
@@ -39,6 +47,7 @@ export function SalesmanToolbar({ filters, onChange, onReset }: SalesmanToolbarP
       }}
       facets={facets}
       onReset={onReset}
+      refresh={refresh}
     />
   )
 }

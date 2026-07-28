@@ -1,11 +1,24 @@
-import { ArrowLeft, ListChecks, Plus, Trash2, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Hash,
+  ListChecks,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  Trash2,
+  UserRound,
+  type LucideIcon,
+} from "lucide-react";
 import { isForbiddenError } from "@/lib/api-error";
 import { decryptParams } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Combobox } from "@/components/ui/combobox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BeatAllocationPanel } from "../components/beat-allocation-panel";
 import { useBeatAllocation } from "../hooks/use-beat-allocation";
@@ -25,17 +38,29 @@ const STATUS_STYLES: Record<SalesInchargeStatus, string> = {
   inactive: "border-border bg-muted text-muted-foreground",
 };
 
-/** A compact labelled fact in the detail header. */
-function HeaderFact({ label, value }: { label: string; value: string | null }) {
+/**
+ * One fact in the detail header, as an icon + value chip. Chips wrap and size to
+ * their content (no reserved grid column), and a fact with no value renders
+ * nothing at all rather than an empty placeholder.
+ */
+function HeaderChip({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string | null;
+}) {
+  if (!value) return null;
   return (
-    <div className="min-w-0">
-      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="mt-0.5 truncate text-sm font-medium text-foreground">
-        {value || "N/A"}
-      </dd>
-    </div>
+    <span
+      title={`${label}: ${value}`}
+      className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground"
+    >
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="truncate">{value}</span>
+    </span>
   );
 }
 
@@ -47,12 +72,18 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
 
   const {
     goBack,
+    incharge,
+    hasSelection,
     detail,
     available,
     allocated,
     listError,
     addBeat,
     removeBeat,
+    pendingRemove,
+    setPendingRemove,
+    confirmRemoveBeat,
+    isRemoving,
     pendingId,
     isMutating,
   } = useBeatAllocation(id || undefined);
@@ -73,39 +104,37 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
         }
       />
 
-      {/* Sales incharge detail header */}
-      <div className="mb-6 rounded-xl border border-border/50 bg-card p-5 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent">
-        {detail.isLoading ? (
-          <div className="flex items-center gap-4">
-            <Skeleton className="size-14 rounded-full" />
-            <div className="flex-1 space-y-2">
-              <Skeleton className="h-5 w-48" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-          </div>
-        ) : detail.isError || !detail.data ? (
-          <p className="text-sm text-rose-600 dark:text-rose-400">
-            Couldn't load this sales incharge. Please go back and try again.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-4">
-              {detail.data.profilePhotoUrl ? (
-                <img
-                  src={detail.data.profilePhotoUrl}
-                  alt={detail.data.displayName}
-                  className="size-14 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <span className="grid size-14 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-                  <UserRound className="size-6" />
-                </span>
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-lg font-semibold text-foreground">
-                  {detail.data.displayName}
-                </p>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
+      {/* Sales incharge header — the name itself is the incharge picker. */}
+      <div className="mb-6 rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent">
+        <div className="flex items-center gap-4">
+          {detail.data?.profilePhotoUrl ? (
+            <img
+              src={detail.data.profilePhotoUrl}
+              alt={detail.data.displayName}
+              className="size-12 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
+              <UserRound className="size-5" />
+            </span>
+          )}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <Combobox
+                variant="inline"
+                withAvatars
+                placeholder="Select sales incharge"
+                searchPlaceholder="Search sales incharge…"
+                value={incharge.value}
+                onChange={incharge.onChange}
+                options={incharge.options}
+                loading={incharge.loading}
+                onScrollEnd={incharge.onScrollEnd}
+                onSearchChange={incharge.onSearchChange}
+              />
+              {detail.data && (
+                <>
                   <Badge
                     variant="outline"
                     className={cn(
@@ -121,21 +150,49 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
                       {detail.data.designation}
                     </Badge>
                   )}
-                </div>
-              </div>
+                </>
+              )}
             </div>
 
-            <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 sm:border-l sm:border-border sm:pl-6 lg:grid-cols-4">
-              <HeaderFact
-                label="Employee Code"
-                value={detail.data.employeeCode}
-              />
-              <HeaderFact label="Mobile" value={detail.data.phone} />
-              <HeaderFact label="Territory" value={detail.data.territory} />
-              <HeaderFact label="Email" value={detail.data.email} />
-            </dl>
+            {!hasSelection && !incharge.loading && incharge.options.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No sales incharge found to allocate beats for.
+              </p>
+            ) : !hasSelection || detail.isLoading ? (
+              <div className="mt-2 flex items-center gap-2">
+                <Skeleton className="h-6 w-32 rounded-full" />
+                <Skeleton className="h-6 w-48 rounded-full" />
+              </div>
+            ) : detail.isError || !detail.data ? (
+              <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+                Couldn't load this sales incharge. Pick another one above.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <HeaderChip
+                  icon={Phone}
+                  label="Mobile"
+                  value={detail.data.phone}
+                />
+                <HeaderChip
+                  icon={Mail}
+                  label="Email"
+                  value={detail.data.email}
+                />
+                <HeaderChip
+                  icon={Hash}
+                  label="Employee code"
+                  value={detail.data.employeeCode}
+                />
+                <HeaderChip
+                  icon={MapPin}
+                  label="Territory"
+                  value={detail.data.territory}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Two panels: available beats (Add) · allocated beats (Remove) */}
@@ -151,6 +208,7 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           search={available.search}
           onSearchChange={available.setSearch}
           searchPlaceholder="Search available beats…"
+          refresh={available.refresh}
           onLoadMore={available.onLoadMore}
           hasMore={available.hasMore}
           isFetchingMore={available.isFetchingMore}
@@ -185,6 +243,7 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           search={allocated.search}
           onSearchChange={allocated.setSearch}
           searchPlaceholder="Search allocated beats…"
+          refresh={allocated.refresh}
           pagination={allocated.pagination}
           onPaginationChange={(updater) =>
             allocated.setPagination(
@@ -205,6 +264,31 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
           emptyLabel="No beats allocated yet."
         />
       </div>
+
+      {/* Removing an allocated beat is confirmed first. */}
+      <ConfirmDialog
+        open={Boolean(pendingRemove)}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        variant="destructive"
+        icon={Trash2}
+        title="Remove this beat?"
+        description={
+          pendingRemove ? (
+            <>
+              <span className="font-medium text-foreground">
+                {pendingRemove.beatName}
+              </span>{" "}
+              will no longer be allocated to{" "}
+              {detail.data?.displayName ?? "this sales incharge"}.
+            </>
+          ) : undefined
+        }
+        confirmLabel="Remove"
+        cancelLabel="Cancel"
+        onConfirm={confirmRemoveBeat}
+        loading={isRemoving}
+        keepOpenOnConfirm
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { presignResponseSchema, putToStorage, uploadFiles } from '@/lib/upload'
 import {
   distributorDetailSchema,
   distributorListResponseSchema,
+  distributorProductDivisionsResponseSchema,
   type DistributorRow,
 } from '../schemas'
 import type { DistributorFormValues } from '../lib/distributor-form'
@@ -39,6 +40,7 @@ function toDistributor(row: DistributorRow): Distributor {
     code: row.distributor_code ?? '',
     status: row.status as DistributorStatus,
     onboardingStatus: row.onboarding_status,
+    productDivisionIds: row.product_divisions?.map(String) ?? undefined,
     productDivisionNames: row.product_division_names ?? undefined,
     // Fields not returned by the list endpoint — filled on the detail screen.
     officeAddress: '',
@@ -473,6 +475,30 @@ export async function deleteDistributor(id: string): Promise<void> {
 }
 
 /** PATCH /sales-incharge-admin/distributors/{id}/status — change the lifecycle status. */
+/**
+ * PATCH /sales-incharge-admin/distributors/{id}/product-divisions — category
+ * mapping. The body carries the *complete* new set of division ids: it replaces
+ * whatever was mapped before, and `[]` clears the mapping entirely. Returns the
+ * mapping as the server stored it (ids + resolved names).
+ */
+export async function updateDistributorProductDivisions(
+  id: string,
+  productDivisionIds: string[],
+): Promise<{ ids: string[]; names: string[] }> {
+  try {
+    const raw = await http.patch<unknown>(endpoints.DISTRIBUTOR.PRODUCT_DIVISIONS(id), {
+      product_divisions: productDivisionIds.map(Number).filter((n) => Number.isFinite(n)),
+    })
+    const res = distributorProductDivisionsResponseSchema.parse(raw)
+    return {
+      ids: res.product_divisions?.map(String) ?? [],
+      names: res.product_division_names ?? [],
+    }
+  } catch (error) {
+    throw asApiError(error, 'Failed to update the category mapping.')
+  }
+}
+
 export async function setDistributorStatus(
   id: string,
   status: DistributorLifecycleStatus,

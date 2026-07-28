@@ -66,8 +66,9 @@ export function BadgeOverflowList({
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="max-w-md" onClose={() => setOpen(false)}>
+          {/* Leave room for the close button so long titles don't run under it. */}
+          <DialogHeader className="pr-8">
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>
               {items.length} {itemLabel}

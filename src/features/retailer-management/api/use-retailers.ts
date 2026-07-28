@@ -12,6 +12,7 @@ import {
   fetchRetailer,
   fetchRetailerDetail,
   fetchRetailers,
+  setRetailerBeat,
   setRetailerStatus,
   updateRetailer,
   updateRetailerOnboarding,
@@ -132,6 +133,24 @@ export function useSetRetailerStatus() {
     mutationFn: ({ id, status }: { id: string; status: RetailerLifecycleStatus }) =>
       setRetailerStatus(id, status),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.retailers.all }),
+  })
+}
+
+/**
+ * PATCH /sales-incharge-admin/retailers/{id}/beat — allocate the outlet to a
+ * beat (`null` unassigns), then refresh the list and that record's detail. Beats
+ * are also invalidated since their retailer coverage changes.
+ */
+export function useSetRetailerBeat() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, beatId }: { id: string; beatId: string | null }) =>
+      setRetailerBeat(id, beatId),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.retailers.all })
+      qc.invalidateQueries({ queryKey: queryKeys.retailers.detail(id) })
+      qc.invalidateQueries({ queryKey: queryKeys.beats.all })
+    },
   })
 }
 
