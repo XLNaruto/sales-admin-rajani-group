@@ -129,20 +129,23 @@ export function FileInput({
               href={mediaUrl(path)}
               target="_blank"
               rel="noopener noreferrer"
-              title={baseName(path)}
               className="group/thumb relative size-10 shrink-0 overflow-hidden rounded-md border border-primary/30 bg-muted/30"
             >
-              {isImagePath(path) ? (
-                <img
-                  src={mediaUrl(path)}
-                  alt={baseName(path)}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="flex size-full items-center justify-center text-primary">
-                  <FileText className="size-4" />
-                </span>
-              )}
+              {/* The hint sits on the thumbnail, not the anchor: the remove button
+                  below carries its own, and nesting the two would open both. */}
+              <Hint label={baseName(path)}>
+                {isImagePath(path) ? (
+                  <img
+                    src={mediaUrl(path)}
+                    alt={baseName(path)}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span className="flex size-full items-center justify-center text-primary">
+                    <FileText className="size-4" />
+                  </span>
+                )}
+              </Hint>
 
               {onRemoveExisting && (
                 <Hint label="Remove">
@@ -166,20 +169,21 @@ export function FileInput({
               href={previews[i]}
               target="_blank"
               rel="noopener noreferrer"
-              title={file.name}
               className="group/thumb relative size-10 shrink-0 overflow-hidden rounded-md border border-primary/30 bg-muted/30"
             >
-              {file.type.startsWith('image/') && previews[i] ? (
-                <img
-                  src={previews[i]}
-                  alt={file.name}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="flex size-full items-center justify-center text-primary">
-                  <FileText className="size-4" />
-                </span>
-              )}
+              <Hint label={file.name}>
+                {file.type.startsWith('image/') && previews[i] ? (
+                  <img
+                    src={previews[i]}
+                    alt={file.name}
+                    className="size-full object-cover"
+                  />
+                ) : (
+                  <span className="flex size-full items-center justify-center text-primary">
+                    <FileText className="size-4" />
+                  </span>
+                )}
+              </Hint>
 
               <Hint label="Remove">
                 <button

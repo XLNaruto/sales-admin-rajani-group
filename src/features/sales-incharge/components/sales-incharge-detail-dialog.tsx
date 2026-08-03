@@ -165,7 +165,6 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
             <SectionTitle>Employment</SectionTitle>
             <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
               <Field label="Employee Code" value={data.employeeCode} />
-              <Field label="Territory" value={data.territory} />
               <Field
                 label="Date Of Joining"
                 value={formatDate(data.dateOfJoining)}

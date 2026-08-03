@@ -2,7 +2,7 @@
  * Beat grade — the market classification a beat falls under. Server-side `grade`
  * is a free string; this enum is the fixed set the create/edit form offers.
  */
-export type BeatGrade = 'urban' | 'semi_urban' | 'metro' | 'non_metro' | 'rural'
+export type BeatGrade = 'local' | 'rural'
 
 /** A distributor attached to a beat — id plus its resolved label (if any). */
 export interface BeatDistributor {

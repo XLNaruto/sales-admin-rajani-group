@@ -119,6 +119,32 @@ export const queryKeys = {
         filters ?? {},
       ] as const,
   },
+  /** Journey management — plans, the activity master and the live field day. */
+  journey: {
+    all: ['journey'] as const,
+    /** GET /journey-plans — the approval queue (period + server-side filters). */
+    plans: (filters?: Record<string, unknown>) =>
+      [...queryKeys.journey.all, 'plans', filters ?? {}] as const,
+    /** GET /journey-plans/summary — the period's counts + filter options. */
+    planSummary: (periodMonth: string) =>
+      [...queryKeys.journey.all, 'plan-summary', periodMonth] as const,
+    /** GET /journey-plans/{id} — one rep's month, with days + flags. */
+    plan: (id: string) => [...queryKeys.journey.all, 'plan', id] as const,
+    /** GET /journey-plans/reps — the rep switcher's options for a period. */
+    reps: (periodMonth: string) =>
+      [...queryKeys.journey.all, 'reps', periodMonth] as const,
+    /** GET /journey-plans/{id}/agent — the AI agent's transcript. */
+    agent: (planId: string) => [...queryKeys.journey.all, 'agent', planId] as const,
+    /** GET /activities — the activity master behind the day dropdown. */
+    activities: (filters?: Record<string, unknown>) =>
+      [...queryKeys.journey.all, 'activities', filters ?? {}] as const,
+    /** GET /live-day/summaries — a window of field days (max 31). */
+    liveDays: (filters?: Record<string, unknown>) =>
+      [...queryKeys.journey.all, 'live-days', filters ?? {}] as const,
+    /** GET /live-day/detail — one field day's timeline + route. */
+    liveDay: (inchargeId: string, date: string) =>
+      [...queryKeys.journey.all, 'live-day', inchargeId, date] as const,
+  },
   notifications: {
     all: ['notifications'] as const,
     list: () => [...queryKeys.notifications.all, 'list'] as const,

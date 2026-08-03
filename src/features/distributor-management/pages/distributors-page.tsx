@@ -206,41 +206,42 @@ export function DistributorsPage() {
         cell: ({ row }) => {
           const active = row.original.status === "active";
           return (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={active}
-              title={active ? "Set inactive" : "Set active"}
-              disabled={isSettingStatus}
-              onClick={() =>
-                changeStatus(row.original.id, active ? "inactive" : "active")
-              }
-              className="inline-flex min-w-28 cursor-pointer items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <span
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
-                  active ? "bg-emerald-500" : "bg-muted-foreground/30",
-                )}
+            <Hint label={active ? "Set inactive" : "Set active"}>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={active}
+                disabled={isSettingStatus}
+                onClick={() =>
+                  changeStatus(row.original.id, active ? "inactive" : "active")
+                }
+                className="inline-flex min-w-28 cursor-pointer items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <span
                   className={cn(
-                    "inline-block size-4 transform rounded-full bg-white shadow transition-transform",
-                    active ? "translate-x-4.5" : "translate-x-0.5",
+                    "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
+                    active ? "bg-emerald-500" : "bg-muted-foreground/30",
                   )}
-                />
-              </span>
-              <span
-                className={cn(
-                  "text-xs font-medium",
-                  active
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-muted-foreground",
-                )}
-              >
-                {active ? "Active" : "Inactive"}
-              </span>
-            </button>
+                >
+                  <span
+                    className={cn(
+                      "inline-block size-4 transform rounded-full bg-white shadow transition-transform",
+                      active ? "translate-x-4.5" : "translate-x-0.5",
+                    )}
+                  />
+                </span>
+                <span
+                  className={cn(
+                    "text-xs font-medium",
+                    active
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {active ? "Active" : "Inactive"}
+                </span>
+              </button>
+            </Hint>
           );
         },
       },

@@ -29,7 +29,6 @@ const SORT_BY_COLUMN: Record<string, SalesInchargeSortBy> = {
   displayName: "display_name",
   employeeCode: "employee_code",
   designation: "designation_id",
-  territory: "territory",
   dateOfJoining: "date_of_joining",
 };
 

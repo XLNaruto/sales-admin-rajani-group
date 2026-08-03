@@ -7,6 +7,9 @@ import {
   MapPinned,
   Route,
   Store,
+  ClipboardCheck,
+  CalendarRange,
+  Map,
 } from "lucide-react";
 
 export interface NavItem {
@@ -84,10 +87,35 @@ export const navGroups: NavGroup[] = [
       },
     ],
   },
+  {
+    title: "Journey Management",
+    items: [
+      {
+        label: "Approval Queue",
+        to: "/journey/approvals",
+        icon: ClipboardCheck,
+        permission: "journey-plan:list",
+      },
+      {
+        label: "Journey Plan",
+        to: "/journey/plan",
+        icon: CalendarRange,
+        permission: "journey-plan:read",
+      },
+      {
+        label: "Live Map",
+        to: "/journey/live-map",
+        icon: Map,
+        permission: "live-day:read",
+      },
+    ],
+  },
 ];
 
 /** Page names for routes that don't appear in the sidebar (auth, errors, etc.). */
 const extraTitles: Record<string, string> = {
+  // Opened from a day card on the Live Map, so it has no sidebar item of its own.
+  "/journey/live-day": "Day Trail",
   "/profile": "My Profile",
   "/login": "Login",
   "/verify-otp": "Verify OTP",
@@ -101,6 +129,26 @@ const routableNavItems = navGroups
   .flatMap((item) => [item, ...(item.children ?? [])])
   .filter((item): item is NavItem & { to: string } => Boolean(item.to))
   .sort((a, b) => b.to.length - a.to.length);
+
+/**
+ * Landing page for a section that has no index route of its own.
+ *
+ * `/journey` is only a path prefix — nothing is mounted on it — so the breadcrumb's
+ * middle crumb has to point at the section's main screen instead of 404-ing.
+ */
+const sectionLanding: Record<string, string> = {
+  "/journey": "/journey/plan",
+};
+
+/**
+ * Where a breadcrumb crumb for `pathname` should link, or undefined when that path
+ * isn't navigable — those crumbs render as plain text rather than dead links.
+ */
+export function crumbTarget(pathname: string): string | undefined {
+  if (sectionLanding[pathname]) return sectionLanding[pathname];
+  if (routableNavItems.some((item) => item.to === pathname)) return pathname;
+  return extraTitles[pathname] ? pathname : undefined;
+}
 
 /** Human-readable page name for a pathname, or undefined if unknown. */
 export function pageNameForPath(pathname: string): string | undefined {

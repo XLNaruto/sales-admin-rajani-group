@@ -104,13 +104,13 @@ export interface BeatEditRecord {
 }
 
 /** Known grades the form offers — anything else falls back to the default. */
-const KNOWN_GRADES = ['urban', 'semi_urban', 'metro', 'non_metro', 'rural'] as const
+const KNOWN_GRADES = ['local', 'rural'] as const
 
-/** Coerce the API's free-form grade to a form grade (defaults to `urban`). */
+/** Coerce the API's free-form grade to a form grade (defaults to `local`). */
 function toFormGrade(grade?: string | null): BeatFormValues['beatGrade'] {
   return (KNOWN_GRADES as readonly string[]).includes(grade ?? '')
     ? (grade as BeatFormValues['beatGrade'])
-    : 'urban'
+    : 'local'
 }
 
 /** GET /sales-incharge-admin/beats/{id} — a single beat as form-ready values. */

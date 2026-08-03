@@ -137,6 +137,66 @@ export const endpoints = {
     TALUKAS: '/sales-incharge-admin/talukas',
     CITIES: '/sales-incharge-admin/cities',
   },
+  /**
+   * Journey plans — one sales incharge's month of daily beat visits, produced by
+   * the planning solver and reviewed in the approval queue. Every edit returns
+   * the whole plan detail, so callers replace their state rather than patch it.
+   */
+  JOURNEY_PLAN: {
+    /** GET one page of the month's plans (page-based, server-filtered/sorted). */
+    LIST: '/sales-incharge-admin/journey-plans',
+    /**
+     * GET ?period_month= — the period's counts and the Filters panel's options.
+     * Deliberately separate from LIST: it ignores the list's filters, so the tab
+     * badges keep their numbers after a tab is clicked.
+     */
+    SUMMARY: '/sales-incharge-admin/journey-plans/summary',
+    /** POST { period_month, sales_incharge_ids?, supersede_existing?, seed? }. */
+    GENERATE: '/sales-incharge-admin/journey-plans/generate',
+    /** POST { journey_plan_ids } — refuses flagged plans, reports per-id outcomes. */
+    BULK_APPROVE: '/sales-incharge-admin/journey-plans/bulk-approve',
+    /** GET the rep switcher's options for a period (carries each plan id). */
+    REPS: '/sales-incharge-admin/journey-plans/reps',
+    GET: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
+    APPROVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/approve`,
+    /** POST { pinned_dates?, seed? } — supersedes the plan and returns a diff. */
+    RE_SOLVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/re-solve`,
+    /** PATCH { activity_id, reason?, joint_working_sales_incharge_id? }. */
+    DAY: (id: string | number, dayId: string | number) =>
+      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}`,
+    /** POST { beat_id } — add a beat to the day. */
+    DAY_BEATS: (id: string | number, dayId: string | number) =>
+      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}/beats`,
+    DAY_BEAT: (id: string | number, dayId: string | number, beatId: string | number) =>
+      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}/beats/${beatId}`,
+    /**
+     * GET the plan's AI-agent conversation. The GET is what authorizes the
+     * socket room join (it records a short-lived grant), so it must precede it.
+     */
+    AGENT: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/agent`,
+    /** POST { message } → 202 accepted; the reply streams over the socket. */
+    AGENT_MESSAGES: (id: string | number) =>
+      `/sales-incharge-admin/journey-plans/${id}/agent/messages`,
+  },
+  /**
+   * Activity master — what a plan day is spent on. The three booleans
+   * (`requires_beat`, `is_working_day`, `counts_toward_coverage`) are read by
+   * the solver; `company_id: null` marks the seeded platform rows, which no
+   * tenant may edit.
+   */
+  ACTIVITY: {
+    LIST: '/sales-incharge-admin/activities',
+    CREATE: '/sales-incharge-admin/activities',
+    UPDATE: (id: string | number) => `/sales-incharge-admin/activities/${id}`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/activities/${id}`,
+  },
+  /** The field day as it actually happened — attendance, calls, route. */
+  LIVE_DAY: {
+    /** GET ?sales_incharge_id&from_date&to_date — one entry per date (max 31). */
+    SUMMARIES: '/sales-incharge-admin/live-day/summaries',
+    /** GET ?sales_incharge_id&date — counters, timeline, route, misses, facets. */
+    DETAIL: '/sales-incharge-admin/live-day/detail',
+  },
   /** Firebase Cloud Messaging — register/refresh this device's push token. */
   FCM: {
     /** POST { token, platform?, device_id? } — idempotent per token. */

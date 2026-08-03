@@ -115,11 +115,14 @@ export function BeatAllocationPanel({
         accessorKey: 'beatGrade',
         header: 'Grade',
         enableSorting: false,
-        cell: ({ row }) => (
-          <Badge variant="outline" className="font-medium">
-            {gradeLabel(row.original.beatGrade)}
-          </Badge>
-        ),
+        cell: ({ row }) =>
+          row.original.beatGrade ? (
+            <Badge variant="outline" className="font-medium">
+              {gradeLabel(row.original.beatGrade)}
+            </Badge>
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          ),
       },
       {
         id: 'action',

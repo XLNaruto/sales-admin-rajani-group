@@ -32,13 +32,13 @@ export function useSalesInchargeSelect(): SalesInchargeSelect {
   });
 
   const items = query.data?.pages.flatMap((p) => p.items) ?? [];
-  // Each row carries its code as a badge and its designation/territory as the
-  // secondary line, so similar names stay distinguishable in the dropdown.
+  // Each row carries its code as a badge and its designation as the secondary
+  // line, so similar names stay distinguishable in the dropdown.
   const options = items.map((s) => ({
     value: String(s.id),
     label: s.displayName,
     badge: s.employeeCode ? `#${s.employeeCode}` : undefined,
-    hint: s.designation ?? s.territory ?? undefined,
+    hint: s.designation ?? undefined,
     avatarUrl: s.profilePhotoUrl,
   }));
 

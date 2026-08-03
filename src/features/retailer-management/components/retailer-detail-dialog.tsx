@@ -181,7 +181,7 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
                 />
               </dl>
 
-              <SectionTitle>Address &amp; Territory</SectionTitle>
+              <SectionTitle>Address</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                 <Field label="Address Line" value={data.addressLine} wide />
                 <Field label="Address" value={data.address} wide />

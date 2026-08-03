@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { MapPin, Search, X } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/use-google-maps'
+import { Hint } from '@/components/common/hint'
 import { Input } from '@/components/ui/input'
 
 export interface PlaceResult {
@@ -135,21 +136,23 @@ export function PlaceSearchInput({
         disabled={!ready}
       />
       {query ? (
-        <button
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            setQuery('')
-            setPredictions([])
-            setListOpen(false)
-            inputRef.current?.focus()
-            onClear?.()
-          }}
-          title="Clear search"
-          className="absolute right-2 top-1/2 z-10 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
+        <Hint label="Clear search">
+          <button
+            type="button"
+            aria-label="Clear search"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              setQuery('')
+              setPredictions([])
+              setListOpen(false)
+              inputRef.current?.focus()
+              onClear?.()
+            }}
+            className="absolute right-2 top-1/2 z-10 grid size-6 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        </Hint>
       ) : null}
       {listOpen && predictions.length > 0 ? (
         <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-auto rounded-md border border-border bg-popover py-1 shadow-lg">

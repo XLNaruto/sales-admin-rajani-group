@@ -3,7 +3,6 @@ import {
   Hash,
   ListChecks,
   Mail,
-  MapPin,
   Phone,
   Plus,
   Trash2,
@@ -183,11 +182,6 @@ export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
                   icon={Hash}
                   label="Employee code"
                   value={detail.data.employeeCode}
-                />
-                <HeaderChip
-                  icon={MapPin}
-                  label="Territory"
-                  value={detail.data.territory}
                 />
               </div>
             )}

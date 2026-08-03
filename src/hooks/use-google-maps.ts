@@ -31,7 +31,8 @@ function loadGoogleMaps(): Promise<void> {
     script.async = true
     script.defer = true
     // `v=weekly` guarantees the newer PlaceAutocompleteElement (Places API New).
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${env.VITE_GOOGLE_MAPS_KEY}&libraries=places&v=weekly`
+    // `geometry` carries the polyline codec the Routes API's responses need.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${env.VITE_GOOGLE_MAPS_KEY}&libraries=places,geometry&v=weekly`
     script.onload = () => resolve()
     script.onerror = () => {
       loadPromise = null // allow a retry on a later mount

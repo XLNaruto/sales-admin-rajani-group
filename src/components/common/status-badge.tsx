@@ -9,6 +9,8 @@ const MAP: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 's
   online: 'success',
   paid: 'success',
   pending: 'warning',
+  'pending-approval': 'warning',
+  'sent-back': 'destructive',
   'in-progress': 'warning',
   'in-review': 'warning',
   scheduled: 'default',
@@ -26,6 +28,7 @@ const MAP: Record<string, 'default' | 'success' | 'warning' | 'destructive' | 's
 /** Maps a domain status string to a coloured badge. */
 export function StatusBadge({ status }: { status: Status }) {
   const key = status.toLowerCase().replace(/\s+/g, '-')
-  const variant = MAP[key] ?? 'secondary'
+  // Fall back to the leading word so phrasings like "approved on 12 Jul" still colour.
+  const variant = MAP[key] ?? MAP[key.split('-')[0]] ?? 'secondary'
   return <Badge variant={variant}>{status}</Badge>
 }

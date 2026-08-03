@@ -10,6 +10,8 @@ export {
   useDeleteSalesIncharge,
 } from './api/use-sales-incharge'
 export { hierarchyTreeQueryOptions } from './api/use-hierarchy'
+export { useSalesInchargeSelect } from './hooks/use-sales-incharge-select'
+export type { SalesInchargeSelect } from './hooks/use-sales-incharge-select'
 export type {
   Salesman,
   SalesmanInput,

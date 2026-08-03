@@ -113,7 +113,7 @@ export function useBeatAllocation(urlInchargeId: string | undefined) {
         value: String(selected.id),
         label: selected.displayName,
         badge: selected.employeeCode ? `#${selected.employeeCode}` : undefined,
-        hint: selected.designation ?? selected.territory ?? undefined,
+        hint: selected.designation ?? undefined,
         avatarUrl: selected.profilePhotoUrl,
       },
       ...options,

@@ -15,7 +15,7 @@ export interface ComboboxOption {
   value: string
   /** Small badge shown after the label in the list (e.g. an employee code). */
   badge?: string
-  /** Muted secondary line under the label (e.g. a designation or territory). */
+  /** Muted secondary line under the label (e.g. a designation). */
   hint?: string
   /** Avatar image for the option; initials of `label` are used when absent. */
   avatarUrl?: string
@@ -73,6 +73,10 @@ interface ComboboxProps {
   variant?: 'input' | 'inline'
   /** Show a leading avatar per option (`avatarUrl`, else initials). */
   withAvatars?: boolean
+  /** Read-only: the trigger shows the current label but won't open. */
+  disabled?: boolean
+  /** Accessible name for the trigger when there's no visible label beside it. */
+  'aria-label'?: string
 }
 
 /** Trigger `onScrollEnd` when scrolled within this many px of the bottom. */
@@ -109,6 +113,8 @@ export function Combobox({
   clearable = false,
   variant = 'input',
   withAvatars = false,
+  disabled = false,
+  'aria-label': ariaLabel,
 }: ComboboxProps) {
   const inline = variant === 'inline'
   const [open, setOpen] = useState(false)
@@ -208,15 +214,26 @@ export function Combobox({
     >
       <button
         type="button"
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={ariaLabel}
         className={cn(
-          'flex cursor-pointer items-center gap-2 rounded-md transition-colors',
+          'flex items-center gap-2 rounded-md transition-colors',
           inline
-            ? '-mx-1 px-1 py-0.5 text-base font-semibold text-foreground hover:bg-accent/60'
-            : 'h-9 w-full max-w-full border border-input bg-transparent px-3 text-sm text-foreground hover:border-ring/40',
-          open && (inline ? 'bg-accent/60' : 'ring-1 ring-ring'),
+            ? '-mx-1 px-1 py-0.5 text-base font-semibold text-foreground'
+            : 'h-9 w-full max-w-full border border-input bg-transparent px-3 text-sm text-foreground',
+          disabled
+            ? cn(
+                'cursor-not-allowed text-muted-foreground',
+                !inline && 'border-transparent bg-muted/40',
+              )
+            : cn(
+                'cursor-pointer',
+                inline ? 'hover:bg-accent/60' : 'hover:border-ring/40',
+                open && (inline ? 'bg-accent/60' : 'ring-1 ring-ring'),
+              ),
         )}
       >
         {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
@@ -232,7 +249,7 @@ export function Combobox({
         >
           {selected?.label ?? placeholder ?? ''}
         </span>
-        {clearable && value ? (
+        {clearable && value && !disabled ? (
           <span
             role="button"
             aria-label="Clear selection"
@@ -256,7 +273,9 @@ export function Combobox({
         />
       </button>
 
-      {open && coords
+      {/* `!disabled` too: a control that goes disabled while its panel is open
+          must close, not leave an orphan popover behind. */}
+      {open && coords && !disabled
         ? createPortal(
             <div
               ref={panelRef}

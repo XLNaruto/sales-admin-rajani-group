@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { useOtpSessionStore } from '@/stores/otp-session-store'
 import { useCompanyStore } from '@/stores/company-store'
+import { disconnectSocket } from '@/lib/realtime'
 import { confirmOtp, firebaseSignOut, sendOtp } from './firebase-phone-auth'
 import { accountCheck, loginWithIdToken, logoutRequest } from './auth-api'
 import type { AuthSession } from '../types'
@@ -74,6 +75,9 @@ export function useLogout() {
       logout()
       clearOtpSession()
       clearCompany()
+      // The realtime socket authenticates with the access token we just dropped —
+      // tear it down so the next session builds a fresh one with its own token.
+      disconnectSocket()
     },
   })
 }

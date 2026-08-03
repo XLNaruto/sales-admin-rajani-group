@@ -599,11 +599,59 @@
   animation: dialog-pop 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Side sheet — panel slides in from the right edge. */
+@keyframes sheet-slide {
+  0% {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.sheet-slide {
+  animation: sheet-slide 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Chat thread — each bubble rises in, and a three-dot "typing" pulse. */
+@keyframes bubble-in {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.bubble-in {
+  animation: bubble-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+.typing-dot {
+  animation: typing-dot 1.1s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .toast-pop,
   .icon-pop,
   .dialog-overlay,
-  .dialog-pop {
+  .dialog-pop,
+  .sheet-slide,
+  .bubble-in,
+  .typing-dot {
     animation: none;
   }
 }

@@ -1,5 +1,6 @@
 import { FileUploader } from 'react-drag-drop-files'
 import { FileText, Plus, UploadCloud, X } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import { toasterrormsg } from '@/lib/toast'
 import { mediaUrl } from '@/lib/media'
@@ -177,17 +178,18 @@ export function MultiFileDropzone({
                   className="object-cover"
                 />
               ) : (
-                <button
-                  type="button"
-                  onClick={() => openFilePreview(file, mediaUrl(file.url))}
-                  title={file.name}
-                  className="flex size-full items-center gap-3 p-3 text-left text-primary"
-                >
-                  <FileText className="size-6 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate pr-6 text-xs font-medium text-foreground">
-                    {file.name}
-                  </span>
-                </button>
+                <Hint label={file.name}>
+                  <button
+                    type="button"
+                    onClick={() => openFilePreview(file, mediaUrl(file.url))}
+                    className="flex size-full items-center gap-3 p-3 text-left text-primary"
+                  >
+                    <FileText className="size-6 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate pr-6 text-xs font-medium text-foreground">
+                      {file.name}
+                    </span>
+                  </button>
+                </Hint>
               )}
               <button
                 type="button"
