@@ -177,8 +177,10 @@ export const journeyPlanDetailSchema = z.object({
   flag_summary: z
     .object({
       remaining_count: int,
-      remaining_beat_count: int,
-      remaining_outlet_count: int,
+      /** The remainder split by flag code — the client words each code itself. */
+      remaining_by_code: z
+        .record(z.string(), z.object({ count: int, outlet_count: nullableInt }))
+        .nullish(),
     })
     .nullish(),
   flag_count: int,

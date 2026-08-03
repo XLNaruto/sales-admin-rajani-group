@@ -5,7 +5,8 @@
  * outlet exposure behind each flag are all computed there, and `flags[]` is
  * capped with the tail rolled into `flagSummary`. The client cannot recompute
  * that remainder: it never received the beats it summarises. So this module only
- * chooses wording, category and severity, and appends the rollup as a final row.
+ * chooses wording, category and severity, and appends the remainder — one row per
+ * flag code in `flagSummary.remainingByCode` — after the listed flags.
  */
 import { format, parseISO } from 'date-fns'
 import type {
@@ -13,6 +14,7 @@ import type {
   IssueCategory,
   JourneyPlanDetail,
   PlanFlag,
+  PlanFlagSummaryEntry,
   PlanIssue,
 } from '../types'
 import { dayOfMonth, todayISO } from './journey-format'
@@ -87,6 +89,46 @@ function labelOf(flag: PlanFlag): string {
   }
 }
 
+/**
+ * The rolled-up tail of one flag code as a sentence.
+ *
+ * The count and the outlet exposure are the server's — this only picks wording,
+ * and "more" is load-bearing: these are the flags NOT listed above.
+ */
+function rollupLabelOf(code: string, entry: PlanFlagSummaryEntry): string {
+  const { count, outletCount } = entry
+  const one = count === 1
+  /** " — 200 outlets between them.", dropped when the exposure is unmeasured. */
+  const exposure =
+    outletCount != null && outletCount > 0
+      ? ` — ${outletCount} outlet${outletCount === 1 ? '' : 's'} ${one ? 'on it' : 'between them'}`
+      : ''
+
+  switch (code) {
+    case 'beat_under_covered':
+      return one
+        ? `1 more allocated beat misses its cycle${exposure}.`
+        : `${count} more allocated beats miss their cycle${exposure}.`
+    case 'displaced_by_non_working_day':
+      return one
+        ? `1 more beat visit was displaced by a holiday or leave${exposure}.`
+        : `${count} more beat visits were displaced by a holiday or leave${exposure}.`
+    case 'day_missing_beat':
+      return one
+        ? `1 more working day has no beat scheduled${exposure}.`
+        : `${count} more working days have no beat scheduled${exposure}.`
+    default:
+      return `${count} more ${code.replace(/_/g, ' ')}${exposure}.`
+  }
+}
+
+/** Reading order for the rollup rows; unknown codes fall in behind these. */
+const ROLLUP_ORDER = [
+  'beat_under_covered',
+  'day_missing_beat',
+  'displaced_by_non_working_day',
+]
+
 /** Order rows read best in: worst first. */
 const SEVERITY_RANK: Record<FlagSeverity, number> = { high: 0, medium: 1, low: 2 }
 
@@ -105,14 +147,23 @@ export function planIssues(plan: JourneyPlanDetail): PlanIssue[] {
 
   rows.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
 
-  const rest = plan.flagSummary
-  if (rest && rest.remainingCount > 0) {
+  // The tail, one row per flag code. Rows are appended after the sort so the
+  // rollup always reads last, whatever severity its codes would otherwise carry.
+  const byCode = plan.flagSummary?.remainingByCode ?? {}
+  const codes = Object.keys(byCode).sort((a, b) => {
+    const ra = ROLLUP_ORDER.indexOf(a)
+    const rb = ROLLUP_ORDER.indexOf(b)
+    return (ra < 0 ? ROLLUP_ORDER.length : ra) - (rb < 0 ? ROLLUP_ORDER.length : rb)
+  })
+  for (const code of codes) {
+    const entry = byCode[code]
+    if (!entry || entry.count <= 0) continue
     rows.push({
-      code: 'remaining',
-      category: 'coverage',
+      code,
+      category: CATEGORY[code] ?? 'coverage',
       severity: 'low',
       rollup: true,
-      label: `${rest.remainingBeatCount} more allocated beats miss their cycle — ${rest.remainingOutletCount} outlets between them.`,
+      label: rollupLabelOf(code, entry),
     })
   }
 

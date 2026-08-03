@@ -206,8 +206,12 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
     flagSummary: r.flag_summary
       ? {
           remainingCount: r.flag_summary.remaining_count,
-          remainingBeatCount: r.flag_summary.remaining_beat_count,
-          remainingOutletCount: r.flag_summary.remaining_outlet_count,
+          remainingByCode: Object.fromEntries(
+            Object.entries(r.flag_summary.remaining_by_code ?? {}).map(([code, entry]) => [
+              code,
+              { count: entry.count, outletCount: entry.outlet_count },
+            ]),
+          ),
         }
       : null,
     flagCount: r.flag_count,

@@ -238,14 +238,21 @@ export interface PlanFlag {
   facts: Record<string, unknown>
 }
 
+/** One flag code's share of the rolled-up tail. */
+export interface PlanFlagSummaryEntry {
+  count: number
+  /** The EXPOSURE behind those flags — null when the server can't measure it. */
+  outletCount: number | null
+}
+
 /**
- * The tail of `flags[]`, rolled up. The client cannot compute this itself — it
- * never received the beats it summarises.
+ * The tail of `flags[]`, rolled up per flag code. The client cannot compute this
+ * itself — it never received the beats it summarises. Keyed by the same codes
+ * `flags[].code` uses, so each entry gets its own wording.
  */
 export interface PlanFlagSummary {
   remainingCount: number
-  remainingBeatCount: number
-  remainingOutletCount: number
+  remainingByCode: Record<string, PlanFlagSummaryEntry>
 }
 
 /** How loudly a flag should read — derived from its code and facts. */
