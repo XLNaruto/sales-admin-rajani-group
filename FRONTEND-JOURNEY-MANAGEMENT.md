@@ -292,13 +292,16 @@ Detail response, the parts the screen uses:
     "outlet_count": 60,                     // the EXPOSURE, not just the fact
     "facts": { "scheduled": 1, "required": 2 }
   }],
-  "flag_summary": {                          // the capped tail of flags[], per code
-    "remaining_count": 12,
-    "remaining_by_code": {
-      "beat_under_covered":           { "count": 8, "outlet_count": 220 },
-      "displaced_by_non_working_day": { "count": 3, "outlet_count": 47 },
-      "day_missing_beat":             { "count": 1, "outlet_count": null }
-    }
+  "flag_summary": {                          // the capped tail of flags[], per kind
+    "remaining_count": 12,                   // hidden flags across all kinds
+    // Most severe first — render in this order. WORD EACH ROW FROM `code`: the
+    // remainder is not all under-coverage. `beat_count` is the distinct beats the
+    // kind names (0 when it names none), deduped within a kind, never across.
+    "remaining_by_code": [
+      { "code": "beat_under_covered",           "count": 8, "beat_count": 8, "outlet_count": 220 },
+      { "code": "displaced_by_non_working_day", "count": 3, "beat_count": 2, "outlet_count": 47 },
+      { "code": "day_missing_beat",             "count": 1, "beat_count": 0, "outlet_count": 0 }
+    ]
   },
   "flag_count": 18,                         // TOTAL, including the rolled-up remainder
 

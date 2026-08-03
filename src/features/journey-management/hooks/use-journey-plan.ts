@@ -254,9 +254,28 @@ export function useJourneyPlan(data?: string) {
     plan,
     planId,
     isLoading: detail.isLoading || reps.isLoading,
-    error: detail.error,
-    /** No plan exists for this (incharge, month) — the screen shows an empty state. */
-    missing: !detail.isLoading && !reps.isLoading && !planId,
+    /**
+     * Either read failing is fatal for the screen, and the page MUST render it:
+     * a failed detail leaves `plan` undefined forever, so a page that only checks
+     * `isLoading || !plan` spins on a dead query instead of saying what broke.
+     */
+    error: detail.error ?? reps.error,
+    /** Re-run both reads — what the error screen's "Try again" is wired to. */
+    retry: () => {
+      void reps.refetch()
+      void detail.refetch()
+    },
+    /**
+     * No plan exists for this (incharge, month) — the screen shows an empty state.
+     * Never claimed while a read is failing: a broken rep list also yields no
+     * `planId`, and "nothing was generated" would be a lie about a 500.
+     */
+    missing:
+      !detail.isLoading &&
+      !reps.isLoading &&
+      !detail.error &&
+      !reps.error &&
+      !planId,
     /** Combobox props for the header's incharge picker, plus its current value. */
     incharge: {
       options: inchargeOptions,

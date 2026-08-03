@@ -177,9 +177,20 @@ export const journeyPlanDetailSchema = z.object({
   flag_summary: z
     .object({
       remaining_count: int,
-      /** The remainder split by flag code — the client words each code itself. */
+      /**
+       * One entry per flag kind in the remainder, MOST SEVERE FIRST — the order is
+       * the server's and must be preserved. `beat_count` is the distinct beats the
+       * kind names (0 for kinds that name none), deduplicated within a kind only.
+       */
       remaining_by_code: z
-        .record(z.string(), z.object({ count: int, outlet_count: nullableInt }))
+        .array(
+          z.object({
+            code: z.string(),
+            count: int,
+            beat_count: int,
+            outlet_count: int,
+          }),
+        )
         .nullish(),
     })
     .nullish(),

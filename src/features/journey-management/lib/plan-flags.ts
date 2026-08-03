@@ -90,44 +90,47 @@ function labelOf(flag: PlanFlag): string {
 }
 
 /**
- * The rolled-up tail of one flag code as a sentence.
+ * The rolled-up tail of one flag kind as a sentence.
  *
- * The count and the outlet exposure are the server's — this only picks wording,
- * and "more" is load-bearing: these are the flags NOT listed above.
+ * Every number here is the server's — this only picks wording, and the wording is
+ * chosen from `code`: the remainder is NOT all under-coverage. "more" is
+ * load-bearing too — these are the flags not listed above.
+ *
+ * Which count leads depends on the kind: an under-covered beat is counted in
+ * beats, a displaced visit in visits, a beatless day in days. `beatCount` is 0
+ * for kinds that name no beat, so it can't lead there.
  */
-function rollupLabelOf(code: string, entry: PlanFlagSummaryEntry): string {
-  const { count, outletCount } = entry
-  const one = count === 1
-  /** " — 200 outlets between them.", dropped when the exposure is unmeasured. */
-  const exposure =
-    outletCount != null && outletCount > 0
-      ? ` — ${outletCount} outlet${outletCount === 1 ? '' : 's'} ${one ? 'on it' : 'between them'}`
+function rollupLabelOf(entry: PlanFlagSummaryEntry): string {
+  const { code, count, beatCount, outletCount } = entry
+  /** " — 220 outlets between them", dropped when nothing is behind the kind. */
+  const exposure = (n: number) =>
+    outletCount > 0
+      ? ` — ${outletCount} outlet${outletCount === 1 ? '' : 's'} ${n === 1 ? 'on it' : 'between them'}`
       : ''
 
   switch (code) {
-    case 'beat_under_covered':
-      return one
-        ? `1 more allocated beat misses its cycle${exposure}.`
-        : `${count} more allocated beats miss their cycle${exposure}.`
+    case 'beat_under_covered': {
+      const beats = beatCount > 0 ? beatCount : count
+      return beats === 1
+        ? `1 more allocated beat misses its cycle${exposure(1)}.`
+        : `${beats} more allocated beats miss their cycle${exposure(beats)}.`
+    }
     case 'displaced_by_non_working_day':
-      return one
-        ? `1 more beat visit was displaced by a holiday or leave${exposure}.`
-        : `${count} more beat visits were displaced by a holiday or leave${exposure}.`
+      return count === 1
+        ? `1 more beat visit was displaced by a holiday or leave${exposure(1)}.`
+        : `${count} more beat visits were displaced by a holiday or leave${exposure(count)}.`
     case 'day_missing_beat':
-      return one
-        ? `1 more working day has no beat scheduled${exposure}.`
-        : `${count} more working days have no beat scheduled${exposure}.`
+      return count === 1
+        ? '1 more working day has no beat scheduled.'
+        : `${count} more working days have no beat scheduled.`
     default:
-      return `${count} more ${code.replace(/_/g, ' ')}${exposure}.`
+      // Includes the server's own `remaining` kind — nothing specific to say
+      // about it beyond the count, and inventing a cause would be a guess.
+      return count === 1
+        ? `1 more flag isn't listed above${exposure(1)}.`
+        : `${count} more flags aren't listed above${exposure(count)}.`
   }
 }
-
-/** Reading order for the rollup rows; unknown codes fall in behind these. */
-const ROLLUP_ORDER = [
-  'beat_under_covered',
-  'day_missing_beat',
-  'displaced_by_non_working_day',
-]
 
 /** Order rows read best in: worst first. */
 const SEVERITY_RANK: Record<FlagSeverity, number> = { high: 0, medium: 1, low: 2 }
@@ -147,23 +150,17 @@ export function planIssues(plan: JourneyPlanDetail): PlanIssue[] {
 
   rows.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
 
-  // The tail, one row per flag code. Rows are appended after the sort so the
-  // rollup always reads last, whatever severity its codes would otherwise carry.
-  const byCode = plan.flagSummary?.remainingByCode ?? {}
-  const codes = Object.keys(byCode).sort((a, b) => {
-    const ra = ROLLUP_ORDER.indexOf(a)
-    const rb = ROLLUP_ORDER.indexOf(b)
-    return (ra < 0 ? ROLLUP_ORDER.length : ra) - (rb < 0 ? ROLLUP_ORDER.length : rb)
-  })
-  for (const code of codes) {
-    const entry = byCode[code]
-    if (!entry || entry.count <= 0) continue
+  // The tail, one row per flag kind, in the server's most-severe-first order —
+  // not re-sorted here. Appended after the sort above so the rollup always reads
+  // last, whatever severity its kinds would otherwise carry.
+  for (const entry of plan.flagSummary?.remainingByCode ?? []) {
+    if (entry.count <= 0) continue
     rows.push({
-      code,
-      category: CATEGORY[code] ?? 'coverage',
+      code: entry.code,
+      category: CATEGORY[entry.code] ?? 'coverage',
       severity: 'low',
       rollup: true,
-      label: rollupLabelOf(code, entry),
+      label: rollupLabelOf(entry),
     })
   }
 

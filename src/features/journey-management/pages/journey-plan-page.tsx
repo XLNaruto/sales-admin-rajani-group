@@ -16,6 +16,7 @@ import { Hint } from '@/components/common/hint'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
+import { RouteError } from '@/features/error'
 import { AgentPanel } from '../components/agent-panel'
 import { MonthStepper } from '../components/month-stepper'
 import { PlanDayTable } from '../components/plan-day-table'
@@ -87,6 +88,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     plan,
     planId,
     isLoading,
+    error,
+    retry,
     missing,
     incharge,
     openPlanId,
@@ -123,6 +126,11 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     () => new Set(plan?.flags.map((flag) => flag.date).filter((d): d is string => d != null)),
     [plan],
   )
+
+  // Before anything else: a failed read leaves `plan` undefined for good, so the
+  // loading branch below would spin forever on it. 403 lands on Forbidden, every
+  // other failure on the generic screen with the server's message and a retry.
+  if (error) return <RouteError error={error} reset={retry} />
 
   if (missing) {
     return (
