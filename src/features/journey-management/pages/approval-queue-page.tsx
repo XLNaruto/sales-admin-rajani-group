@@ -9,7 +9,6 @@ import { StatusBadge } from '@/components/common/status-badge'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { encryptParams } from '@/lib/crypto'
-import { cn } from '@/lib/utils'
 import { ApprovalQueueToolbar } from '../components/approval-queue-toolbar'
 import { CoverageMeter } from '../components/coverage-meter'
 import { FlagsCell } from '../components/flags-cell'
@@ -233,6 +232,28 @@ export function ApprovalQueuePage() {
         description={`${periodTotal} journey plans for ${monthLabel} — review coverage and flags, then approve.`}
         actions={
           <>
+            {/* Hidden outright when there's nothing clean to approve — "Approve 0
+                clean" is a button that can only ever say no. It stays mounted while
+                the sweep is in flight so the spinner doesn't vanish mid-approval. */}
+            {canApprove && (cleanCount > 0 || isBulkApproving) ? (
+              <Hint
+                label={
+                  isBulkApproving
+                    ? 'Approving…'
+                    : `Approve all ${cleanCount} pending ${monthLabel} plans with no solver flags`
+                }
+              >
+                <span className="inline-flex">
+                  <Button
+                    className="cursor-pointer"
+                    disabled={isBulkApproving}
+                    onClick={() => setConfirmBulk(true)}
+                  >
+                    <ClipboardCheck /> Approve {cleanCount} clean
+                  </Button>
+                </span>
+              </Hint>
+            ) : null}
             {canGenerate ? (
               <Hint
                 label={
@@ -252,27 +273,6 @@ export function ApprovalQueuePage() {
                   >
                     {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />} Generate
                     month
-                  </Button>
-                </span>
-              </Hint>
-            ) : null}
-            {canApprove ? (
-              <Hint
-                label={
-                  isBulkApproving
-                    ? 'Approving…'
-                    : cleanCount
-                      ? `Approve all ${cleanCount} pending ${monthLabel} plans with no solver flags`
-                      : 'Nothing to approve — no pending plan this month is flag-free'
-                }
-              >
-                <span className="inline-flex">
-                  <Button
-                    className={cn('cursor-pointer', !cleanCount && 'opacity-60')}
-                    disabled={!cleanCount || isBulkApproving}
-                    onClick={() => setConfirmBulk(true)}
-                  >
-                    <ClipboardCheck /> Approve {cleanCount} clean
                   </Button>
                 </span>
               </Hint>
