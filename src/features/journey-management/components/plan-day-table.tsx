@@ -73,13 +73,13 @@ export function PlanDayTable({
       {/* Full month, no height cap: the whole table scrolls with the page and the
           column header pins to the top of the viewport as it passes. */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-208 border-collapse text-sm">
+        <table className="w-full min-w-216 border-collapse text-sm">
           <thead className="sticky top-0 z-10">
             {/* border-collapse drops a sticky row's own border, so the header rule
                 is an inset shadow instead. */}
             <tr className="bg-card text-left shadow-[inset_0_-1px_0_var(--border)]">
               <Th className="w-20">Date</Th>
-              <Th className="w-44">Activity</Th>
+              <Th className="w-56">Activity</Th>
               <Th>Beats</Th>
               <Th className="w-52">Why</Th>
             </tr>

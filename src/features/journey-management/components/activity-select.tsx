@@ -43,7 +43,10 @@ export function ActivitySelect({
       searchable={options.length > 12}
       disabled={disabled || options.length === 0}
       aria-label="Day activity"
-      className="min-w-36"
+      // Wide enough for the longest name in the master ("Distributor Service",
+      // "Head Office Visit") — the panel matches the trigger's width, so a narrow
+      // trigger truncates the very options the reviewer is choosing between.
+      className="min-w-48"
     />
   )
 }
