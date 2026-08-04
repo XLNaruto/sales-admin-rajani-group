@@ -117,11 +117,9 @@ export function useAgentChat(
   options: {
     /** Whether the panel is open — nothing connects or polls while it is closed. */
     active: boolean
-    /** The agent re-solved: `journey_plan_id` differs from the plan on screen. */
-    onPlanSuperseded?: (planId: string) => void
   },
 ) {
-  const { active, onPlanSuperseded } = options
+  const { active } = options
   const qc = useQueryClient()
   const [streamingText, setStreamingText] = useState('')
   const [activity, setActivity] = useState<ToolActivity[]>([])
@@ -287,12 +285,14 @@ export function useAgentChat(
           setActivity((rows) => closeTool(rows, event))
           break
         case 'plan_changed': {
-          // Always refetch: the agent may have made several edits, and coverage
-          // and flags are recomputed server-side. Never patch locally.
+          // Always refetch: the agent may have made several edits, and progress and
+          // flags are recomputed server-side. Never patch locally.
+          //
+          // The id no longer changes under us — nothing supersedes an allocation
+          // and mints a new plan id — so this is a refetch, never a navigation.
           const changedId = String(event.journey_plan_id)
           qc.invalidateQueries({ queryKey: queryKeys.journey.plan(changedId) })
           qc.invalidateQueries({ queryKey: queryKeys.journey.plans() })
-          if (changedId !== planId) onPlanSuperseded?.(changedId)
           break
         }
         // Mutually exclusive and BOTH terminal — handling only one would leave
@@ -318,7 +318,7 @@ export function useAgentChat(
     return () => {
       socket.off(AGENT_EVENT, onEvent)
     }
-  }, [planId, active, onPlanSuperseded, finishTurn, qc])
+  }, [planId, active, finishTurn, qc])
 
   /** What the panel renders: the transcript, plus this session's own additions. */
   const served = conversation.data?.messages

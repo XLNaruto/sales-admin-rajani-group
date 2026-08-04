@@ -1,14 +1,18 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import { ChevronRight } from 'lucide-react'
-import { crumbTarget } from '@/config/navigation'
+import { crumbLabel, crumbTarget } from '@/config/navigation'
 
 /** Derives a clickable breadcrumb trail from the current pathname. */
 export function Breadcrumbs() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const parts = pathname.split('/').filter(Boolean)
 
-  const label = (p: string) =>
-    p.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  // A screen's own name wins over its URL segment, so renaming a page in the nav
+  // renames its crumb too without touching the path. Unknown segments (ids, and
+  // sections with no item of their own) still fall back to the title-cased slug.
+  const label = (path: string, segment: string) =>
+    crumbLabel(path) ??
+    segment.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
   return (
     <nav className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -29,10 +33,20 @@ export function Breadcrumbs() {
                 to={to}
                 className="transition-colors hover:text-foreground"
               >
-                {label(p)}
+                {label(path, p)}
               </Link>
             ) : (
-              <span className="font-medium text-foreground">{label(p)}</span>
+              // Last crumb is the current page; an intermediate one with no target
+              // isn't navigable, so it reads as disabled instead of active.
+              <span
+                className={
+                  isLast
+                    ? 'font-medium text-foreground'
+                    : 'cursor-default text-muted-foreground/60'
+                }
+              >
+                {label(path, p)}
+              </span>
             )}
           </span>
         )

@@ -138,37 +138,33 @@ export const endpoints = {
     CITIES: '/sales-incharge-admin/cities',
   },
   /**
-   * Journey plans — one sales incharge's month of daily beat visits, produced by
-   * the planning solver and reviewed in the approval queue. Every edit returns
-   * the whole plan detail, so callers replace their state rather than patch it.
+   * Journey plans — one sales incharge's **allocation** for a month: which of his
+   * beats are in play, plus the dates the office pins. Not a calendar; the rep
+   * writes each day row himself from the app.
+   *
+   * There is no approval lifecycle, so there is no `/summary`, no `/approve`, no
+   * `/bulk-approve`, no `/re-solve`, no day-level PATCH and no
+   * `/materialise-stops` — the whole admin write surface is the PATCH below.
    */
   JOURNEY_PLAN: {
-    /** GET one page of the month's plans (page-based, server-filtered/sorted). */
+    /** GET one page of the month's allocations (page-based, server-sorted). */
     LIST: '/sales-incharge-admin/journey-plans',
     /**
-     * GET ?period_month= — the period's counts and the Filters panel's options.
-     * Deliberately separate from LIST: it ignores the list's filters, so the tab
-     * badges keep their numbers after a tab is clicked.
+     * POST { period_month, sales_incharge_ids?, pinned_days?, replace_existing?, seed? }.
+     * `pinned_days: [{ date, activity_id }]` applies to EVERY rep in the run —
+     * pinning the weekly offs here is what makes `capacity` accurate.
      */
-    SUMMARY: '/sales-incharge-admin/journey-plans/summary',
-    /** POST { period_month, sales_incharge_ids?, supersede_existing?, seed? }. */
     GENERATE: '/sales-incharge-admin/journey-plans/generate',
-    /** POST { journey_plan_ids } — refuses flagged plans, reports per-id outcomes. */
-    BULK_APPROVE: '/sales-incharge-admin/journey-plans/bulk-approve',
     /** GET the rep switcher's options for a period (carries each plan id). */
     REPS: '/sales-incharge-admin/journey-plans/reps',
     GET: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
-    APPROVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/approve`,
-    /** POST { pinned_dates?, seed? } — supersedes the plan and returns a diff. */
-    RE_SOLVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/re-solve`,
-    /** PATCH { activity_id, reason?, joint_working_sales_incharge_id? }. */
-    DAY: (id: string | number, dayId: string | number) =>
-      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}`,
-    /** POST { beat_id } — add a beat to the day. */
-    DAY_BEATS: (id: string | number, dayId: string | number) =>
-      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}/beats`,
-    DAY_BEAT: (id: string | number, dayId: string | number, beatId: string | number) =>
-      `/sales-incharge-admin/journey-plans/${id}/days/${dayId}/beats/${beatId}`,
+    /**
+     * PATCH { beats?, pinned_days? } — the entire admin write surface, in one
+     * call because it is one screen with one Save button. Both fields are FULL
+     * REPLACEMENTS of what they cover; an omitted field is left alone. Returns
+     * the saved allocation.
+     */
+    SAVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
     /**
      * GET the plan's AI-agent conversation. The GET is what authorizes the
      * socket room join (it records a short-lived grant), so it must precede it.

@@ -1,24 +1,20 @@
 /**
- * Query + mutation hooks for the plan detail screen.
+ * Query + mutation hooks for the allocation editor.
  *
- * Every edit returns the whole plan, so each mutation writes the response
- * straight into the detail cache (`setQueryData`) instead of invalidating and
- * refetching — the server has already recomputed coverage and flags, and a
- * refetch would only re-fetch what it just handed us.
+ * The save returns the whole allocation with progress and flags recomputed, so
+ * it is written straight into the detail cache (`setQueryData`) instead of
+ * invalidating and refetching — the server has already handed us the answer.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import {
-  addPlanDayBeat,
   fetchActivities,
   fetchAllocatedBeats,
   fetchPlan,
   fetchPlanReps,
-  removePlanDayBeat,
-  reSolvePlan,
-  updatePlanDay,
+  savePlan,
 } from './journey-plan-api'
-import type { JourneyPlanDetail } from '../types'
+import type { SavePlanInput } from '../types'
 
 /** GET /journey-plans/{id}. */
 export function useJourneyPlanDetail(id: string | undefined) {
@@ -48,7 +44,11 @@ export function useActivities(options: { enabled?: boolean } = {}) {
   })
 }
 
-/** GET /sales-incharges/{id}/beats — the beats a day may be filled with. */
+/**
+ * GET /sales-incharges/{id}/beats — every beat the rep holds. The month's list is
+ * chosen from this pool, so it is the editor's left-hand side, not a per-day
+ * lookup.
+ */
 export function useAllocatedBeats(
   inchargeId: string | undefined,
   options: { enabled?: boolean } = {},
@@ -61,86 +61,23 @@ export function useAllocatedBeats(
   })
 }
 
-/** Shared success path for the three day-level edits. */
-function useDayEdit<TVars>(
-  mutationFn: (vars: TVars) => Promise<JourneyPlanDetail>,
-  planIdOf: (vars: TVars) => string,
-) {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn,
-    onSuccess: (plan, vars) => {
-      qc.setQueryData(queryKeys.journey.plan(plan.id), plan)
-      // The queue row's coverage and flag count moved with the edit.
-      qc.invalidateQueries({ queryKey: queryKeys.journey.plans() })
-      const previousId = planIdOf(vars)
-      if (previousId !== plan.id) {
-        qc.invalidateQueries({ queryKey: queryKeys.journey.plan(previousId) })
-      }
-    },
-  })
-}
-
 /**
- * PATCH a day's activity. Switching to a beatless activity clears the day's
- * beats server-side, which the returned plan already reflects.
- */
-export function useUpdatePlanDay() {
-  return useDayEdit(
-    (vars: {
-      planId: string
-      dayId: string
-      activityId: number
-      reason?: string | null
-      jointWorkingInchargeId?: string | null
-    }) =>
-      updatePlanDay(vars.planId, vars.dayId, {
-        activityId: vars.activityId,
-        reason: vars.reason,
-        jointWorkingInchargeId: vars.jointWorkingInchargeId,
-      }),
-    (vars) => vars.planId,
-  )
-}
-
-/** POST a beat onto a day — 409 on a duplicate, a second full day or the cap. */
-export function useAddPlanDayBeat() {
-  return useDayEdit(
-    (vars: { planId: string; dayId: string; beatId: string }) =>
-      addPlanDayBeat(vars.planId, vars.dayId, vars.beatId),
-    (vars) => vars.planId,
-  )
-}
-
-/** DELETE a beat from a day. */
-export function useRemovePlanDayBeat() {
-  return useDayEdit(
-    (vars: { planId: string; dayId: string; beatId: string }) =>
-      removePlanDayBeat(vars.planId, vars.dayId, vars.beatId),
-    (vars) => vars.planId,
-  )
-}
-
-/**
- * POST /journey-plans/{id}/re-solve.
+ * PATCH /journey-plans/{id} — the one write the editor makes.
  *
- * The plan is superseded: the result carries a NEW id, so the caller must move
- * the route there. The diff is returned alongside so it can be shown before the
- * new month replaces the view.
+ * The response is authoritative: a `pinned_days` replacement cannot move a
+ * locked day or a date the rep has already taken over, so the saved allocation
+ * may differ from what was sent. Writing it into the cache is what re-syncs the
+ * screen with what actually landed.
  */
-export function useReSolvePlan() {
+export function useSaveJourneyPlan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (vars: { planId: string; pinnedDates?: string[]; seed?: string }) =>
-      reSolvePlan(vars.planId, { pinnedDates: vars.pinnedDates, seed: vars.seed }),
-    onSuccess: (result, vars) => {
-      qc.setQueryData(queryKeys.journey.plan(result.plan.id), result.plan)
-      // The old id is now `superseded`; drop it rather than leave stale days cached.
-      qc.removeQueries({ queryKey: queryKeys.journey.plan(vars.planId) })
+    mutationFn: (vars: { planId: string } & SavePlanInput) =>
+      savePlan(vars.planId, { beats: vars.beats, pinnedDays: vars.pinnedDays }),
+    onSuccess: (plan) => {
+      qc.setQueryData(queryKeys.journey.plan(plan.id), plan)
+      // The list row's progress and flags moved with the save.
       qc.invalidateQueries({ queryKey: queryKeys.journey.plans() })
-      // The rep switcher carries plan ids, so it points at the superseded one until
-      // it is refetched — which is exactly what a month step would then resolve from.
-      qc.invalidateQueries({ queryKey: queryKeys.journey.reps(result.plan.month) })
     },
   })
 }

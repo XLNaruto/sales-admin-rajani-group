@@ -3,9 +3,13 @@
  * feature's camelCase domain types here, so no component ever sees a snake_case
  * field or an unvalidated body.
  *
- * Each edit returns the *whole* plan detail, so callers replace their state
- * wholesale rather than reconciling a patch — that is deliberate on the server's
- * side, because coverage and flags are recomputed on every write.
+ * There are four reads and two writes, and that is the whole surface: list,
+ * detail, rep switcher, activity master; generate a month, and save one
+ * allocation. Nothing to approve, nothing to re-solve, no day-level edit — the
+ * rep writes his own days from the app.
+ *
+ * The save returns the whole allocation with progress and flags already
+ * recomputed, so callers replace their state wholesale rather than reconciling.
  */
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
@@ -13,13 +17,10 @@ import { asApiError } from '@/lib/api-error'
 import {
   activityListSchema,
   allocatedBeatListSchema,
-  bulkApproveSchema,
   generateSchema,
   journeyPlanDetailSchema,
   journeyPlanListSchema,
   planRepsSchema,
-  queueSummarySchema,
-  reSolveSchema,
   type JourneyPlanDetailRow,
   type JourneyPlanRow,
 } from '../schemas'
@@ -27,27 +28,84 @@ import { dayOfMonth, monthOf } from '../lib/journey-format'
 import type {
   ActivityDef,
   AllocatedBeat,
-  ApprovalStatus,
-  BulkApproveResult,
+  DayLabel,
+  DayOrigin,
+  GenerateInput,
+  GenerateOutcome,
   GenerateResult,
   JourneyPlan,
   JourneyPlanDetail,
+  MonthStripDay,
   PlanDay,
+  PlanFlag,
   PlanRepOption,
   QueueParams,
-  QueuePeriodSummary,
   QueueResult,
-  ReSolveResult,
+  SavePlanInput,
 } from '../types'
 
-/** The lifecycle states the server actually sends; anything else reads as draft. */
-const STATUSES: ApprovalStatus[] = ['draft', 'pending_approval', 'approved', 'superseded']
+/** The five labels the server derives. Anything else reads as `unplanned`. */
+const DAY_LABELS: DayLabel[] = ['worked', 'planned', 'holiday', 'absent', 'unplanned']
 
-function toStatus(value: string | null | undefined): ApprovalStatus {
-  return STATUSES.includes(value as ApprovalStatus) ? (value as ApprovalStatus) : 'draft'
+/**
+ * Narrow the wire's `label`.
+ *
+ * An unknown label falls back to `unplanned` — the one value that badges
+ * nothing. Falling back to `absent` would invent a warning out of a server
+ * version this client hasn't caught up with.
+ */
+function toDayLabel(value: string | null | undefined): DayLabel {
+  return DAY_LABELS.includes(value as DayLabel) ? (value as DayLabel) : 'unplanned'
 }
 
-/** Map a queue row, keeping every calendar day of the rhythm strip. */
+/** `pinned` | `rep`, or null when no day row exists for the date. */
+function toOrigin(value: string | null | undefined): DayOrigin | null {
+  return value === 'pinned' || value === 'rep' ? value : null
+}
+
+/** One calendar date of the strip. */
+function toStripDay(day: {
+  date: string
+  label: string
+  activity_code?: string | null
+  origin?: string | null
+  beat_count: number
+}): MonthStripDay {
+  return {
+    date: day.date,
+    day: dayOfMonth(day.date),
+    label: toDayLabel(day.label),
+    activityCode: day.activity_code ?? null,
+    origin: toOrigin(day.origin),
+    beatCount: day.beat_count,
+  }
+}
+
+/** The server's warnings, order preserved — it sorted them most severe first. */
+function toFlags(
+  flags:
+    | {
+        code: string
+        date?: string | null
+        beat_id: string | null
+        beat_name?: string | null
+        outlet_count: number | null
+        facts?: Record<string, unknown> | null
+      }[]
+    | null
+    | undefined,
+): PlanFlag[] {
+  return (flags ?? []).map((flag) => ({
+    code: flag.code,
+    date: flag.date ?? null,
+    beatId: flag.beat_id,
+    beatName: flag.beat_name ?? null,
+    outletCount: flag.outlet_count,
+    facts: flag.facts ?? {},
+  }))
+}
+
+/** Map a list row, keeping every calendar day of the month strip. */
 function toPlanRow(row: JourneyPlanRow): JourneyPlan {
   return {
     id: row.id,
@@ -55,23 +113,21 @@ function toPlanRow(row: JourneyPlanRow): JourneyPlan {
     inchargeName: row.sales_incharge_name ?? '—',
     employeeCode: row.sales_incharge_code ?? '',
     headquarter: row.sales_incharge_city ?? '—',
-    status: toStatus(row.status),
-    coverage: row.coverage_percentage,
+    beatsAllocated: row.beats_allocated,
+    beatsWorked: row.beats_worked,
+    completion: row.completion_percentage,
     workingDays: row.working_days,
-    beats: row.beats_scheduled,
-    flagCount: row.flag_count,
-    flagCodes: row.flag_codes ?? [],
-    rhythm: (row.month_rhythm ?? []).map((day) => ({
-      date: day.date,
-      day: dayOfMonth(day.date),
-      activityCode: day.activity_code ?? null,
-      beatCount: day.beat_count,
-      flagged: Boolean(day.flagged),
-    })),
+    flags: toFlags(row.flags),
+    monthStrip: (row.month_strip ?? []).map(toStripDay),
   }
 }
 
-/** Translate the queue's camelCase params into the endpoint's query string. */
+/**
+ * Translate the list's camelCase params into the endpoint's query string.
+ *
+ * Deliberately short: there are no status tabs and no flag filters, because
+ * nothing has a status to filter by. A worklist is `sort_by=completion&asc`.
+ */
 function toQueueQuery(params: QueueParams): Record<string, string | number | boolean> {
   const q: Record<string, string | number | boolean> = {
     period_month: params.periodMonth,
@@ -79,18 +135,13 @@ function toQueueQuery(params: QueueParams): Record<string, string | number | boo
   if (params.page != null) q.page = params.page
   if (params.pageSize != null) q.page_size = params.pageSize
   if (params.search) q.search = params.search
-  if (params.status) q.status = params.status
-  if (params.hasFlags != null) q.has_flags = params.hasFlags
   if (params.city) q.city = params.city
-  if (params.flagCode) q.flag_code = params.flagCode
-  if (params.coverageMin != null) q.coverage_min = params.coverageMin
-  if (params.coverageMax != null) q.coverage_max = params.coverageMax
   if (params.sortBy) q.sort_by = params.sortBy
   if (params.sortOrder) q.sort_order = params.sortOrder
   return q
 }
 
-/** GET /journey-plans — one page of the month's plans, filtered and sorted. */
+/** GET /journey-plans — one page of the month's allocations. */
 export async function fetchQueue(params: QueueParams): Promise<QueueResult> {
   try {
     const raw = await http.get<unknown>(endpoints.JOURNEY_PLAN.LIST, {
@@ -106,62 +157,28 @@ export async function fetchQueue(params: QueueParams): Promise<QueueResult> {
       totalPages: res.total_pages ?? 1,
     }
   } catch (error) {
-    throw asApiError(error, 'Failed to load the approval queue.')
+    throw asApiError(error, 'Failed to load the monthly allocations.')
   }
 }
 
-/**
- * GET /journey-plans/summary — the period's counts and the filter panel's
- * options.
- *
- * This is a separate request from the list on purpose: the server computes it
- * over the WHOLE period and ignores the list's filters, which is what keeps a
- * tab badge honest after that tab has been clicked and narrowed the table.
- */
-export async function fetchPeriodSummary(periodMonth: string): Promise<QueuePeriodSummary> {
-  try {
-    const raw = await http.get<unknown>(endpoints.JOURNEY_PLAN.SUMMARY, {
-      params: { period_month: periodMonth },
-    })
-    const s = queueSummarySchema.parse(raw)
-    return {
-      summary: {
-        total: s.total_plans,
-        avgCoverage: s.average_coverage,
-        clean: s.clean_plans,
-        needsLook: s.flagged_plans,
-        approved: s.approved_plans,
-        pending: s.pending_approval_plans,
-        draft: s.draft_plans,
-        reviewedPercentage: s.reviewed_percentage,
-        generatedAt: s.generated_at ?? null,
-      },
-      filterOptions: {
-        cities: s.filter_options?.cities ?? [],
-        flagCodes: s.filter_options?.flag_codes ?? [],
-      },
-    }
-  } catch (error) {
-    throw asApiError(error, "Failed to load the period's summary.")
-  }
-}
-
-/** Map the plan detail, including the day rows the editor addresses by id. */
+/** Map one allocation in full — the same shape a save answers with. */
 function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
   const days: PlanDay[] = (r.days ?? []).map((day) => ({
     id: day.id,
     date: day.date,
     day: dayOfMonth(day.date),
-    sequence: day.sequence,
     activityId: day.activity_id ?? 0,
     activityCode: day.activity_code ?? '',
     activityName: day.activity_name ?? '—',
+    // A row the server didn't label is the rep's: a pinned date always carries
+    // `pinned`, and treating an unlabelled row as pinned would offer the admin an
+    // un-pin button that silently un-chooses the rep's morning.
+    origin: day.origin === 'pinned' ? 'pinned' : 'rep',
+    selectedAt: day.selected_at ?? null,
     beats: (day.beats ?? []).map((beat) => ({
       id: beat.id,
       beatId: beat.beat_id,
       beatName: beat.beat_name ?? `Beat ${beat.beat_id}`,
-      workload: beat.workload ?? 'full_day',
-      source: beat.source ?? '',
       sequence: beat.sequence,
       stopCount: beat.stop_count,
       locked: Boolean(beat.locked),
@@ -171,9 +188,6 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
     reason: day.reason ?? null,
     locked: Boolean(day.locked),
     lockedAt: day.locked_at ?? null,
-    solverReason: day.solver_reason
-      ? { rule: day.solver_reason.rule, facts: day.solver_reason.facts ?? {} }
-      : null,
   }))
 
   return {
@@ -183,56 +197,83 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
     employeeCode: r.sales_incharge_code ?? '',
     headquarter: r.sales_incharge_city ?? '—',
     month: monthOf(r.period_month),
-    status: toStatus(r.status),
     generatedAt: r.generated_at ?? null,
     generatedBy: r.generated_by ?? null,
-    metrics: {
-      coverage: r.coverage_percentage,
-      beatsScheduled: r.beats_scheduled,
-      workingDays: r.working_days,
-      totalDays: r.total_days,
-      plannedTravelKm: r.planned_travel_km,
-      // Passed through as null — the screen must render "—", not "0 km".
-      avgKmPerDay: r.avg_km_per_day,
-    },
-    flags: (r.flags ?? []).map((flag) => ({
-      code: flag.code,
-      date: flag.date ?? null,
-      beatId: flag.beat_id,
-      beatName: flag.beat_name ?? null,
-      outletCount: flag.outlet_count,
-      facts: flag.facts ?? {},
+    allocatedBeats: (r.allocated_beats ?? []).map((beat) => ({
+      beatId: beat.beat_id,
+      beatName: beat.beat_name ?? `Beat ${beat.beat_id}`,
+      source: beat.source === 'manual' ? 'manual' : 'solver',
+      outletCount: beat.outlet_count,
+      // NOT a target for the month — the allocation carries no per-beat count.
+      visitsPerMonth: beat.visits_per_month,
+      workedCount: beat.worked_count,
+      // Left as strings: these are `numeric` columns, and parsing them here
+      // would drop precision before the map's boundary asks for it.
+      latitude: beat.latitude,
+      longitude: beat.longitude,
     })),
-    flagSummary: r.flag_summary
-      ? {
-          remainingCount: r.flag_summary.remaining_count,
-          // Order preserved: the server sorted these most severe first.
-          remainingByCode: (r.flag_summary.remaining_by_code ?? []).map((entry) => ({
-            code: entry.code,
-            count: entry.count,
-            beatCount: entry.beat_count,
-            outletCount: entry.outlet_count,
-          })),
-        }
-      : null,
-    flagCount: r.flag_count,
+    progress: {
+      beatsAllocated: r.beats_allocated,
+      beatsWorked: r.beats_worked,
+      beatsRemaining: r.beats_remaining,
+      completion: r.completion_percentage,
+      workingDays: r.working_days,
+      capacity: r.capacity,
+      totalDays: r.total_days,
+    },
+    flags: toFlags(r.flags),
+    monthStrip: (r.month_strip ?? []).map(toStripDay),
     days,
   }
 }
 
-/** GET /journey-plans/{id} — one rep's month in full. */
+/** GET /journey-plans/{id} — one rep's allocation in full. */
 export async function fetchPlan(id: string): Promise<JourneyPlanDetail> {
   try {
     const raw = await http.get<unknown>(endpoints.JOURNEY_PLAN.GET(id))
     return toPlanDetail(journeyPlanDetailSchema.parse(raw))
   } catch (error) {
-    throw asApiError(error, 'Failed to load the journey plan.')
+    throw asApiError(error, 'Failed to load the allocation.')
+  }
+}
+
+/**
+ * PATCH /journey-plans/{id} — the whole admin write surface.
+ *
+ * Both fields are **full replacements**, not deltas, and both are optional: an
+ * omitted field is left alone. Two kinds of day row survive a `pinned_days`
+ * replacement whatever we send — a locked day, and a date the rep has already
+ * taken over — so the caller must re-read the response rather than assume every
+ * pin landed.
+ */
+export async function savePlan(
+  id: string,
+  input: SavePlanInput,
+): Promise<JourneyPlanDetail> {
+  try {
+    const raw = await http.patch<unknown>(endpoints.JOURNEY_PLAN.SAVE(id), {
+      ...(input.beats
+        ? { beats: input.beats.map((beatId) => Number(beatId) || beatId) }
+        : {}),
+      ...(input.pinnedDays
+        ? {
+            pinned_days: input.pinnedDays.map((day) => ({
+              date: day.date,
+              activity_id: day.activityId,
+            })),
+          }
+        : {}),
+    })
+    return toPlanDetail(journeyPlanDetailSchema.parse(raw))
+  } catch (error) {
+    throw asApiError(error, 'Failed to save the allocation.')
   }
 }
 
 /**
  * GET /journey-plans/reps — the rep switcher. Each entry already carries its
  * plan id, so switching rep is a client-side navigation with no extra lookup.
+ * Deliberately carries no metrics.
  */
 export async function fetchPlanReps(periodMonth: string): Promise<PlanRepOption[]> {
   try {
@@ -245,185 +286,75 @@ export async function fetchPlanReps(periodMonth: string): Promise<PlanRepOption[
       inchargeName: rep.sales_incharge_name ?? '—',
       employeeCode: rep.sales_incharge_code ?? '',
       journeyPlanId: rep.journey_plan_id,
-      status: rep.status ? toStatus(rep.status) : null,
     }))
   } catch (error) {
     throw asApiError(error, 'Failed to load the sales incharges for this month.')
   }
 }
 
-/** POST /journey-plans/{id}/approve — returns the approved plan. */
-export async function approvePlan(id: string): Promise<JourneyPlanDetail> {
-  try {
-    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.APPROVE(id))
-    return toPlanDetail(journeyPlanDetailSchema.parse(raw))
-  } catch (error) {
-    throw asApiError(error, 'Failed to approve the journey plan.')
-  }
+/** The outcomes the server reports; anything unrecognised reads as a failure. */
+const OUTCOMES: GenerateOutcome[] = [
+  'created',
+  'replaced',
+  'skipped_existing',
+  'no_beats',
+  'failed',
+]
+
+function toOutcome(value: string): GenerateOutcome {
+  return OUTCOMES.includes(value as GenerateOutcome) ? (value as GenerateOutcome) : 'failed'
 }
 
 /**
- * POST /journey-plans/bulk-approve — **refuses flagged plans**, which is what
- * makes the button "Approve N *clean*". Reports one outcome per id.
+ * POST /journey-plans/generate — build each rep's beat list for the month, plus
+ * the dates pinned for everyone in the run.
+ *
+ * Idempotent per rep and period: a rep who already has an allocation is skipped
+ * unless `replaceExisting` is set. **One rep's failure does not fail the run**,
+ * so the caller renders the per-rep results rather than treating `failed > 0` as
+ * an error.
  */
-export async function bulkApprovePlans(ids: string[]): Promise<BulkApproveResult> {
-  try {
-    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.BULK_APPROVE, {
-      journey_plan_ids: ids.map((id) => Number(id) || id),
-    })
-    const res = bulkApproveSchema.parse(raw)
-    return {
-      approved: res.approved,
-      skipped: res.skipped,
-      outcomes: (res.results ?? []).map((row) => ({
-        journeyPlanId: row.journey_plan_id,
-        outcome: row.outcome as BulkApproveResult['outcomes'][number]['outcome'],
-      })),
-    }
-  } catch (error) {
-    throw asApiError(error, 'Failed to approve the clean plans.')
-  }
-}
-
-/**
- * POST /journey-plans/generate — idempotent per rep and period: it refuses when
- * a live plan exists unless `supersedeExisting` is explicitly true.
- */
-export async function generatePlans(input: {
-  periodMonth: string
-  inchargeIds?: string[]
-  supersedeExisting?: boolean
-  seed?: string
-}): Promise<GenerateResult> {
+export async function generatePlans(input: GenerateInput): Promise<GenerateResult> {
   try {
     const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.GENERATE, {
       period_month: input.periodMonth,
       ...(input.inchargeIds?.length
         ? { sales_incharge_ids: input.inchargeIds.map((id) => Number(id) || id) }
         : {}),
-      ...(input.supersedeExisting != null
-        ? { supersede_existing: input.supersedeExisting }
+      ...(input.pinnedDays?.length
+        ? {
+            pinned_days: input.pinnedDays.map((day) => ({
+              date: day.date,
+              activity_id: day.activityId,
+            })),
+          }
+        : {}),
+      ...(input.replaceExisting != null
+        ? { replace_existing: input.replaceExisting }
         : {}),
       ...(input.seed ? { seed: input.seed } : {}),
     })
     const res = generateSchema.parse(raw)
     return {
-      outcomes: (res.results ?? []).map((row) => ({
+      results: (res.results ?? []).map((row) => ({
         inchargeId: row.sales_incharge_id ?? '',
-        outcome: row.outcome as GenerateResult['outcomes'][number]['outcome'],
+        outcome: toOutcome(row.outcome),
         journeyPlanId: row.journey_plan_id,
+        beatsAllocated: row.beats_allocated,
+        message: row.message ?? null,
       })),
+      created: res.created,
+      skipped: res.skipped,
+      failed: res.failed,
     }
   } catch (error) {
-    throw asApiError(error, 'Failed to generate the journey plans.')
+    throw asApiError(error, 'Failed to generate the monthly allocations.')
   }
 }
 
 /**
- * PATCH /journey-plans/{id}/days/{dayId} — change the day's activity.
- *
- * Switching to a beatless activity clears the day's beats **server-side**, which
- * is why the whole plan comes back: refetch rather than reconcile.
- */
-export async function updatePlanDay(
-  id: string,
-  dayId: string,
-  input: { activityId: number; reason?: string | null; jointWorkingInchargeId?: string | null },
-): Promise<JourneyPlanDetail> {
-  try {
-    const raw = await http.patch<unknown>(endpoints.JOURNEY_PLAN.DAY(id, dayId), {
-      activity_id: input.activityId,
-      ...(input.reason !== undefined ? { reason: input.reason } : {}),
-      ...(input.jointWorkingInchargeId !== undefined
-        ? {
-            joint_working_sales_incharge_id:
-              input.jointWorkingInchargeId == null
-                ? null
-                : Number(input.jointWorkingInchargeId) || input.jointWorkingInchargeId,
-          }
-        : {}),
-    })
-    return toPlanDetail(journeyPlanDetailSchema.parse(raw))
-  } catch (error) {
-    throw asApiError(error, 'Failed to update the day.')
-  }
-}
-
-/** POST /journey-plans/{id}/days/{dayId}/beats — schedule one more beat. */
-export async function addPlanDayBeat(
-  id: string,
-  dayId: string,
-  beatId: string,
-): Promise<JourneyPlanDetail> {
-  try {
-    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.DAY_BEATS(id, dayId), {
-      beat_id: Number(beatId) || beatId,
-    })
-    return toPlanDetail(journeyPlanDetailSchema.parse(raw))
-  } catch (error) {
-    throw asApiError(error, 'Failed to add the beat.')
-  }
-}
-
-/** DELETE /journey-plans/{id}/days/{dayId}/beats/{beatId}. */
-export async function removePlanDayBeat(
-  id: string,
-  dayId: string,
-  beatId: string,
-): Promise<JourneyPlanDetail> {
-  try {
-    const raw = await http.delete<unknown>(
-      endpoints.JOURNEY_PLAN.DAY_BEAT(id, dayId, beatId),
-    )
-    // The DELETE answers `{ success: true }` on some builds and the updated plan
-    // on others; parse when it is a plan, and let the caller refetch otherwise.
-    const parsed = journeyPlanDetailSchema.safeParse(raw)
-    if (parsed.success) return toPlanDetail(parsed.data)
-    return await fetchPlan(id)
-  } catch (error) {
-    throw asApiError(error, 'Failed to remove the beat.')
-  }
-}
-
-/**
- * POST /journey-plans/{id}/re-solve — replans the month around the days held.
- *
- * `pinnedDates` are days the admin hand-edited and wants kept; **locked days are
- * held regardless** and count into `daysHeld`. This SUPERSEDES the plan, so the
- * returned plan carries a NEW id — update the route params from it.
- */
-export async function reSolvePlan(
-  id: string,
-  input: { pinnedDates?: string[]; seed?: string } = {},
-): Promise<ReSolveResult> {
-  try {
-    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.RE_SOLVE(id), {
-      ...(input.pinnedDates?.length ? { pinned_dates: input.pinnedDates } : {}),
-      ...(input.seed ? { seed: input.seed } : {}),
-    })
-    const res = reSolveSchema.parse(raw)
-    return {
-      plan: toPlanDetail(res.journey_plan),
-      diff: {
-        entries: (res.diff?.entries ?? []).map((entry) => ({
-          date: entry.date,
-          removedBeatIds: entry.removed_beat_ids ?? [],
-          addedBeatIds: entry.added_beat_ids ?? [],
-          activityChanged: Boolean(entry.activity_changed),
-        })),
-        daysChanged: res.diff?.days_changed ?? 0,
-        beatsMoved: res.diff?.beats_moved ?? 0,
-        daysHeld: res.diff?.days_held ?? 0,
-      },
-    }
-  } catch (error) {
-    throw asApiError(error, 'Failed to re-solve the month.')
-  }
-}
-
-/**
- * GET /activities — the activity master behind the day dropdown. The three
- * booleans are what the editor reasons about, so they come through as-is.
+ * GET /activities — the activity master behind the pinned-day dropdown. The
+ * three booleans are what the screens reason about, so they come through as-is.
  */
 export async function fetchActivities(): Promise<ActivityDef[]> {
   try {
@@ -447,8 +378,9 @@ export async function fetchActivities(): Promise<ActivityDef[]> {
 }
 
 /**
- * GET /sales-incharges/{id}/beats — the rep's allocated beats, i.e. the pool a
- * day's beat picker may offer and the denominator coverage is measured against.
+ * GET /sales-incharges/{id}/beats — every beat allocated to the rep. This is the
+ * pool the month's list is chosen *from*: a rep holds 60+ of these and cannot
+ * work them all, which is why choosing which is the whole decision.
  */
 export async function fetchAllocatedBeats(inchargeId: string): Promise<AllocatedBeat[]> {
   try {

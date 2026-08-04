@@ -220,10 +220,16 @@ export function Combobox({
         aria-expanded={open}
         aria-label={ariaLabel}
         className={cn(
-          'flex items-center gap-2 rounded-md transition-colors',
+          // The trigger is a <button>, so the UA outline has to go — otherwise it
+          // paints its own differently-coloured, differently-rounded box over the
+          // focus style below.
+          'flex items-center gap-2 rounded-md transition-colors focus:outline-none focus-visible:outline-none',
           inline
-            ? '-mx-1 px-1 py-0.5 text-base font-semibold text-foreground'
-            : 'h-9 w-full max-w-full border border-input bg-transparent px-3 text-sm text-foreground',
+            ? // No border to recolour on an inline trigger, so it keeps a ring.
+              '-mx-1 px-1 py-0.5 text-base font-semibold text-foreground focus-visible:ring-1 focus-visible:ring-ring'
+            : // Keyboard focus recolours the same 1px border the open state uses,
+              // so focusing and opening never stack into a 2px outline.
+              'h-9 w-full max-w-full border border-input bg-transparent px-3 text-sm text-foreground focus-visible:border-ring',
           disabled
             ? cn(
                 'cursor-not-allowed text-muted-foreground',
@@ -232,7 +238,11 @@ export function Combobox({
             : cn(
                 'cursor-pointer',
                 inline ? 'hover:bg-accent/60' : 'hover:border-ring/40',
-                open && (inline ? 'bg-accent/60' : 'ring-1 ring-ring'),
+                // Border colour only — no outer ring. A ring would stack on the
+                // border and read as a 2px outline, and it gets clipped anyway
+                // when the combobox sits inside a scroll container. The border
+                // can't be clipped, so one clean 1px accent line it is.
+                open && (inline ? 'bg-accent/60' : 'border-ring'),
               ),
         )}
       >

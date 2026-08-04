@@ -4,13 +4,14 @@ import { validateDataSearch } from '@/lib/route-search'
 import { requirePermission } from '@/features/permissions'
 
 /**
- * `?data=` carries `{ id, inchargeId, month }` for the plan being reviewed. With no
- * token the screen opens the current month's first plan — a re-solve mints a new plan
- * id, which is why the incharge travels in the token alongside it.
+ * `?data=` carries `{ id, inchargeId, month }` for the allocation being opened.
+ * With no token the screen opens the current month's first one — the incharge
+ * travels alongside the id because the month pager has to find the *same person's*
+ * next month, whose plan id it does not yet know.
  *
- * Opening a plan needs `journey-plan:read`; editing it (`journey-plan:update`),
- * approving it (`:approve`) and the assistant (`journey-plan-agent:use`) are
- * checked on the controls, so read-only reviewers still see the month.
+ * Opening an allocation needs `journey-plan:read`; editing it
+ * (`journey-plan:update`) and the assistant (`journey-plan-agent:use`) are checked
+ * on the controls, so read-only reviewers still see the month.
  */
 export const Route = createFileRoute('/_authenticated/journey/plan')({
   beforeLoad: ({ context }) =>

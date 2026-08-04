@@ -1,15 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
-import {
-  ArrowLeft,
-  BadgeCheck,
-  Hash,
-  Loader2,
-  MapPin,
-  Navigation,
-  ShieldAlert,
-} from 'lucide-react'
+import { ArrowLeft, BadgeCheck, Hash, MapPin, Navigation, ShieldAlert } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { EmptyState } from '@/components/common/empty-state'
@@ -19,6 +11,7 @@ import { durationLabel, timeOfDay, toKmPrecise } from '../lib/journey-format'
 import { routeStateNote, STATUS_LABEL } from '../lib/live-day-metrics'
 import { TRAIL_END_ID, TRAIL_START_ID } from '../lib/trail-selection'
 import { DayCounterTiles } from '../components/day-counter-tiles'
+import { DaySkeleton } from '../components/day-skeleton'
 import { DayStepper } from '../components/day-stepper'
 import { DayTimeline } from '../components/day-timeline'
 import { DayTrailMap } from '../components/day-trail-map'
@@ -176,12 +169,7 @@ export function LiveDayPage({ data }: LiveDayPageProps) {
       </div>
 
       {isLoading ? (
-        <div className="grid min-h-64 place-items-center text-sm text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" />
-            Loading the day…
-          </span>
-        </div>
+        <DaySkeleton />
       ) : !day ? (
         <EmptyState
           title="No data for this date"
@@ -212,10 +200,18 @@ export function LiveDayPage({ data }: LiveDayPageProps) {
                   </span>
                 </Hint>
               </Row>
-              <Row label="Selected beat">{day.selectedBeat?.name ?? '—'}</Row>
-              {/* When the two differ the rep worked a beat he chose himself — which
-                  is also why SC can read 0 on a day with calls on it. */}
-              <Row label="Assigned beat">{day.assignedBeat?.name ?? '—'}</Row>
+              {/* Every beat here is his own pick, in the order he took them. */}
+              <Row label={day.beats.length > 1 ? 'Beats worked' : 'Beat worked'}>
+                {day.beats.length ? day.beats.map((beat) => beat.name).join(' → ') : '—'}
+              </Row>
+              {/* A deviation, not a refusal: an off-list beat is allowed, and the
+                  admin sees it here. `true` on a day with no beats at all, so the
+                  row is only worth showing when he actually worked one. */}
+              {day.beats.length && !day.onAllocation ? (
+                <Row label="On allocation">
+                  <span className="font-medium text-warning">Off this month&rsquo;s list</span>
+                </Row>
+              ) : null}
             </dl>
 
             {day.attendance.dayStartAddress ? (

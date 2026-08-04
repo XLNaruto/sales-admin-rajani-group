@@ -15,12 +15,22 @@ export function ActivitySelect({
   value,
   onChange,
   disabled = false,
+  placeholder,
+  className = 'min-w-48',
 }: {
   activities: ActivityDef[]
   /** Current activity id. */
   value: number
   onChange: (activityId: number) => void
   disabled?: boolean
+  /**
+   * Trigger text before anything is picked. The plan editor always has an
+   * activity, so it needs none; a blank new row does — without it the trigger
+   * renders empty and reads as a broken field next to its neighbours.
+   */
+  placeholder?: string
+  /** Width utility for the trigger. */
+  className?: string
 }) {
   const options = useMemo<ComboboxOption[]>(
     () =>
@@ -39,14 +49,15 @@ export function ActivitySelect({
       value={value ? String(value) : ''}
       onChange={(id) => onChange(Number(id))}
       options={options}
+      placeholder={placeholder}
       // A dozen rows — under the point where an in-panel filter earns its keep.
       searchable={options.length > 12}
       disabled={disabled || options.length === 0}
       aria-label="Day activity"
-      // Wide enough for the longest name in the master ("Distributor Service",
-      // "Head Office Visit") — the panel matches the trigger's width, so a narrow
-      // trigger truncates the very options the reviewer is choosing between.
-      className="min-w-48"
+      // Defaults wide enough for the longest name in the master ("Distributor
+      // Service", "Head Office Visit") — the panel matches the trigger's width, so
+      // a narrow trigger truncates the very options being chosen between.
+      className={className}
     />
   )
 }

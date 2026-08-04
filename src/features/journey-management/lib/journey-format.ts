@@ -50,6 +50,32 @@ export function monthRange(month: string): { from: string; to: string } {
   return { from: `${month}-01`, to: `${month}-${String(days).padStart(2, '0')}` }
 }
 
+/**
+ * Every calendar date of a `yyyy-MM` month, in order, as `yyyy-MM-dd`.
+ *
+ * String arithmetic off the month's length — the dates never become `Date`s, so
+ * no timezone trip can shift the first or last day out of the month.
+ */
+export function monthDates(month: string): string[] {
+  const [year, m] = month.split('-').map(Number)
+  if (!year || !m) return []
+  const days = new Date(Date.UTC(year, m, 0)).getUTCDate()
+  return Array.from(
+    { length: days },
+    (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`,
+  )
+}
+
+/** A `yyyy-MM-dd` date as "Mon, 04 Aug" — the label a date dropdown reads by. */
+export function dayLabel(date: string): string {
+  try {
+    // Parsed date-only, so `parseISO` builds a local midnight — no UTC shift.
+    return format(parseISO(date), 'EEE, dd MMM')
+  } catch {
+    return date
+  }
+}
+
 /** A `yyyy-MM` month as "July 2026". */
 export function monthLabel(month: string): string {
   try {

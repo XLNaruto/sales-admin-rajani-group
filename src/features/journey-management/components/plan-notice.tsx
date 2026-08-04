@@ -1,10 +1,12 @@
 import { X } from 'lucide-react'
 
 /**
- * What the last edit did, in one line.
+ * What the last save did, in one line.
  *
- * The stat rail and issue list both move when a beat is removed; this says which
- * action caused it, so a recomputed coverage figure never looks like a glitch.
+ * The stat rail and the warnings both move when the beat list changes, and a save
+ * can silently drop a pin the server refuses to move (a locked date, or one the
+ * rep has taken over). This is where that gets said, so a row that didn't change
+ * never looks like a glitch.
  */
 export function PlanNotice({
   message,

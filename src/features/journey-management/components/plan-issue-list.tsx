@@ -4,31 +4,28 @@ import type { IssueCategory, PlanIssue } from '../types'
 
 /** Category chip colour — the chip is a label, so tone follows the category. */
 const CATEGORY_STYLE: Record<IssueCategory, string> = {
-  activity: 'bg-destructive/12 text-destructive',
-  coverage: 'bg-destructive/10 text-destructive',
-  workload: 'bg-warning/15 text-warning',
+  allocation: 'bg-destructive/12 text-destructive',
+  capacity: 'bg-warning/15 text-warning',
   calendar: 'bg-muted text-muted-foreground',
 }
 
 /**
- * "Needs a look" — the flags the server put on this plan, worst first.
+ * "Worth a look" — the warnings the server put on this allocation, worst first.
  *
- * The count in the header is the plan's `flagCount`, not the row count: `flags[]`
- * is capped and its tail arrives as one rolled-up row, so the two differ on a badly
- * flagged month. Rows that point at a day are clickable and scroll the table to it.
+ * They **gate nothing**: there is nothing to approve, so a flagged month is as
+ * live as a clean one. The header says "worth a look", not "blocking", on purpose.
+ *
+ * Rows that point at a date are clickable and scroll the month table to it.
  */
 export function PlanIssueList({
   issues,
-  flagCount,
   onSelectDay,
   maxHeight = '15rem',
 }: {
   issues: PlanIssue[]
-  /** Total flags including the rolled-up remainder. */
-  flagCount: number
   /** Called with a day of month when an issue row pointing at one is clicked. */
   onSelectDay?: (day: number) => void
-  /** Height cap on the scrolling issue list — roughly five rows by default. */
+  /** Height cap on the scrolling list — roughly five rows by default. */
   maxHeight?: string | number
 }) {
   if (issues.length === 0) {
@@ -37,7 +34,7 @@ export function PlanIssueList({
         <CheckCircle2 className="size-4 shrink-0 text-success" />
         <span className="font-medium text-foreground">Nothing to look at</span>
         <span className="text-muted-foreground">
-          — the solver flagged nothing on this month.
+          — no warnings on this month&rsquo;s allocation.
         </span>
       </div>
     )
@@ -46,13 +43,16 @@ export function PlanIssueList({
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
       <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
-        <h2 className="font-heading text-sm font-semibold text-foreground">Needs a look</h2>
+        <h2 className="font-heading text-sm font-semibold text-foreground">Worth a look</h2>
         <span className="rounded-full bg-destructive/12 px-2 py-0.5 text-xs font-semibold tabular-nums text-destructive">
-          {flagCount}
+          {issues.length}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          warnings only — the month is live either way
         </span>
       </div>
-      {/* Capped so a badly flagged month can't push the day table off-screen — the
-          header stays put and the issues scroll under it. */}
+      {/* Capped so a badly flagged month can't push the editor off-screen — the
+          header stays put and the warnings scroll under it. */}
       <ul className="divide-y divide-border/60 overflow-y-auto" style={{ maxHeight }}>
         {issues.map((issue, i) => {
           const clickable = issue.day != null && onSelectDay
@@ -75,7 +75,6 @@ export function PlanIssueList({
                 className={cn(
                   'flex items-start gap-3 px-4 py-2.5 text-sm',
                   clickable && 'cursor-pointer transition-colors hover:bg-accent/50',
-                  issue.rollup && 'bg-muted/30',
                 )}
               >
                 <span
@@ -87,11 +86,6 @@ export function PlanIssueList({
                   {issue.category}
                 </span>
                 <span className="min-w-0 flex-1 text-foreground">{issue.label}</span>
-                {issue.rollup ? (
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    not listed above
-                  </span>
-                ) : null}
               </div>
             </li>
           )

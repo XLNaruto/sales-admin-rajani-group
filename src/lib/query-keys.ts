@@ -122,13 +122,10 @@ export const queryKeys = {
   /** Journey management — plans, the activity master and the live field day. */
   journey: {
     all: ['journey'] as const,
-    /** GET /journey-plans — the approval queue (period + server-side filters). */
+    /** GET /journey-plans — the allocation list (period + server-side filters). */
     plans: (filters?: Record<string, unknown>) =>
       [...queryKeys.journey.all, 'plans', filters ?? {}] as const,
-    /** GET /journey-plans/summary — the period's counts + filter options. */
-    planSummary: (periodMonth: string) =>
-      [...queryKeys.journey.all, 'plan-summary', periodMonth] as const,
-    /** GET /journey-plans/{id} — one rep's month, with days + flags. */
+    /** GET /journey-plans/{id} — one rep's allocation, with the month strip. */
     plan: (id: string) => [...queryKeys.journey.all, 'plan', id] as const,
     /** GET /journey-plans/reps — the rep switcher's options for a period. */
     reps: (periodMonth: string) =>

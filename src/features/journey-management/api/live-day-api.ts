@@ -180,12 +180,15 @@ function toDetail(r: LiveDetailRow): LiveDayDetail {
     date: r.date,
     status: toStatus(r.status),
     counters: toCounters(r.counters),
-    assignedBeat: r.assigned_beat
-      ? { id: r.assigned_beat.id, name: r.assigned_beat.name ?? `Beat ${r.assigned_beat.id}` }
-      : null,
-    selectedBeat: r.selected_beat
-      ? { id: r.selected_beat.id, name: r.selected_beat.name ?? `Beat ${r.selected_beat.id}` }
-      : null,
+    // The beats he took, in his own order. There is no assigned/selected pair any
+    // more: nothing assigns beats to dates, so every one of these is his choice.
+    beats: (r.beats ?? []).map((beat) => ({
+      id: beat.id,
+      name: beat.name ?? `Beat ${beat.id}`,
+    })),
+    // The server sends `true` on a day with no beats at all, so a missing value
+    // must not read as a deviation.
+    onAllocation: r.on_allocation ?? true,
     totalDistanceMetres: r.total_distance_metres,
     mockSuspectedCount: r.mock_suspected_count,
     // Entirely null when the phone never checked in — and everything else in the

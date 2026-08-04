@@ -1,39 +1,31 @@
-import { useMemo, useState } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   CalendarX2,
-  ClipboardCheck,
   Clock,
   Hash,
   Loader2,
   MapPin,
+  RotateCcw,
   Route,
+  Save,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { EmptyState } from '@/components/common/empty-state'
 import { Hint } from '@/components/common/hint'
-import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { RouteError } from '@/features/error'
 import { AgentPanel } from '../components/agent-panel'
+import { BeatAllocationPicker } from '../components/beat-picker'
 import { MonthStepper } from '../components/month-stepper'
-import { PlanDayTable } from '../components/plan-day-table'
+import { MonthTable } from '../components/month-table'
 import { PlanIssueList } from '../components/plan-issue-list'
 import { PlanNotice } from '../components/plan-notice'
+import { PlanSkeleton } from '../components/plan-skeleton'
 import { PlanStatRail } from '../components/plan-stat-rail'
 import { useJourneyPlan } from '../hooks/use-journey-plan'
 import { stampLabel } from '../lib/journey-format'
-import type { ApprovalStatus } from '../types'
-
-/** Status wording for the header badge — the server's enum, no invented states. */
-const STATUS_LABEL: Record<ApprovalStatus, string> = {
-  draft: 'Draft',
-  pending_approval: 'Pending approval',
-  approved: 'Approved',
-  superseded: 'Superseded',
-}
 
 /**
  * One provenance fact in the header, as an icon + value chip.
@@ -67,6 +59,18 @@ function HeaderChip({
   )
 }
 
+/**
+ * The dashboard shell's scroll container is `<main class="… p-6">`, and sticky
+ * offsets resolve against a scroll container's **padding box** — not its border
+ * box. So `top-0` would park 24px inside that padding and leave a strip at each
+ * edge for rows to scroll through. The two sticky bands below cancel it out with
+ * `-top-6` / `-bottom-6`, and the month table's own sticky header subtracts it
+ * again to land flush under the page header.
+ *
+ * Keep this in step with the layout's padding: 6 → 1.5rem → 24px.
+ */
+const SHELL_PADDING = 24
+
 interface JourneyPlanPageProps {
   /** Encrypted `?data=` token carrying `{ id, inchargeId, month }`. */
   data?: string
@@ -75,57 +79,75 @@ interface JourneyPlanPageProps {
 /**
  * Journey Management → Journey Plan.
  *
- * One sales incharge's month: the server's numbers, everything the solver wants a
- * human to look at, then the month itself as an editable day-by-day table.
+ * One sales incharge's **allocation** for a month: which of his beats are in play,
+ * which dates the office has pinned, and what he has actually done with the month
+ * so far.
  *
- * Every edit is a server call that returns the whole recomputed plan, so the rail
- * and the issue list move with the day table without anything being recalculated
- * here. A locked day — one that has already started — is read-only, and an approved
- * plan is read-only entirely.
+ * The admin edits exactly two things and saves them together, because the API is
+ * one PATCH carrying two full replacements. He does **not** edit the rep's days —
+ * the rep writes those himself each morning, and a date he has taken over survives
+ * any save.
+ *
+ * There is nothing to approve: the allocation is live the moment it exists.
  */
 export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
   const {
     plan,
     planId,
     isLoading,
+    isLoadingReps,
     error,
     retry,
     missing,
     incharge,
-    openPlanId,
     month,
     monthLabel,
     prevMonth,
     nextMonth,
     selectMonth,
-    days,
-    activities,
     beats,
+    pins,
+    setBeats,
+    pin,
+    unpin,
+    dirty,
+    discard,
+    submit,
+    isSaving,
+    activities,
+    beatPool,
     issues,
-    editable,
     notice,
     dismissNotice,
-    isEdited,
-    setActivity,
-    addDayBeat,
-    removeDayBeat,
-    isSaving,
-    approve,
-    isApproving,
     canUpdate,
-    canApprove,
     canUseAgent,
   } = useJourneyPlan(data)
 
   const [focusedDay, setFocusedDay] = useState<number | null>(null)
-  const [confirmApprove, setConfirmApprove] = useState(false)
   const [agentOpen, setAgentOpen] = useState(false)
 
-  /** Dates the server flagged — the day table tints those rows. */
-  const flaggedDates = useMemo(
-    () => new Set(plan?.flags.map((flag) => flag.date).filter((d): d is string => d != null)),
-    [plan],
-  )
+  /**
+   * How tall the sticky header is, so the month table's own sticky column header
+   * can park directly beneath it instead of sliding underneath it.
+   *
+   * Measured rather than hard-coded: the provenance chips wrap at narrow widths, so
+   * the header is one, two or three lines tall depending on the viewport and on how
+   * many facts the allocation actually carries.
+   */
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [headerHeight, setHeaderHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const measure = () => setHeaderHeight(el.offsetHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+    // Re-run once the allocation lands: the header is not mounted before that, so
+    // the first attempt has no element to observe.
+  }, [plan])
 
   // Before anything else: a failed read leaves `plan` undefined for good, so the
   // loading branch below would spin forever on it. 403 lands on Forbidden, every
@@ -156,66 +178,31 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         </div>
         <EmptyState
           icon={CalendarX2}
-          title="No journey plan for this month"
-          description={`Nothing has been generated for ${monthLabel} yet. Generate the month's plans from the approval queue, or pick another month.`}
+          title="No allocation for this month"
+          description={`Nothing has been allocated for ${monthLabel} yet. Generate the month from the allocations list, or pick another month.`}
         />
       </div>
     )
   }
 
   if (isLoading || !plan) {
+    // The rep list resolves on its own request, so as soon as it lands the picker
+    // and the month pager go live — the admin can switch person or month while the
+    // allocation behind them is still loading, instead of waiting on a spinner.
     return (
-      <div className="grid min-h-64 place-items-center text-sm text-muted-foreground">
-        <span className="flex items-center gap-2">
-          <Loader2 className="size-4 animate-spin" />
-          Loading the month…
-        </span>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      {/* Header — who and when. The name itself is the incharge picker. */}
-      <div className="mb-5 rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-              <Route className="size-5" />
-            </span>
-
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                Journey plan
-              </p>
-              <Combobox
-                variant="inline"
-                withAvatars
-                placeholder="Select sales incharge"
-                searchPlaceholder="Search sales incharge…"
-                value={incharge.value}
-                onChange={incharge.onChange}
-                options={incharge.options}
-                loading={incharge.loading}
-              />
-
-              {/* `empty:hidden`: with every fact missing the chips all return
-                  null, and the row must not leave its margin behind. */}
-              <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
-                <HeaderChip icon={Hash} label="Employee code" value={plan.employeeCode} mono />
-                <HeaderChip icon={MapPin} label="Headquarter" value={plan.headquarter} />
-                <HeaderChip
-                  icon={Clock}
-                  label={`Generated by ${plan.generatedBy ?? 'the solver'}`}
-                  value={stampLabel(plan.generatedAt)}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Month pager + status — the month the whole screen is scoped to. */}
-          <div className="flex items-center gap-3">
-            <StatusBadge status={STATUS_LABEL[plan.status]} />
+      <div>
+        {!isLoadingReps ? (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <Combobox
+              variant="inline"
+              withAvatars
+              placeholder="Select sales incharge"
+              searchPlaceholder="Search sales incharge…"
+              value={incharge.value}
+              onChange={incharge.onChange}
+              options={incharge.options}
+              loading={incharge.loading}
+            />
             <MonthStepper
               month={month}
               label={monthLabel}
@@ -224,95 +211,188 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
               onSelect={selectMonth}
             />
           </div>
+        ) : null}
+        <PlanSkeleton withHeader={isLoadingReps} />
+      </div>
+    )
+  }
+
+  return (
+    // The month table's own sticky header has to clear this page header, and this
+    // one's height moves with the chip row wrapping — so it is measured and handed
+    // down as a custom property rather than guessed at as a fixed offset. The
+    // header sits at `-top-6`, so its stuck bottom edge is that much higher.
+    <div
+      style={
+        {
+          '--plan-header-h': `${Math.max(0, headerHeight - SHELL_PADDING)}px`,
+        } as CSSProperties
+      }
+    >
+      {/* Header — who and when. The name itself is the incharge picker.
+
+          Sticky: the rep switcher and the month pager are how you move around this
+          screen, and the month table below is 28–31 rows, so scrolling to the
+          bottom used to leave you with no way to change person or month.
+
+          `-mx-6 -mt-6 px-6 pt-6` eats the shell's padding in flow, and `-top-6`
+          eats it again once stuck (see SHELL_PADDING) — so the band reaches the
+          real top edge instead of floating 24px below it.
+
+          Fully opaque, deliberately: the card inside is opaque `bg-card`, so any
+          translucency here shows rows through the padding above and below it and
+          reads as two stray gaps rather than as one solid band. */}
+      <div
+        ref={headerRef}
+        className="sticky -top-6 z-20 -mx-6 -mt-6 mb-5 bg-background px-6 pt-6"
+      >
+        {/* The rule sits INSIDE the horizontal padding, so it starts and ends level
+            with the cards below rather than running edge-to-edge past them. The
+            opaque background still bleeds the full width — it has to, or rows show
+            in the corners as they scroll under. */}
+        <div className="border-b border-border/60 pb-4">
+          <div className="rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-card">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                  <Route className="size-5" />
+                </span>
+
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                    Monthly allocation
+                  </p>
+                  <Combobox
+                    variant="inline"
+                    withAvatars
+                    placeholder="Select sales incharge"
+                    searchPlaceholder="Search sales incharge…"
+                    value={incharge.value}
+                    onChange={incharge.onChange}
+                    options={incharge.options}
+                    loading={incharge.loading}
+                  />
+
+                  {/* `empty:hidden`: with every fact missing the chips all return
+                      null, and the row must not leave its margin behind. */}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
+                    <HeaderChip
+                      icon={Hash}
+                      label="Employee code"
+                      value={plan.employeeCode}
+                      mono
+                    />
+                    <HeaderChip icon={MapPin} label="Headquarter" value={plan.headquarter} />
+                    <HeaderChip
+                      icon={Clock}
+                      label={`Generated by ${plan.generatedBy ?? 'the picker'}`}
+                      value={stampLabel(plan.generatedAt)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <MonthStepper
+                month={month}
+                label={monthLabel}
+                onPrev={prevMonth}
+                onNext={nextMonth}
+                onSelect={selectMonth}
+              />
+            </div>
+          </div>
         </div>
       </div>
 
-      <PlanStatRail metrics={plan.metrics} />
+      <PlanStatRail progress={plan.progress} />
 
       <div className="mt-4 space-y-4">
         {notice ? <PlanNotice message={notice} onDismiss={dismissNotice} /> : null}
 
         {!canUpdate ? (
-          <PlanNotice message="You have read-only access to journey plans, so the month below can be reviewed but not changed." />
+          <PlanNotice message="You have read-only access to allocations, so the month below can be reviewed but not changed." />
         ) : null}
 
-        {plan.status === 'superseded' ? (
-          <PlanNotice message="This plan was replaced by a re-solve. Open the current plan for this month to make changes." />
-        ) : null}
+        <PlanIssueList issues={issues} onSelectDay={setFocusedDay} />
 
-        <PlanIssueList
-          issues={issues}
-          flagCount={plan.flagCount}
-          onSelectDay={setFocusedDay}
+        {/* The allocation itself — the decision this screen exists for. */}
+        <BeatAllocationPicker
+          pool={beatPool}
+          value={beats}
+          onChange={setBeats}
+          allocated={plan.allocatedBeats}
+          readOnly={!canUpdate}
+          busy={isSaving}
         />
 
-        <PlanDayTable
-          days={days}
+        <MonthTable
+          strip={plan.monthStrip}
+          days={plan.days}
           activities={activities}
-          beats={beats}
-          onActivityChange={setActivity}
-          onBeatAdd={addDayBeat}
-          onBeatRemove={removeDayBeat}
-          isEdited={isEdited}
-          flaggedDates={flaggedDates}
+          pinned={pins}
+          onPin={pin}
+          onUnpin={unpin}
           focusedDay={focusedDay}
-          readOnly={!editable}
+          readOnly={!canUpdate}
           busy={isSaving}
         />
       </div>
 
-      {/* Decisions. Approving publishes the month. */}
-      {/* Decisions, each behind its own grant: approving, editing and asking the
-          assistant are three separate permissions, and a read-only reviewer sees
-          none of the three rather than three disabled buttons. */}
-      {canApprove || canUpdate || canUseAgent ? (
-        <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-border/60 pt-5">
-          {canApprove ? (
-            <Button
-              className="cursor-pointer"
-              disabled={plan.status === 'approved' || plan.status === 'superseded' || isApproving}
-              onClick={() => setConfirmApprove(true)}
-            >
-              <ClipboardCheck /> Approve month
-            </Button>
-          ) : null}
-          {/* {canUseAgent ? (
-            <Button
-              variant="outline"
-              className="ml-auto cursor-pointer"
-              onClick={() => setAgentOpen(true)}
-            >
-              <MessageSquare /> Ask for a change
-            </Button>
-          ) : null} */}
-        </div>
-      ) : null}
+      {/* One screen, one Save — the API is a single PATCH carrying both lists.
 
-      <ConfirmDialog
-        open={confirmApprove}
-        onOpenChange={setConfirmApprove}
-        icon={ClipboardCheck}
-        title={`Approve ${monthLabel}?`}
-        description={
-          <>
-            The month goes live for{' '}
-            <span className="font-medium text-foreground">{plan.inchargeName}</span> at{' '}
-            {plan.metrics.coverage}% beat coverage
-            {plan.flagCount > 0 ? (
+          Sticky to the bottom of the scroll area: the two things being saved sit at
+          opposite ends of a 31-row table, so an edit made in the beat list is
+          otherwise a full scroll away from the button that commits it.
+
+          `-bottom-6` reaches past the shell's padding to the real bottom edge, and
+          the extra `pb-10` is that 24px back again — so the buttons stay optically
+          where `py-4` put them instead of dropping into the corner. */}
+      {canUpdate || canUseAgent ? (
+        <div className="sticky -bottom-6 z-20 -mx-6 mt-6 bg-background px-6 pb-10">
+          {/* Rule inside the padding, so it lines up with the header's and with the
+              cards between them — the background still bleeds the full width. */}
+          <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
+            {canUpdate ? (
               <>
-                , with{' '}
-                <span className="font-medium text-destructive">
-                  {plan.flagCount} flag{plan.flagCount === 1 ? '' : 's'}
-                </span>{' '}
-                still on it
+                <Hint
+                  label={
+                    dirty
+                      ? 'Write the beat list and the pinned days in one call'
+                      : 'Nothing has changed yet'
+                  }
+                >
+                  <span className="inline-flex">
+                    <Button
+                      className="cursor-pointer"
+                      disabled={!dirty || isSaving}
+                      onClick={submit}
+                    >
+                      {isSaving ? <Loader2 className="animate-spin" /> : <Save />} Save
+                      allocation
+                    </Button>
+                  </span>
+                </Hint>
+                {dirty ? (
+                  <Button
+                    variant="outline"
+                    className="cursor-pointer"
+                    disabled={isSaving}
+                    onClick={discard}
+                  >
+                    <RotateCcw /> Discard changes
+                  </Button>
+                ) : null}
+                {dirty ? (
+                  <span className="text-xs text-muted-foreground">
+                    Unsaved: {beats.length} beat{beats.length === 1 ? '' : 's'}, {pins.size}{' '}
+                    pinned day{pins.size === 1 ? '' : 's'}.
+                  </span>
+                ) : null}
               </>
             ) : null}
-            . Once approved it can no longer be edited.
-          </>
-        }
-        confirmLabel="Approve month"
-        onConfirm={approve}
-      />
+          </div>
+        </div>
+      ) : null}
 
       <AgentPanel
         open={agentOpen && canUseAgent}
@@ -321,9 +401,6 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         inchargeName={plan.inchargeName}
         monthLabel={monthLabel}
         readOnly={!canUpdate}
-        // The agent re-solved mid-conversation: follow the plan to its new id. The
-        // conversation is per (incharge, period), so the panel stays open across it.
-        onPlanSuperseded={openPlanId}
       />
     </div>
   )

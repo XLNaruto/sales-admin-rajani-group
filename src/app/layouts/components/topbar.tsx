@@ -65,7 +65,7 @@ export function Topbar() {
           group widths can't offset it; pointer-events-none keeps it click-through. */}
       <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 lg:hidden">
         <img
-          src={asset('media/logos/logo-dark.png')}
+          src={asset('media/logos/logo-year-dark.webp')}
           alt="Rajani Group"
           className="h-9 w-auto object-contain"
         />

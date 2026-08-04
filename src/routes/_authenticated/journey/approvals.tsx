@@ -1,14 +1,15 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { ApprovalQueuePage } from '@/features/journey-management'
-import { requirePermission } from '@/features/permissions'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 /**
- * Reading the queue needs `journey-plan:list`. Approving and generating are
- * separate keys (`journey-plan:approve` / `:create`) checked on the controls
- * themselves — a reviewer with read-only access still gets the whole screen.
+ * Legacy path for what is now `/journey/allocations`.
+ *
+ * The screen stopped approving anything — an allocation is live the moment it
+ * exists — so it was renamed. This route exists only so bookmarks and any links
+ * already out in the wild land on the new one. No permission check here: the
+ * target route runs it.
  */
 export const Route = createFileRoute('/_authenticated/journey/approvals')({
-  beforeLoad: ({ context }) =>
-    requirePermission(context.queryClient, 'journey-plan:list'),
-  component: ApprovalQueuePage,
+  beforeLoad: () => {
+    throw redirect({ to: '/journey/allocations', replace: true })
+  },
 })

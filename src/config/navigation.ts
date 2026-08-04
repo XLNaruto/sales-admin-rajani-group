@@ -91,8 +91,11 @@ export const navGroups: NavGroup[] = [
     title: "Journey Management",
     items: [
       {
-        label: "Approval Queue",
-        to: "/journey/approvals",
+        // Not "Approval Queue" any more: an allocation is live the moment it
+        // exists, so this screen reviews progress rather than approving anything.
+        // The old `/journey/approvals` path redirects here.
+        label: "Monthly Allocations",
+        to: "/journey/allocations",
         icon: ClipboardCheck,
         permission: "journey-plan:list",
       },
@@ -133,12 +136,11 @@ const routableNavItems = navGroups
 /**
  * Landing page for a section that has no index route of its own.
  *
- * `/journey` is only a path prefix — nothing is mounted on it — so the breadcrumb's
- * middle crumb has to point at the section's main screen instead of 404-ing.
+ * A prefix-only path (nothing mounted on it) would 404, so it either points at the
+ * section's main screen or is left out here to render as a disabled crumb.
+ * `/journey` is intentionally absent: its crumb stays plain text.
  */
-const sectionLanding: Record<string, string> = {
-  "/journey": "/journey/plan",
-};
+const sectionLanding: Record<string, string> = {};
 
 /**
  * Where a breadcrumb crumb for `pathname` should link, or undefined when that path
@@ -148,6 +150,22 @@ export function crumbTarget(pathname: string): string | undefined {
   if (sectionLanding[pathname]) return sectionLanding[pathname];
   if (routableNavItems.some((item) => item.to === pathname)) return pathname;
   return extraTitles[pathname] ? pathname : undefined;
+}
+
+/**
+ * Label for the breadcrumb crumb at `pathname`, or undefined to fall back to
+ * title-casing the URL segment.
+ *
+ * Exact matches only — unlike `pageNameForPath` there is no prefix fallback, so a
+ * detail route's id segment keeps its own crumb instead of inheriting the list
+ * screen's name. This is what keeps a crumb reading as the screen is named rather
+ * than as its path spells it.
+ */
+export function crumbLabel(pathname: string): string | undefined {
+  return (
+    routableNavItems.find((item) => item.to === pathname)?.label ??
+    extraTitles[pathname]
+  );
 }
 
 /** Human-readable page name for a pathname, or undefined if unknown. */

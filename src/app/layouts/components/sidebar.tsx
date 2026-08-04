@@ -125,7 +125,7 @@ export function Sidebar() {
         >
           {!collapsed && (
             <img
-              src={asset("media/logos/logo.png")}
+              src={asset("media/logos/logo-year-light.webp")}
               alt="Rajani Group"
               className="mx-auto h-12 w-auto shrink-0 object-contain"
             />

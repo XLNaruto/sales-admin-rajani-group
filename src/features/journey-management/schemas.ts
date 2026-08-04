@@ -36,117 +36,22 @@ const pageMeta = {
   total_pages: z.coerce.number().optional(),
 }
 
-/* ───────────────────────────── approval queue ─────────────────────────────── */
-
-export const rhythmDaySchema = z.object({
-  date: z.string(),
-  activity_code: z.string().nullish(),
-  beat_count: int,
-  flagged: z.boolean().nullish(),
-})
-
-export const journeyPlanRowSchema = z.object({
-  id,
-  sales_incharge_id: optionalId,
-  sales_incharge_name: z.string().nullish(),
-  sales_incharge_code: z.string().nullish(),
-  sales_incharge_city: z.string().nullish(),
-  status: z.string(),
-  coverage_percentage: int,
-  working_days: int,
-  beats_scheduled: int,
-  flag_count: int,
-  flag_codes: z.array(z.string()).nullish(),
-  month_rhythm: z.array(rhythmDaySchema).nullish(),
-})
+/* ────────────────────────── shared to list + detail ───────────────────────── */
 
 /**
- * GET /journey-plans/summary — the period's counts, which the list endpoint does
- * NOT carry. Every figure spans the whole period and ignores the list's filters,
- * which is exactly why it is its own request.
+ * One calendar date of the month, with the label the server derived at read
+ * time. Parsed loosely — an unknown `label` must not blank the whole screen, so
+ * it is a plain string here and narrowed in `api/`.
  */
-export const queueSummarySchema = z.object({
-  total_plans: int,
-  pending_approval_plans: int,
-  approved_plans: int,
-  draft_plans: int,
-  clean_plans: int,
-  flagged_plans: int,
-  average_coverage: int,
-  reviewed_percentage: int,
-  generated_at: z.string().nullish(),
-  filter_options: z
-    .object({
-      cities: z.array(z.string()).nullish(),
-      flag_codes: z.array(z.string()).nullish(),
-    })
-    .nullish(),
-})
-
-export const journeyPlanListSchema = z.object({
-  journey_plans: z.array(journeyPlanRowSchema),
-  ...pageMeta,
-})
-
-export const bulkApproveSchema = z.object({
-  approved: int,
-  skipped: int,
-  results: z
-    .array(
-      z.object({
-        journey_plan_id: id,
-        outcome: z.string(),
-      }),
-    )
-    .nullish(),
-})
-
-export const generateSchema = z.object({
-  results: z
-    .array(
-      z.object({
-        sales_incharge_id: optionalId,
-        outcome: z.string(),
-        journey_plan_id: optionalId,
-      }),
-    )
-    .nullish(),
-})
-
-/* ─────────────────────────────── plan detail ──────────────────────────────── */
-
-export const planDayBeatSchema = z.object({
-  id,
-  beat_id: id,
-  beat_name: z.string().nullish(),
-  workload: z.string().nullish(),
-  source: z.string().nullish(),
-  sequence: int,
-  stop_count: int,
-  locked: z.boolean().nullish(),
-})
-
-export const planDaySchema = z.object({
-  id,
+export const monthStripDaySchema = z.object({
   date: z.string(),
-  sequence: int,
-  activity_id: z.coerce.number().nullish(),
+  label: z.string(),
   activity_code: z.string().nullish(),
-  activity_name: z.string().nullish(),
-  beats: z.array(planDayBeatSchema).nullish(),
-  joint_working_sales_incharge_id: optionalId,
-  joint_working_sales_incharge_name: z.string().nullish(),
-  reason: z.string().nullish(),
-  locked: z.boolean().nullish(),
-  locked_at: z.string().nullish(),
-  solver_reason: z
-    .object({
-      rule: z.string(),
-      facts: z.record(z.string(), z.unknown()).nullish(),
-    })
-    .nullish(),
+  origin: z.string().nullish(),
+  beat_count: int,
 })
 
+/** A warning. `beat_name` is null for `beat_not_allocated` — no row to read. */
 export const planFlagSchema = z.object({
   code: z.string(),
   date: z.string().nullish(),
@@ -156,6 +61,94 @@ export const planFlagSchema = z.object({
   facts: z.record(z.string(), z.unknown()).nullish(),
 })
 
+/* ──────────────────────────── the allocation list ─────────────────────────── */
+
+export const journeyPlanRowSchema = z.object({
+  id,
+  sales_incharge_id: optionalId,
+  sales_incharge_name: z.string().nullish(),
+  sales_incharge_code: z.string().nullish(),
+  sales_incharge_city: z.string().nullish(),
+  beats_allocated: int,
+  beats_worked: int,
+  completion_percentage: int,
+  working_days: int,
+  flags: z.array(planFlagSchema).nullish(),
+  month_strip: z.array(monthStripDaySchema).nullish(),
+})
+
+export const journeyPlanListSchema = z.object({
+  journey_plans: z.array(journeyPlanRowSchema),
+  ...pageMeta,
+})
+
+/**
+ * POST /journey-plans/generate — per-rep outcomes plus the run's totals. One
+ * rep's failure does not fail the run, so `failed > 0` is data, not an error.
+ */
+export const generateSchema = z.object({
+  results: z
+    .array(
+      z.object({
+        sales_incharge_id: optionalId,
+        outcome: z.string(),
+        journey_plan_id: optionalId,
+        beats_allocated: int,
+        message: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+  created: int,
+  skipped: int,
+  failed: int,
+})
+
+/* ───────────────────────────── the allocation ─────────────────────────────── */
+
+/** One beat on the month's list. Coordinates are strings — parse, don't assume. */
+export const allocatedPlanBeatSchema = z.object({
+  beat_id: id,
+  beat_name: z.string().nullish(),
+  source: z.string().nullish(),
+  outlet_count: nullableInt,
+  visits_per_month: nullableInt,
+  worked_count: int,
+  latitude: decimal,
+  longitude: decimal,
+})
+
+export const planDayBeatSchema = z.object({
+  id,
+  beat_id: id,
+  beat_name: z.string().nullish(),
+  sequence: int,
+  stop_count: int,
+  locked: z.boolean().nullish(),
+})
+
+export const planDaySchema = z.object({
+  id,
+  date: z.string(),
+  activity_id: z.coerce.number().nullish(),
+  activity_code: z.string().nullish(),
+  activity_name: z.string().nullish(),
+  origin: z.string().nullish(),
+  selected_at: z.string().nullish(),
+  beats: z.array(planDayBeatSchema).nullish(),
+  joint_working_sales_incharge_id: optionalId,
+  joint_working_sales_incharge_name: z.string().nullish(),
+  reason: z.string().nullish(),
+  locked: z.boolean().nullish(),
+  locked_at: z.string().nullish(),
+})
+
+/**
+ * GET /journey-plans/{id} and the PATCH's response — the same shape, because the
+ * save returns the allocation it just wrote.
+ *
+ * `days` is SHORT on a fresh month: only the pinned dates are there until the
+ * rep starts choosing. The calendar is drawn from `month_strip`.
+ */
 export const journeyPlanDetailSchema = z.object({
   id,
   sales_incharge_id: optionalId,
@@ -163,72 +156,31 @@ export const journeyPlanDetailSchema = z.object({
   sales_incharge_code: z.string().nullish(),
   sales_incharge_city: z.string().nullish(),
   period_month: z.string(),
-  status: z.string(),
   generated_at: z.string().nullish(),
   generated_by: z.string().nullish(),
-  coverage_percentage: int,
-  beats_scheduled: int,
+  allocated_beats: z.array(allocatedPlanBeatSchema).nullish(),
+  beats_allocated: int,
+  beats_worked: int,
+  beats_remaining: int,
+  completion_percentage: int,
   working_days: int,
+  capacity: int,
   total_days: int,
-  planned_travel_km: nullableInt,
-  /** Nullable and null ≠ 0 — the travel load is unmeasurable, not zero. */
-  avg_km_per_day: nullableInt,
   flags: z.array(planFlagSchema).nullish(),
-  flag_summary: z
-    .object({
-      remaining_count: int,
-      /**
-       * One entry per flag kind in the remainder, MOST SEVERE FIRST — the order is
-       * the server's and must be preserved. `beat_count` is the distinct beats the
-       * kind names (0 for kinds that name none), deduplicated within a kind only.
-       */
-      remaining_by_code: z
-        .array(
-          z.object({
-            code: z.string(),
-            count: int,
-            beat_count: int,
-            outlet_count: int,
-          }),
-        )
-        .nullish(),
-    })
-    .nullish(),
-  flag_count: int,
+  month_strip: z.array(monthStripDaySchema).nullish(),
   days: z.array(planDaySchema).nullish(),
 })
 
+/** The rep switcher. Deliberately carries no metrics. */
 export const planRepsSchema = z.object({
   sales_incharges: z.array(
     z.object({
       sales_incharge_id: id,
       sales_incharge_name: z.string().nullish(),
       sales_incharge_code: z.string().nullish(),
-      journey_plan_id: optionalId,
-      status: z.string().nullish(),
+      journey_plan_id: id,
     }),
   ),
-})
-
-export const reSolveSchema = z.object({
-  journey_plan: journeyPlanDetailSchema,
-  diff: z
-    .object({
-      entries: z
-        .array(
-          z.object({
-            date: z.string(),
-            removed_beat_ids: z.array(id).nullish(),
-            added_beat_ids: z.array(id).nullish(),
-            activity_changed: z.boolean().nullish(),
-          }),
-        )
-        .nullish(),
-      days_changed: int,
-      beats_moved: int,
-      days_held: int,
-    })
-    .nullish(),
 })
 
 /* ────────────────────────── supporting masters ────────────────────────────── */
@@ -312,16 +264,18 @@ export const liveSummariesSchema = z.object({
     .nullish(),
 })
 
-const beatRefSchema = z
-  .object({ id, name: z.string().nullish() })
-  .nullish()
-
 export const liveDetailSchema = z.object({
   date: z.string(),
   status: z.string(),
   counters: countersSchema,
-  assigned_beat: beatRefSchema,
-  selected_beat: beatRefSchema,
+  /**
+   * The beats he worked, in the order he took them — this replaced the old
+   * `assigned_beat` / `selected_beat` pair, because nothing assigns beats to
+   * dates any more.
+   */
+  beats: z.array(z.object({ id, name: z.string().nullish() })).nullish(),
+  /** `true` on a day with no beats at all, not just on a compliant one. */
+  on_allocation: z.boolean().nullish(),
   total_distance_metres: int,
   mock_suspected_count: int,
   attendance: z

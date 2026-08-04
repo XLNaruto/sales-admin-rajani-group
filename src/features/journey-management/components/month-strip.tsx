@@ -1,15 +1,14 @@
 import { memo, useMemo, useState } from 'react'
 import { format, getDay, parseISO } from 'date-fns'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { dayKindOf, isBeatlessCode } from '../lib/activities'
 import { groupIntoWeeks } from '../lib/journey-metrics'
 import {
-  DAY_KIND_COLOR,
-  DAY_KIND_LABEL,
-  EMPTY_DAY_COLOR,
-  FLAGGED_COLOR,
-} from '../lib/day-kind'
-import type { RhythmDay } from '../types'
+  DAY_LABEL_COLOR,
+  DAY_LABEL_HINT,
+  DAY_LABEL_TEXT,
+  PINNED_MARK_COLOR,
+} from '../lib/day-label'
+import type { MonthStripDay } from '../types'
 
 /** Pillar height in px — every day is the same height; only the split varies. */
 const TRACK = 24
@@ -21,6 +20,8 @@ const COLUMN = 7
 const SPLIT = 1
 /** Gap between week groups in px — must match the `gap-1.5` below. */
 const WEEK_GAP = 6
+/** Height of the pinned-date marker under a pillar, in px. */
+const PIN_MARK = 2
 
 /**
  * Weekday labels ("18 Sat") for a month, built once and shared by every row.
@@ -44,13 +45,16 @@ function dayLabels(month: string): string[] {
 }
 
 /**
- * The month as a row of equal-height pillars — one per calendar day, straight off
- * the row's `month_rhythm`.
+ * The month as a row of equal-height pillars — one per calendar date, straight off
+ * the row's `month_strip`.
  *
- * Height is deliberately constant: the day's *kind* is carried by colour (working
- * / weekly off / holiday / leave) and its beat count by how many segments the
- * pillar is split into. `flagged` is its own overlay — a flagged day is not an
- * activity value, so it recolours a pillar rather than replacing its kind.
+ * Colour carries the server's **label**, which is the whole point of the strip:
+ * `absent` (a past date nobody accounted for) and `holiday` are different colours
+ * on purpose, and `unplanned` — most of any future month — reads as empty rather
+ * than as a gap to chase. Segment count carries the beats on the day.
+ *
+ * A thin underline marks a date the **office pinned** and the rep has not
+ * overridden, so his own choices are distinguishable from the ones fixed for him.
  *
  * Geometry and colour are inline rather than Tailwind classes: these are
  * data-driven marks, so nothing here can be lost to class generation.
@@ -59,19 +63,19 @@ function dayLabels(month: string): string[] {
  * tooltip whose invisible trigger is parked over the hovered column. A Radix
  * tooltip per day meant ~300 tooltip roots per table page.
  */
-export const MonthRhythm = memo(function MonthRhythm({
-  rhythm,
+export const MonthStrip = memo(function MonthStrip({
+  strip,
   month,
 }: {
-  rhythm: RhythmDay[]
+  strip: MonthStripDay[]
   /** Month being rendered, as `yyyy-MM` — supplies the weekday labels. */
   month: string
 }) {
-  const [hovered, setHovered] = useState<RhythmDay | null>(null)
+  const [hovered, setHovered] = useState<MonthStripDay | null>(null)
 
   const weeks = useMemo(
-    () => groupIntoWeeks(rhythm, getDay(parseISO(`${month}-01`))),
-    [rhythm, month],
+    () => groupIntoWeeks(strip, getDay(parseISO(`${month}-01`))),
+    [strip, month],
   )
   const labels = useMemo(() => dayLabels(month), [month])
 
@@ -89,16 +93,22 @@ export const MonthRhythm = memo(function MonthRhythm({
     return map
   }, [weeks])
 
-  const workingDays = useMemo(
-    () => rhythm.filter((day) => dayKindOf(day.activityCode) === 'working').length,
-    [rhythm],
+  /**
+   * The one figure worth announcing: dates that have passed with nothing on them.
+   * Not the working-day count — the server sends that as its own column.
+   */
+  const absent = useMemo(
+    () => strip.filter((day) => day.label === 'absent').length,
+    [strip],
   )
 
   return (
     <span
       className="relative inline-flex items-end gap-1.5"
       style={{ height: TRACK }}
-      aria-label={`Month rhythm: ${workingDays} working days`}
+      aria-label={
+        absent ? `Month strip: ${absent} unaccounted days` : 'Month strip: nothing unaccounted'
+      }
       onPointerLeave={() => setHovered(null)}
     >
       {weeks.map((week, w) => (
@@ -132,35 +142,32 @@ export const MonthRhythm = memo(function MonthRhythm({
   )
 })
 
-function DayTooltip({ day, label }: { day: RhythmDay; label?: string }) {
-  const kind = dayKindOf(day.activityCode)
+function DayTooltip({ day, label }: { day: MonthStripDay; label?: string }) {
   return (
     <>
       <span className="block whitespace-nowrap">
         <span className="font-mono tabular-nums">{label ?? day.date}</span>
         {': '}
-        {kind === 'working' ? activityLabel(day.activityCode) : DAY_KIND_LABEL[kind]}
+        {DAY_LABEL_TEXT[day.label]}
+        {day.origin === 'pinned' ? ' · pinned' : ''}
       </span>
-      {kind === 'working' ? (
-        <span className="mt-0.5 block text-[11px] font-normal opacity-70">
-          {day.beatCount === 0 && !isBeatlessCode(day.activityCode)
-            ? 'No beats planned'
-            : `${day.beatCount} ${day.beatCount === 1 ? 'beat' : 'beats'}`}
-          {day.flagged ? ' · flagged' : ''}
-        </span>
-      ) : null}
+      <span className="mt-0.5 block max-w-56 text-[11px] font-normal opacity-70">
+        {day.activityCode ? activityLabel(day.activityCode) : DAY_LABEL_HINT[day.label]}
+        {day.beatCount > 0
+          ? ` · ${day.beatCount} ${day.beatCount === 1 ? 'beat' : 'beats'}`
+          : ''}
+      </span>
     </>
   )
 }
 
-/** A code as a readable phrase — the row carries no activity name. */
-function activityLabel(code: string | null): string {
-  if (!code) return 'No activity'
+/** A code as a readable phrase — the strip carries no activity name. */
+function activityLabel(code: string): string {
   return code.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())
 }
 
 /**
- * One day: a hover column holding the pillar. Deliberately plain DOM — no tooltip
+ * One date: a hover column holding the pillar. Deliberately plain DOM — no tooltip
  * machinery, no date formatting — and memoised, because this is the component the
  * page renders a few hundred of.
  */
@@ -168,28 +175,18 @@ const DayPillar = memo(function DayPillar({
   day,
   onHover,
 }: {
-  day: RhythmDay
-  onHover: (day: RhythmDay) => void
+  day: MonthStripDay
+  onHover: (day: MonthStripDay) => void
 }) {
-  const kind = dayKindOf(day.activityCode)
-  const working = kind === 'working'
-  // A working day with nothing on it is a gap, not a plan — so it gets its own
-  // washed-out tint instead of reading as solid as a fully-loaded day. Activities
-  // that never take beats (a meeting, a depot visit) are not gaps.
-  const empty = working && day.beatCount === 0 && !isBeatlessCode(day.activityCode)
-  const color = !working
-    ? DAY_KIND_COLOR[kind]
-    : day.flagged
-      ? FLAGGED_COLOR
-      : empty
-        ? EMPTY_DAY_COLOR
-        : DAY_KIND_COLOR.working
-  // A worked day splits into one segment per beat; other kinds stay solid.
-  const segments = working ? Math.max(1, day.beatCount) : 1
+  const color = DAY_LABEL_COLOR[day.label]
+  // A day splits into one segment per beat. Days with no beats — every unplanned
+  // and holiday date, and a working day whose activity takes none — stay solid.
+  const segments = Math.max(1, day.beatCount)
+  const pinned = day.origin === 'pinned'
 
   return (
     <span
-      className="flex cursor-default items-end justify-center"
+      className="flex cursor-default flex-col items-center justify-end"
       style={{ width: COLUMN, height: TRACK }}
       onPointerEnter={() => onHover(day)}
     >
@@ -199,7 +196,9 @@ const DayPillar = memo(function DayPillar({
           flexDirection: 'column',
           gap: SPLIT,
           width: BAR,
-          height: TRACK,
+          // The pinned marker eats into the track rather than adding to it, so
+          // every row of the table stays exactly `TRACK` tall.
+          height: pinned ? TRACK - PIN_MARK - 1 : TRACK,
           flexShrink: 0,
         }}
       >
@@ -215,6 +214,18 @@ const DayPillar = memo(function DayPillar({
           />
         ))}
       </span>
+      {pinned ? (
+        <span
+          aria-hidden
+          style={{
+            marginTop: 1,
+            width: BAR,
+            height: PIN_MARK,
+            borderRadius: 1,
+            backgroundColor: PINNED_MARK_COLOR,
+          }}
+        />
+      ) : null}
     </span>
   )
 })

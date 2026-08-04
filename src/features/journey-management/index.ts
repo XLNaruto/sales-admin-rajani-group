@@ -1,36 +1,24 @@
-export { ApprovalQueuePage } from './pages/approval-queue-page'
+export { AllocationListPage } from './pages/allocation-list-page'
 export { JourneyPlanPage } from './pages/journey-plan-page'
 export { LiveMapPage } from './pages/live-map-page'
 export { LiveDayPage } from './pages/live-day-page'
 
 /* Query + mutation hooks — the only way another feature may reach these endpoints. */
-export {
-  useJourneyPlanQueue,
-  useJourneyPlanPeriodSummary,
-  useCleanPendingPlans,
-  useApproveJourneyPlan,
-  useBulkApproveJourneyPlans,
-  useGenerateJourneyPlans,
-} from './api/use-journey-plans'
+export { useJourneyPlanQueue, useGenerateJourneyPlans } from './api/use-journey-plans'
 export {
   useJourneyPlanDetail,
   useJourneyPlanReps,
   useActivities,
   useAllocatedBeats,
-  useUpdatePlanDay,
-  useAddPlanDayBeat,
-  useRemovePlanDayBeat,
-  useReSolvePlan,
+  useSaveJourneyPlan,
 } from './api/use-journey-plan-detail'
 export { useLiveMonth, useLiveDayDetail } from './api/use-live-day'
 
 /* Pure helpers, safe to reuse anywhere. */
 export {
-  coverageBand,
-  coverageRange,
-  segmentQuery,
+  completionBand,
   flagCodeLabel,
-  COVERAGE_THRESHOLDS,
+  COMPLETION_THRESHOLDS,
 } from './lib/journey-metrics'
 export {
   dayKindOf,
@@ -38,10 +26,21 @@ export {
   activityById,
   requiresBeat,
   isWorkingDay,
-  solverReasonLabel,
   NON_WORKING_CODES,
 } from './lib/activities'
-export { planIssues, isLocked, isEditable, COVERAGE_FAIR, COVERAGE_GOOD } from './lib/plan-flags'
+export {
+  planIssues,
+  isLocked,
+  isPinnable,
+  COMPLETION_FAIR,
+  COMPLETION_GOOD,
+} from './lib/plan-flags'
+export {
+  DAY_LABEL_COLOR,
+  DAY_LABEL_TEXT,
+  DAY_LABEL_HINT,
+  DAY_LABEL_LEGEND,
+} from './lib/day-label'
 export {
   isOnField,
   isFlagged,
@@ -63,6 +62,8 @@ export {
   todayISO,
   monthOf,
   monthRange,
+  monthDates,
+  dayLabel,
   monthLabel,
   shiftMonth,
   shiftDate,
@@ -89,16 +90,19 @@ export type {
   AgentMessage,
   AgentStreamEvent,
   AllocatedBeat,
-  ApprovalStatus,
-  BulkApproveResult,
+  AllocatedPlanBeat,
   DayAttendance,
   DayCounters,
   DayFacets,
   DayKind,
+  DayLabel,
+  DayOrigin,
   DayRoute,
   DayScope,
   DayVisit,
   FlagSeverity,
+  GenerateInput,
+  GenerateOutcome,
   GenerateResult,
   GeoPoint,
   IssueCategory,
@@ -107,27 +111,23 @@ export type {
   LiveDayDetail,
   LiveMonthResult,
   LiveMonthTotals,
+  MonthStripDay,
   OutletMarker,
+  PinnedDay,
   PlanDay,
   PlanDayBeat,
   PlanFlag,
-  PlanFlagSummary,
+  PlanFlagCode,
   PlanIssue,
-  PlanMetrics,
+  PlanProgress,
   PlanRepOption,
-  QueueFilterOptions,
   QueueParams,
   QueueResult,
-  QueueSegment,
   QueueSortBy,
-  QueueSummary,
   RepDayStatus,
   RepDaySummary,
-  ReSolveDiff,
-  ReSolveResult,
-  RhythmDay,
+  SavePlanInput,
   ScheduledOutlet,
-  SolverReason,
   ToolActivity,
   TrailFilter,
   VisitKind,

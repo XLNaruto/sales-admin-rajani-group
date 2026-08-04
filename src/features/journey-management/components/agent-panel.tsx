@@ -26,18 +26,23 @@ import { useAgentChat } from '../hooks/use-agent-chat'
 import type { AgentContentBlock, AgentMessage, ToolActivity } from '../types'
 
 /** Openers the reviewer can send with one tap instead of typing. */
+/**
+ * Written against the allocation model: the two things the agent can change are
+ * the month's beat list and its pinned days. Nothing here asks it to schedule a
+ * beat onto a date — the rep chooses that himself each morning.
+ */
 const QUICK_PROMPTS = [
-  'Which beats are short of their cycle, and why?',
-  'Balance the load across the working days.',
-  'Move the beats off the non-working days.',
-  'Explain the flagged days.',
+  'Add the beats he has gone longest without working.',
+  'Drop the beats he has already worked this month.',
+  'Pin every Sunday as a weekly off.',
+  'Explain the warnings on this month.',
 ]
 
 /** Read-only access: only the questions the assistant can actually answer. */
 const READ_ONLY_PROMPTS = [
-  'Which beats are short of their cycle, and why?',
-  'Explain the flagged days.',
-  'Where is the travel load heaviest?',
+  'Which listed beats has he not worked yet?',
+  'Explain the warnings on this month.',
+  'Which dates has he not accounted for?',
 ]
 
 /** Longest single message. Enforced on the textarea and again on send. */
@@ -218,18 +223,16 @@ interface AgentPanelProps {
    * read-only for them, and saying so up front beats a refusal per request.
    */
   readOnly?: boolean
-  /** The agent re-solved and superseded the plan: move to the new id. */
-  onPlanSuperseded?: (planId: string) => void
 }
 
 /**
  * Journey Plan → "Ask for a change": a conversation with the planning agent.
  *
- * The agent **writes directly** to the plan, with the same permissions, locks and
- * refusals as a human admin — an admin without `journey-plan:update` gets a
- * read-only assistant, and a locked day refuses it exactly as it refuses a person.
- * There is no approve tool: approval stays a human action, and the plan stays a
- * draft until someone hits Approve.
+ * The agent **writes directly** to the allocation, with the same permissions,
+ * locks and refusals as a human admin — an admin without `journey-plan:update`
+ * gets a read-only assistant, and a locked day refuses it exactly as it refuses a
+ * person. There is no approve tool, because there is nothing to approve: an
+ * allocation is live the moment it exists.
  *
  * The opening greeting and the suggestion chips are client-side copy; a new
  * conversation starts empty and there is no endpoint for either.
@@ -241,9 +244,8 @@ export function AgentPanel({
   inchargeName,
   monthLabel,
   readOnly = false,
-  onPlanSuperseded,
 }: AgentPanelProps) {
-  const chat = useAgentChat(planId, { active: open, onPlanSuperseded })
+  const chat = useAgentChat(planId, { active: open })
   const [draft, setDraft] = useState('')
 
   const scrollRef = useRef<HTMLDivElement>(null)

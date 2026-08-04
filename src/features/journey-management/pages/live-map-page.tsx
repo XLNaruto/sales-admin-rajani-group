@@ -2,7 +2,6 @@ import {
   BadgeCheck,
   CalendarDays,
   Hash,
-  Loader2,
   Navigation,
   ShieldAlert,
   type LucideIcon,
@@ -14,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { CardPagination } from '../components/card-pagination'
 import { DayScopeSegments } from '../components/day-scope-segments'
 import { LiveDayCard } from '../components/live-day-card'
+import { LiveMapSkeleton } from '../components/live-map-skeleton'
 import { LiveStatRail } from '../components/live-stat-rail'
 import { MonthStepper } from '../components/month-stepper'
 import { useLiveMap } from '../hooks/use-live-map'
@@ -148,56 +148,58 @@ export function LiveMapPage({ data }: LiveMapPageProps) {
         </div>
       </div>
 
-      <LiveStatRail totals={totals} />
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <DayScopeSegments value={scope} onChange={setScope} counts={counts} />
-        <p className="text-xs text-muted-foreground">
-          {toKm(totals.distanceMetres).toLocaleString('en-IN')} km travelled across{' '}
-          {monthLabel}
-        </p>
-      </div>
-
+      {/* The rail, the scope segments and the grid all read off the same response,
+          so they load as one block — showing the rail's zeros next to a spinner
+          reads as a month with no work in it. */}
       {isLoading ? (
-        <div className="mt-10 grid place-items-center text-sm text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <Loader2 className="size-4 animate-spin" />
-            Loading the month…
-          </span>
-        </div>
-      ) : days.length ? (
+        <LiveMapSkeleton />
+      ) : (
         <>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-            {pagedDays.map((day) => (
-              <LiveDayCard
-                key={day.date}
-                day={day}
-                today={today}
-                inchargeId={inchargeId ?? ''}
-              />
-            ))}
+          <LiveStatRail totals={totals} />
+
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <DayScopeSegments value={scope} onChange={setScope} counts={counts} />
+            <p className="text-xs text-muted-foreground">
+              {toKm(totals.distanceMetres).toLocaleString('en-IN')} km travelled across{' '}
+              {monthLabel}
+            </p>
           </div>
 
-          <div className="mt-5">
-            <CardPagination
-              page={page}
-              pageCount={pageCount}
-              from={from}
-              to={to}
-              total={days.length}
-              itemName="days"
-              onPageChange={goToPage}
-            />
-          </div>
+          {days.length ? (
+            <>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {pagedDays.map((day) => (
+                  <LiveDayCard
+                    key={day.date}
+                    day={day}
+                    today={today}
+                    inchargeId={inchargeId ?? ''}
+                  />
+                ))}
+              </div>
+
+              <div className="mt-5">
+                <CardPagination
+                  page={page}
+                  pageCount={pageCount}
+                  from={from}
+                  to={to}
+                  total={days.length}
+                  itemName="days"
+                  onPageChange={goToPage}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="mt-4">
+              <EmptyState
+                icon={ShieldAlert}
+                title="Nothing in this slice"
+                description={`No day in ${monthLabel} matches this filter.`}
+              />
+            </div>
+          )}
         </>
-      ) : (
-        <div className="mt-4">
-          <EmptyState
-            icon={ShieldAlert}
-            title="Nothing in this slice"
-            description={`No day in ${monthLabel} matches this filter.`}
-          />
-        </div>
       )}
     </div>
   )
