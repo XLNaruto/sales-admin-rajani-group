@@ -18,8 +18,6 @@ import type {
   DistributorExistingFiles,
 } from "../types";
 
-const CURRENT_YEAR = new Date().getFullYear();
-
 /** Image fields that can carry already-saved storage paths in edit mode. */
 export type ExistingImageField = "office" | "godown" | "pan" | "gst" | "cheque";
 
@@ -61,26 +59,6 @@ const fromExistingImages = (e: ExistingImages): DistributorExistingFiles => ({
   advanceChequePhotoPath: e.cheque.join(","),
 });
 
-/** Latest allowed birth date — today shifted back 18 years, so anyone younger
- *  than 18 can't be selected. */
-const MAX_BIRTH_DATE = (() => {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - 18);
-  return d;
-})();
-
-/** Today — used as the latest selectable date so future dates (e.g. marriage
- *  anniversary) can't be picked. */
-const TODAY = new Date();
-
-/** Parse a 'yyyy-MM-dd' form value into a local Date (or undefined when blank),
- *  for use as a date-picker bound. */
-const toDate = (v?: string) => {
-  if (!v) return undefined;
-  const [y, m, d] = v.split("-").map(Number);
-  return y && m && d ? new Date(y, m - 1, d) : undefined;
-};
-
 /** Parse an optional numeric-text field into a number (or undefined when blank). */
 const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
 /** Trim an optional text field, collapsing blanks to undefined. */
@@ -111,10 +89,13 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     // Firm & owner
     firmName: values.firmName,
     firmType: values.firmType,
-    ownerName: values.ownerName,
-    ownerMobile: values.ownerMobile,
-    ownerBirthDate: str(values.ownerBirthDate),
-    ownerAnniversaryDate: str(values.ownerAnniversaryDate),
+    owners: values.owners.map((o) => ({
+      name: o.name.trim(),
+      mobile: o.mobile,
+      email: str(o.email),
+      birthDate: str(o.birthDate),
+      anniversaryDate: str(o.anniversaryDate),
+    })),
     communicationMobile: str(values.communicationMobile),
     multipleLogin: values.multipleLogin,
     email: values.email,
@@ -219,10 +200,6 @@ export function useDistributorForm(id?: string) {
       [field]: prev[field].filter((_, i) => i !== index),
     }));
 
-  // Owner's birth date bounds the anniversary picker — watch it and re-derive
-  // the lower bound as it changes.
-  const birthDate = toDate(watch("ownerBirthDate"));
-
   // Cascading territory selection — watch parents to build child options.
   const stateId = watch("stateId");
   const zoneId = watch("zoneId");
@@ -275,10 +252,5 @@ export function useDistributorForm(id?: string) {
     isLoading: isEdit && detail.isLoading,
     isError: isEdit && detail.isError,
     goBack,
-    currentYear: CURRENT_YEAR,
-    maxBirthDate: MAX_BIRTH_DATE,
-    maxDate: TODAY,
-    /** Owner's birth date as a Date — lower bound for the anniversary picker. */
-    birthDate,
   };
 }

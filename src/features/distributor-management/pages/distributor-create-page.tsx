@@ -6,9 +6,10 @@ import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
-import { Field, DatePicker, MultiSelect } from "@/features/beat-creation";
+import { Field, MultiSelect } from "@/features/beat-creation";
 import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "@/components/common/file-input";
+import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { useProductDivisions } from "../api/use-distributors";
 import {
@@ -63,10 +64,6 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     isLoading,
     isError,
     goBack,
-    currentYear,
-    maxBirthDate,
-    maxDate,
-    birthDate,
   } = useDistributorForm(id || undefined);
 
   // Keep a mobile input to digits only, capped at 10 — mirrors the login page.
@@ -169,69 +166,25 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
-          <Field
-            label="Owner's / Partner Name"
-            error={errors.ownerName?.message}
-          >
-            <Input
-              placeholder="Owner's / Partner Name"
-              {...register("ownerName")}
-            />
-          </Field>
-
-          <Field
-            label="Owner's / Partner Mobile Number"
-            error={errors.ownerMobile?.message}
-          >
-            <Input
-              type="text"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="10-digit mobile number"
-              {...register("ownerMobile", { onChange: digitsOnly(10) })}
-            />
-          </Field>
-
-          <Field
-            label="Owner's / Partner Birth Date"
-            optional
-            error={errors.ownerBirthDate?.message}
-          >
-            <Controller
-              control={control}
-              name="ownerBirthDate"
-              render={({ field }) => (
-                <DatePicker
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  fromYear={1940}
-                  toYear={currentYear}
-                  maxDate={maxBirthDate}
-                />
-              )}
-            />
-          </Field>
-
-          <Field
-            label="Owner's / Partner Marriage Anniversary Date"
-            optional
-            error={errors.ownerAnniversaryDate?.message}
-          >
-            <Controller
-              control={control}
-              name="ownerAnniversaryDate"
-              render={({ field }) => (
-                <DatePicker
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  fromYear={1960}
-                  toYear={currentYear}
-                  minDate={birthDate}
-                  maxDate={maxDate}
-                />
-              )}
-            />
-          </Field>
+          {/* Every owner/partner of the firm — managed in its own modal since a
+              firm can have up to 20, each with contact + greeting dates. */}
+          <Controller
+            control={control}
+            name="owners"
+            render={({ field }) => (
+              <OwnerPartnersField
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={
+                  errors.owners?.message ??
+                  errors.owners?.root?.message ??
+                  (Array.isArray(errors.owners)
+                    ? "Some partner details are incomplete. Open “Manage Partners” to fix them."
+                    : undefined)
+                }
+              />
+            )}
+          />
 
           <Field
             label="Communication Mobile Number"

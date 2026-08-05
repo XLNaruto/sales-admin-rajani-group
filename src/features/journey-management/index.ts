@@ -8,9 +8,13 @@ export { useJourneyPlanQueue, useGenerateJourneyPlans } from './api/use-journey-
 export {
   useJourneyPlanDetail,
   useJourneyPlanReps,
+  useAllocationOptions,
   useActivities,
   useAllocatedBeats,
-  useSaveJourneyPlan,
+  useSaveAllocation,
+  useSaveSchedule,
+  usePublishJourneyPlan,
+  useApproveJourneyPlan,
 } from './api/use-journey-plan-detail'
 export { useLiveMonth, useLiveDayDetail } from './api/use-live-day'
 
@@ -28,18 +32,27 @@ export {
   isWorkingDay,
   NON_WORKING_CODES,
 } from './lib/activities'
+export { planIssues, isLocked, COMPLETION_FAIR, COMPLETION_GOOD } from './lib/plan-flags'
 export {
-  planIssues,
-  isLocked,
-  isPinnable,
-  COMPLETION_FAIR,
-  COMPLETION_GOOD,
-} from './lib/plan-flags'
+  PLAN_STATUS_CHAIN,
+  PLAN_STATUS_LABEL,
+  PLAN_STATUS_HINT,
+  PLAN_STATUS_TONE,
+  toPlanStatus,
+  statusRank,
+  scheduleOwner,
+  canEditAllocation,
+  canEditSchedule,
+  isPublishable,
+  isApprovable,
+  unscheduledIsAProblem,
+} from './lib/plan-status'
 export {
   DAY_LABEL_COLOR,
   DAY_LABEL_TEXT,
   DAY_LABEL_HINT,
   DAY_LABEL_LEGEND,
+  ADMIN_MARK_COLOR,
 } from './lib/day-label'
 export {
   isOnField,
@@ -84,13 +97,16 @@ export {
 } from './lib/visit-kinds'
 
 export type {
+  ActivityAllocation,
   ActivityCode,
   ActivityDef,
+  ActivityQuota,
+  AllocationOptions,
   AgentConversation,
   AgentMessage,
   AgentStreamEvent,
   AllocatedBeat,
-  AllocatedPlanBeat,
+  CityAllocation,
   DayAttendance,
   DayCounters,
   DayFacets,
@@ -113,7 +129,6 @@ export type {
   LiveMonthTotals,
   MonthStripDay,
   OutletMarker,
-  PinnedDay,
   PlanDay,
   PlanDayBeat,
   PlanFlag,
@@ -121,14 +136,19 @@ export type {
   PlanIssue,
   PlanProgress,
   PlanRepOption,
+  PlanSource,
+  PlanStatus,
   QueueParams,
   QueueResult,
   QueueSortBy,
   RepDayStatus,
   RepDaySummary,
-  SavePlanInput,
+  SaveAllocationInput,
+  SaveScheduleInput,
+  ScheduleDayInput,
   ScheduledOutlet,
   ToolActivity,
+  TransitionResult,
   TrailFilter,
   VisitKind,
   VisitMarker,

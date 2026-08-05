@@ -1,16 +1,16 @@
 import { Skeleton } from '@/components/ui/skeleton'
 
 /**
- * The allocation screen while it loads.
+ * The plan screen while it loads.
  *
- * Shaped like the screen it precedes — header card, progress rail, warnings bar,
- * beat list, month table — so the layout doesn't jump when the data lands. A
- * centred spinner told the admin nothing about what was coming and reflowed the
- * whole page the moment it did.
+ * Shaped like the screen it precedes — header card, stat rail, notice, warnings
+ * bar, the two-panel allocation editor, the schedule table — so the layout doesn't
+ * jump when the data lands. A centred spinner told the admin nothing about what was
+ * coming and reflowed the whole page the moment it did.
  *
- * `withHeader` is false once the rep list has arrived: the picker and the month
- * pager are driven by that list, not by the allocation, so they render live and
- * stay usable while the month behind them is still in flight.
+ * `withHeader` is false once the sales incharge list has arrived: the picker and the month
+ * pager are driven by that list, not by the plan, so they render live and stay
+ * usable while the month behind them is still in flight.
  */
 export function PlanSkeleton({ withHeader = true }: { withHeader?: boolean }) {
   return (
@@ -51,31 +51,41 @@ export function PlanSkeleton({ withHeader = true }: { withHeader?: boolean }) {
           <Skeleton className="h-4 w-40" />
         </div>
 
-        {/* Beat list — header, search row, then a few rows of checkbox + name. */}
+        {/* Allocation editor — header with the running total, then the two bucket
+            panels side by side, each a few rows of name + count. */}
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-5 w-28 rounded-full" />
+            <Skeleton className="h-4 w-28" />
+            <Skeleton className="h-5 w-32 rounded-full" />
           </div>
-          <div className="border-b border-border/60 px-4 py-2.5">
-            <Skeleton className="h-5 w-44" />
-          </div>
-          <div className="divide-y divide-border/40">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                <Skeleton className="size-5 shrink-0 rounded" />
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  {/* Staggered widths: a column of identical bars reads as a
-                      rendering artefact rather than as a list of names. */}
-                  <Skeleton className="h-4" style={{ width: `${38 + ((i * 13) % 26)}%` }} />
-                  <Skeleton className="h-3 w-20" />
-                </div>
+          <div className="grid divide-border/60 md:grid-cols-2 md:divide-x">
+            {[0, 1].map((panel) => (
+              <div key={panel} className="space-y-3 p-4">
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-full max-w-64" />
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      {/* Staggered widths: a column of identical bars reads as a
+                          rendering artefact rather than as a list of names. */}
+                      <Skeleton
+                        className="h-4"
+                        style={{
+                          width: `${38 + ((i * 13 + panel * 7) % 26)}%`,
+                        }}
+                      />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                    <Skeleton className="h-9 w-16 shrink-0 rounded-lg" />
+                  </div>
+                ))}
+                <Skeleton className="h-9 w-full rounded-lg" />
               </div>
             ))}
           </div>
         </div>
 
-        {/* Month table — header row plus a handful of day rows. */}
+        {/* Schedule table — header row plus a handful of day rows. */}
         <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
           <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
             <Skeleton className="h-4 w-24" />

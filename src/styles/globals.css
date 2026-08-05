@@ -188,6 +188,20 @@
     /* Long transition keeps the injected background from ever painting. */
     transition: background-color 9999s ease-in-out 0s;
   }
+
+  /* Drop the native number spinner everywhere: it paints its own arrows over
+     the field's right padding, which no themed input accounts for. Values are
+     typed, and every field that needs stepping ships its own control. */
+  input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    appearance: none;
+    margin: 0;
+  }
 }
 
 /* ------------------------------------------------------------------ */

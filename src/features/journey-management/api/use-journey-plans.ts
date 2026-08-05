@@ -1,20 +1,28 @@
 /**
- * Query + mutation hooks for the allocation list.
+ * Query + mutation hooks for the plan list.
  *
  * The list is server-filtered, server-sorted and server-paged, so every change
  * is a refetch rather than a client-side pass over the page.
  *
  * There is deliberately no period-summary hook: `GET /journey-plans/summary` is
- * gone, because every count it returned was by approval status and an allocation
- * has none. The header's figure is the list's own `total`.
+ * gone — the list's own `status` filter serves the tabs it used to count, and the
+ * header's figure is the list's `total` for whichever tab is on.
  */
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { fetchQueue, generatePlans } from './journey-plan-api'
 import type { GenerateInput, QueueParams } from '../types'
 
-/** GET /journey-plans — one page of the month's allocations. */
-export function useJourneyPlanQueue(params: QueueParams, options: { enabled?: boolean } = {}) {
+/** GET /journey-plans — one page of the month's plans. */
+export function useJourneyPlanQueue(
+  params: QueueParams,
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: queryKeys.journey.plans(params as unknown as Record<string, unknown>),
     queryFn: () => fetchQueue(params),
@@ -26,11 +34,14 @@ export function useJourneyPlanQueue(params: QueueParams, options: { enabled?: bo
 }
 
 /**
- * POST /journey-plans/generate — skips a rep who already has an allocation
- * unless `replaceExisting` is set.
+ * POST /journey-plans/generate — drafts each sales incharge's month.
  *
- * Invalidates the whole `journey` tree rather than the list alone: a replaced rep
- * has a new beat list, so any detail already in cache is stale too.
+ * Skips a sales incharge who already has a plan unless `replaceExisting` is set, and skips
+ * one whose plan has left `draft` **either way** (`skipped_in_progress`) —
+ * regenerating would discard the schedule he wrote.
+ *
+ * Invalidates the whole `journey` tree rather than the list alone: a replaced sales incharge
+ * has a new allocation, so any detail already in cache is stale too.
  */
 export function useGenerateJourneyPlans() {
   const qc = useQueryClient()

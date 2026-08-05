@@ -13,7 +13,9 @@ import { FlagsCell } from '../components/flags-cell'
 import { GenerateMonthDialog } from '../components/generate-month-dialog'
 import { MonthStrip } from '../components/month-strip'
 import { MonthStepper } from '../components/month-stepper'
+import { StatusChip } from '../components/status-chip'
 import { useAllocationList } from '../hooks/use-allocation-list'
+import { PLAN_STATUS_LABEL } from '../lib/plan-status'
 import type { JourneyPlan } from '../types'
 
 /** Two-letter initials for the row avatar. */
@@ -26,15 +28,20 @@ function initials(name: string) {
 }
 
 /**
- * Journey Management → Allocations.
+ * Journey Management → Journey Plans.
  *
- * One month of allocations, one row per sales incharge: how many beats he was
- * given, how many he has worked, the month itself as a strip, and any warnings.
+ * One month of plans, one row per sales incharge: where each sits in the chain,
+ * how much of the month the sales incharge has dated, how much he has actually worked, the
+ * month itself as a strip, and any warnings.
  *
- * **There is nothing to approve here.** An allocation is live the moment it
- * exists, so there are no status tabs, no bulk-approve and no per-row approve —
- * the worklist is `Completion` sorted ascending, and the Flags column is what you
- * scan. Filtering, sorting and paging all happen server-side.
+ * **Two percentages, not one**, because the interesting question changes as the
+ * month progresses: *Scheduling* is what matters before approval, *Completion*
+ * after it. Showing one number labelled "progress" would mean different things on
+ * different rows of the same table.
+ *
+ * The worklist is the **Submitted** tab — the only state waiting on the admin.
+ * Filtering, sorting and paging all happen server-side, and sorting by status uses
+ * chain order rather than alphabetical.
  */
 export function AllocationListPage() {
   const {
@@ -66,15 +73,19 @@ export function AllocationListPage() {
   const navigate = useNavigate()
 
   /**
-   * Open a row on the allocation screen. The incharge travels alongside the plan
-   * id so a month step there can resolve the same person's next month.
+   * Open a row on the plan screen. The incharge travels alongside the plan id so a
+   * month step there can resolve the same person's next month.
    */
   const openPlan = useCallback(
     (plan: JourneyPlan) => {
       navigate({
         to: '/journey/plan',
         search: {
-          data: encryptParams({ id: plan.id, inchargeId: plan.inchargeId, month }),
+          data: encryptParams({
+            id: plan.id,
+            inchargeId: plan.inchargeId,
+            month,
+          }),
         },
       })
     },
@@ -105,7 +116,7 @@ export function AllocationListPage() {
         enableSorting: false,
         meta: { className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => (
-          <Hint label="Open allocation">
+          <Hint label="Open plan">
             <button
               type="button"
               onClick={() => openPlan(row.original)}
@@ -129,7 +140,9 @@ export function AllocationListPage() {
             <div className="leading-tight">
               <p className="font-medium text-foreground">{row.original.inchargeName}</p>
               <p className="text-xs text-muted-foreground">
-                <span className="font-mono tabular-nums">{row.original.employeeCode}</span>
+                <span className="font-mono tabular-nums">
+                  {row.original.employeeCode}
+                </span>
                 {' · '}
                 {row.original.headquarter}
               </p>
@@ -138,42 +151,63 @@ export function AllocationListPage() {
         ),
       },
       {
-        accessorKey: 'completion',
+        // Sorted server-side in CHAIN order (draft → published → submitted →
+        // approved), which is what makes it a worklist rather than an index.
+        accessorKey: 'status',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => <StatusChip status={row.original.status} />,
+      },
+      {
+        accessorKey: 'schedulingPercentage',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title="Scheduling" />
+        ),
+        cell: ({ row }) => (
+          <CompletionMeter
+            value={row.original.schedulingPercentage}
+            done={row.original.daysScheduled}
+            total={row.original.daysAllocated}
+            ariaLabel="Days scheduled of days allocated"
+            emptyLabel="Nothing allocated"
+            emptyHint="No days are allocated for this month, so there is nothing for the sales incharge to schedule — and publishing will be refused."
+          />
+        ),
+      },
+      {
+        accessorKey: 'completionPercentage',
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Completion" />
         ),
         cell: ({ row }) => (
           <CompletionMeter
-            value={row.original.completion}
-            worked={row.original.beatsWorked}
-            allocated={row.original.beatsAllocated}
+            value={row.original.completionPercentage}
+            done={row.original.daysWorked}
+            total={row.original.daysScheduled}
+            ariaLabel="Days worked of days scheduled"
+            emptyLabel="Not scheduled"
+            emptyHint="The sales incharge has not dated any day yet, so there is nothing to have worked."
           />
         ),
       },
       {
-        accessorKey: 'beatsAllocated',
+        accessorKey: 'daysAllocated',
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Allocated" />
         ),
         cell: ({ row }) => (
           <span className="font-mono text-sm tabular-nums">
-            {row.original.beatsAllocated}
+            {row.original.daysAllocated}
           </span>
         ),
       },
       {
-        accessorKey: 'beatsWorked',
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Worked" />,
-        cell: ({ row }) => (
-          <span className="font-mono text-sm tabular-nums">{row.original.beatsWorked}</span>
-        ),
-      },
-      {
-        accessorKey: 'workingDays',
-        header: 'Days',
+        id: 'cities',
+        header: 'Cities',
         enableSorting: false,
         cell: ({ row }) => (
-          <span className="font-mono text-sm tabular-nums">{row.original.workingDays}</span>
+          <span className="font-mono text-sm tabular-nums">
+            {row.original.citiesAllocated}
+          </span>
         ),
       },
       {
@@ -197,21 +231,28 @@ export function AllocationListPage() {
     [month, openPlan],
   )
 
+  const scope = filters.status ? PLAN_STATUS_LABEL[filters.status].toLowerCase() : null
+
   return (
     <div>
       <PageHeader
-        title="Monthly Allocations"
-        description={`${total} sales incharge${
-          total === 1 ? '' : 's'
-        } with an allocation for ${monthLabel} — each one's beat list and how far through it he is.`}
+        // Matches the sidebar label, so arriving here confirms where you clicked.
+        title="Monthly Plans"
+        description={
+          scope
+            ? `${total} ${scope} plan${total === 1 ? '' : 's'} for ${monthLabel}.`
+            : `${total} sales incharge${
+                total === 1 ? '' : 's'
+              } with a plan for ${monthLabel} — where each one is in the cycle, and how far through the month he is.`
+        }
         actions={
           <>
             {canGenerate ? (
               <Hint
                 label={
                   isGenerating
-                    ? `Allocating ${monthLabel}…`
-                    : `Build the ${monthLabel} beat list for every sales incharge without one`
+                    ? `Drafting ${monthLabel}…`
+                    : `Draft the ${monthLabel} allocation for every sales incharge without one — each lands as a draft the sales incharge cannot see`
                 }
               >
                 {/* Wrapped: a disabled button fires no pointer events, so the hint
@@ -223,8 +264,8 @@ export function AllocationListPage() {
                     disabled={isGenerating}
                     onClick={() => setConfirmGenerate(true)}
                   >
-                    {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />} Generate
-                    month
+                    {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />}{' '}
+                    Generate month
                   </Button>
                 </span>
               </Hint>
@@ -244,7 +285,7 @@ export function AllocationListPage() {
         columns={columns}
         data={rows}
         isLoading={isLoading}
-        itemName="allocations"
+        itemName="plans"
         maxHeight="65vh"
         pageSizeOptions={[10, 25, 50]}
         // Server-side everything: the response is one page, in the server's order.
@@ -271,11 +312,13 @@ export function AllocationListPage() {
             <div>
               <p className="font-medium text-foreground">Nothing here</p>
               <p className="text-sm text-muted-foreground">
-                {hasActiveFilters
-                  ? 'No sales incharge matches that search.'
-                  : canGenerate
-                    ? `No allocations exist for ${monthLabel} yet — generate the month to start.`
-                    : `No allocations exist for ${monthLabel} yet.`}
+                {filters.status
+                  ? `No plan for ${monthLabel} is ${scope}.`
+                  : hasActiveFilters
+                    ? 'No sales incharge matches that search.'
+                    : canGenerate
+                      ? `No plans exist for ${monthLabel} yet — generate the month to start.`
+                      : `No plans exist for ${monthLabel} yet.`}
               </p>
             </div>
           </div>
@@ -290,7 +333,7 @@ export function AllocationListPage() {
         activities={activities}
         isPending={isGenerating}
         // Closed from the success path, not on click: a refused run has to keep
-        // the pinned rows on screen next to the toast that explains the refusal.
+        // the activity rows on screen next to the toast that explains the refusal.
         onGenerate={(input) => generatePlans(input, () => setConfirmGenerate(false))}
       />
     </div>

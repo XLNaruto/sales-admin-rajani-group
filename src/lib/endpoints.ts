@@ -61,7 +61,8 @@ export const endpoints = {
     GET: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/distributors/${id}/status`,
-    ONBOARDING: (id: string | number) => `/sales-incharge-admin/distributors/${id}/onboarding`,
+    ONBOARDING: (id: string | number) =>
+      `/sales-incharge-admin/distributors/${id}/onboarding`,
     /** Category mapping — replaces the distributor's whole product-division set. */
     PRODUCT_DIVISIONS: (id: string | number) =>
       `/sales-incharge-admin/distributors/${id}/product-divisions`,
@@ -80,7 +81,8 @@ export const endpoints = {
     GET: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/retailers/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/retailers/${id}/status`,
-    ONBOARDING: (id: string | number) => `/sales-incharge-admin/retailers/${id}/onboarding`,
+    ONBOARDING: (id: string | number) =>
+      `/sales-incharge-admin/retailers/${id}/onboarding`,
     /**
      * PATCH the outlet's beat only (`{ beat_id }`, `null` to unassign). The
      * nearest-beat lookup runs on create, so this is how a beat is changed
@@ -139,7 +141,7 @@ export const endpoints = {
   },
   /**
    * Journey plans — one sales incharge's **allocation** for a month: which of his
-   * beats are in play, plus the dates the office pins. Not a calendar; the rep
+   * beats are in play, plus the dates the office pins. Not a calendar; the sales incharge
    * writes each day row himself from the app.
    *
    * There is no approval lifecycle, so there is no `/summary`, no `/approve`, no
@@ -147,24 +149,49 @@ export const endpoints = {
    * `/materialise-stops` — the whole admin write surface is the PATCH below.
    */
   JOURNEY_PLAN: {
-    /** GET one page of the month's allocations (page-based, server-sorted). */
+    /** GET one page of the month's plans (page-based, server-sorted, status-filtered). */
     LIST: '/sales-incharge-admin/journey-plans',
     /**
-     * POST { period_month, sales_incharge_ids?, pinned_days?, replace_existing?, seed? }.
-     * `pinned_days: [{ date, activity_id }]` applies to EVERY rep in the run —
-     * pinning the weekly offs here is what makes `capacity` accurate.
+     * POST { period_month, sales_incharge_ids?, activity_allocations?, replace_existing?, seed? }.
+     * The activity buckets apply to EVERY sales incharge in the run — "one monthly meeting,
+     * four weekly offs" is a company fact. Every plan lands as a `draft`.
      */
     GENERATE: '/sales-incharge-admin/journey-plans/generate',
-    /** GET the rep switcher's options for a period (carries each plan id). */
+    /** GET the sales incharge switcher's options for a period (carries each plan id + status). */
     REPS: '/sales-incharge-admin/journey-plans/reps',
+    /**
+     * GET ?sales_incharge_id&period_month — the allocation pickers, and **the
+     * whitelist the allocation Save enforces**: anything absent is refused with a
+     * 400. Needs no plan to exist.
+     */
+    ALLOCATION_OPTIONS: '/sales-incharge-admin/journey-plans/allocation-options',
     GET: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
     /**
-     * PATCH { beats?, pinned_days? } — the entire admin write surface, in one
-     * call because it is one screen with one Save button. Both fields are FULL
-     * REPLACEMENTS of what they cover; an omitted field is left alone. Returns
-     * the saved allocation.
+     * PATCH { activity_allocations?, city_allocations? } — the admin allocates
+     * **day-counts**, never a date or a beat. Each field is a FULL REPLACEMENT of
+     * what it covers; an omitted field is untouched. Does not touch the schedule.
+     * Refused (409) once the plan is `approved`.
      */
     SAVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
+    /**
+     * PATCH { days } — the correction pass over the sales incharge's calendar. A FULL
+     * REPLACEMENT: send every date. Open from `submitted` onward, including after
+     * approval; refused (409) on a `draft` or `published` plan, where the schedule
+     * is the sales incharge's. Locked dates survive whatever is sent.
+     */
+    SCHEDULE: (id: string | number) =>
+      `/sales-incharge-admin/journey-plans/${id}/schedule`,
+    /**
+     * POST — `draft` → `published`. 400 unless the counts account for the whole
+     * month. Guarded by `journey-plan:approve`, the same key as approve.
+     */
+    PUBLISH: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/publish`,
+    /**
+     * POST — `submitted` → `approved`. 400 unless the schedule consumes every
+     * bucket exactly; the error `details` name the offending buckets. There is no
+     * reject and no send-back — an admin who dislikes a schedule corrects it.
+     */
+    APPROVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/approve`,
     /**
      * GET the plan's AI-agent conversation. The GET is what authorizes the
      * socket room join (it records a short-lived grant), so it must precede it.

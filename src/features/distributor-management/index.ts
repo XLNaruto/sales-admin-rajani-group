@@ -11,6 +11,7 @@ export {
 export type {
   Distributor,
   DistributorInput,
+  DistributorOwner,
   DistributorStatus,
   FirmType,
   DistributorMarketType,

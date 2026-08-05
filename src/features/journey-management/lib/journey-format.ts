@@ -85,21 +85,27 @@ export function monthLabel(month: string): string {
   }
 }
 
-/** An ISO-8601 timestamp as a clock time (`04:15`), or null. */
+/**
+ * An ISO-8601 timestamp as a clock time (`04:15 AM`), or null.
+ *
+ * 12-hour with the meridiem spelled out — punch times are read by people who
+ * think in "quarter past nine", not in 18:44. Hours stay zero-padded so a column
+ * of times still lines up under `tabular-nums`.
+ */
 export function timeOfDay(iso: string | null | undefined): string | null {
   if (!iso) return null
   try {
-    return format(parseISO(iso), 'HH:mm')
+    return format(parseISO(iso), 'hh:mm a')
   } catch {
     return null
   }
 }
 
-/** An ISO-8601 timestamp as "25 Jun, 03:10" (falls back to the raw value). */
+/** An ISO-8601 timestamp as "25 Jun, 03:10 AM" (falls back to the raw value). */
 export function stampLabel(iso: string | null | undefined): string {
   if (!iso) return '—'
   try {
-    return format(parseISO(iso), 'd MMM, HH:mm')
+    return format(parseISO(iso), 'd MMM, hh:mm a')
   } catch {
     return iso
   }

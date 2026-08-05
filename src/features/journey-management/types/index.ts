@@ -1,19 +1,35 @@
 /**
  * Journey Management domain types.
  *
- * A *journey plan* is one sales incharge's **allocation for a month** — which of
- * his beats are in play, plus the handful of dates the office fixes for everyone.
- * It is deliberately **not a calendar**: the rep writes a day row each morning
- * when he picks his activity and then his beat, so most dates in a future month
- * have no entry at all and that is the normal state.
+ * A *journey plan* is a **negotiation between the sales admin and one sales incharge, for
+ * one month**. The admin allocates **counts** — "one meeting day, four weekly
+ * offs, twenty days in Rajkot" — and never a date or a beat. The sales incharge dates every
+ * allocated day and picks the beats, then hands it back. The admin signs off, and
+ * may still correct the calendar afterwards because a live month has to be
+ * fixable.
+ *
+ * Four states, one direction only, with no reject and no send-back:
+ * `draft → published → submitted → approved`.
  *
  * These are the camelCase shapes the screens work in; the wire is snake_case
  * throughout and the mapping lives in `api/` (never in a component).
- *
- * There is no approval lifecycle. An allocation is live the moment it exists —
- * no `status`, no approve, no re-solve, no day-level admin edit. The whole admin
- * write surface is `PATCH /journey-plans/:id { beats, pinned_days }`.
  */
+
+/* ──────────────────────────── the lifecycle ───────────────────────────────── */
+
+/**
+ * Where a plan sits in the chain. Sorting by it uses **chain order**, not
+ * alphabetical — `PLAN_STATUS_CHAIN` in `lib/plan-status` is the order.
+ *
+ * - `draft` — the admin's allocation. **The sales incharge cannot see it at all.**
+ * - `published` — released; the sales incharge is dating the month.
+ * - `submitted` — handed back. The sales incharge is read-only from here, permanently.
+ * - `approved` — signed off. The admin may still correct the calendar.
+ */
+export type PlanStatus = 'draft' | 'published' | 'submitted' | 'approved'
+
+/** How the plan's allocation came about. */
+export type PlanSource = 'solver' | 'manual' | 'import'
 
 /**
  * Machine code of an activity. Not a closed union — the activity master is
@@ -39,7 +55,7 @@ export interface ActivityDef {
   id: number
   code: ActivityCode
   name: string
-  /** The day is meaningless without beats — picking this asks the rep for one. */
+  /** The day is meaningless without beats — such a day needs a city AND beats. */
   requiresBeat: boolean
   /** Counts as a working day (leave / holiday / weekly off do not). */
   working: boolean
@@ -53,34 +69,37 @@ export interface ActivityDef {
 
 /**
  * The server's verdict on a calendar date, **derived at read time**. The single
- * most important field on the allocation screens.
+ * most important field on the plan screens.
  *
- * `absent` and `holiday` must never collapse into one "off" state: a rep who
+ * `missed` and `holiday` must never collapse into one "off" state: a sales incharge who
  * skipped six days must not read identically to one who had six holidays. And
- * `unplanned` on a future date is **not** a problem — nothing to badge.
+ * whether `unscheduled` is a problem **depends on the plan's status** — it is the
+ * normal state of a draft and of a freshly published month, so read it off the
+ * plan, never off the strip.
  */
 export type DayLabel =
-  /** A past date the rep chose an activity for. */
+  /** Scheduled, and a visit landed on it. */
   | 'worked'
-  /** Today or later, activity already set (pinned, or chosen this morning). */
+  /** Scheduled, still ahead (or today) and not yet worked. */
   | 'planned'
-  /** A day row whose activity is not a working day. */
+  /** Scheduled with an activity whose `is_working_day` is false. */
   | 'holiday'
-  /** A past date with **no entry at all** — nobody said anything, nobody worked. */
-  | 'absent'
-  /** Today or later, nothing chosen yet. */
-  | 'unplanned'
+  /** Scheduled, **past**, and nothing was ever recorded. */
+  | 'missed'
+  /** No day row. Normal on a draft or a freshly published plan. */
+  | 'unscheduled'
 
-/** Who put the day row there. `null` when no row exists for the date. */
-export type DayOrigin =
-  /** The office fixed this date and the rep has not overridden it. */
-  | 'pinned'
-  /** The rep's own choice. */
-  | 'rep'
+/**
+ * Who wrote the day row. `null` when no row exists for the date.
+ *
+ * `admin` marks an **admin correction** — it is how the screen shows where the
+ * approved calendar differs from what the sales incharge handed over.
+ */
+export type DayOrigin = 'rep' | 'admin'
 
 /**
  * One entry per calendar date of the month. **Draw the calendar from this, never
- * from `days`** — `days` holds only the rows that exist.
+ * from `days`** — `days` is empty on a draft and on a freshly published plan.
  */
 export interface MonthStripDay {
   /** ISO calendar date, `yyyy-MM-dd`. */
@@ -89,46 +108,64 @@ export interface MonthStripDay {
   day: number
   label: DayLabel
   activityCode: ActivityCode | null
+  /** The city the date sits in, when its activity takes beats. */
+  cityId: string | null
   origin: DayOrigin | null
-  /** Beats on the day — 0 on most dates, including every unplanned one. */
+  /** Beats on the day — 0 on every unscheduled date and on beatless activities. */
   beatCount: number
 }
 
 /* ─────────────────────────────── the flags ────────────────────────────────── */
 
 /**
- * The four warnings the server raises. They **gate nothing**: there is no
- * approval step, so an allocation with flags is as live as one without. Render a
- * marker, never a blocking state.
+ * The eight warnings the server raises, computed and never stored. Two of them
+ * **mirror a refusal** and so genuinely gate a transition:
+ * `allocation_incomplete` blocks publish, and `schedule_unallocated` /
+ * `schedule_mismatch` block approve. The rest are advisory.
  */
 export type PlanFlagCode =
-  /** The month's beat list is empty — the rep has nothing to work. */
-  | 'no_beats_allocated'
-  /** A listed beat is no longer allocated to this rep. */
-  | 'beat_not_allocated'
-  /** More beats listed than working days. `facts: { allocated, capacity, excess }`. */
-  | 'over_capacity'
-  /** A pinned date carries a non-working activity. Usually deliberate. */
-  | 'pinned_on_non_working_day'
+  /** Nothing allocated — publish will fail too. */
+  | 'no_cities_allocated'
+  /** The counts do not account for the whole month. **Blocks publish.** */
+  | 'allocation_incomplete'
+  /** A scheduled date falls outside every bucket. **Blocks approve.** */
+  | 'schedule_unallocated'
+  /** A bucket's scheduled days do not match its count. **Blocks approve.** */
+  | 'schedule_mismatch'
+  /** The sales incharge no longer holds beats in an allocated city. */
+  | 'city_without_beats'
+  /** A scheduled beat does not sit in its day's city — the beat master drifted. */
+  | 'beat_outside_city'
+  /** A scheduled activity is not admin-allocatable (field selling never is). */
+  | 'activity_not_allocatable'
+  /** Published, and the sales incharge has not started dating the month. */
+  | 'awaiting_schedule'
 
 /** One warning, most severe first as the server sends them. */
 export interface PlanFlag {
   code: string
   /** `yyyy-MM-dd` when the flag points at a date. */
   date: string | null
+  cityId: string | null
+  cityName: string | null
+  activityId: number | null
+  activityName: string | null
   beatId: string | null
-  /** Null for `beat_not_allocated` — no beat row survives to read a name from. */
   beatName: string | null
-  /** The EXPOSURE: outlets behind the flag, not just the fact of it. */
-  outletCount: number | null
+  /** The numbers behind the flag — bucket counts, beat counts, day counts. */
   facts: Record<string, unknown>
 }
 
 /** How loudly a flag should read — derived from its code and facts. */
 export type FlagSeverity = 'high' | 'medium' | 'low'
 
-/** What kind of problem a flag is — rendered as the row's chip. */
-export type IssueCategory = 'allocation' | 'capacity' | 'calendar'
+/**
+ * What kind of problem a flag is — rendered as the row's chip.
+ *
+ * `blocking` is reserved for the three flags that mirror a server refusal, so a
+ * flag that merely wants attention never reads as one that stops the month.
+ */
+export type IssueCategory = 'blocking' | 'allocation' | 'schedule' | 'master-data'
 
 /** A server flag prepared for display. The numbers are the server's. */
 export interface PlanIssue {
@@ -138,35 +175,37 @@ export interface PlanIssue {
   label: string
   /** Day of month the flag points at, when it is date-specific. */
   day?: number
+  /** Which transition this flag refuses, when it mirrors one. */
+  blocks?: 'publish' | 'approve'
 }
 
 /* ─────────────────────────── the list (a month) ───────────────────────────── */
 
 /**
- * One row of the allocation list: a sales incharge's month.
+ * One row of the plan list: a sales incharge's month.
  *
- * **There is no status and there are no flag filters** — nothing here has a
- * lifecycle to filter by. For a worklist, sort by `completion` ascending or scan
- * the `flags`.
+ * Three day-counts, not one, because the interesting question changes as the
+ * month progresses — see `PlanProgress`.
  */
 export interface JourneyPlan {
   id: string
   inchargeId: string
   inchargeName: string
   employeeCode: string
-  /** Territory the rep is anchored to (the `city` filter matches it exactly). */
+  /** Territory the sales incharge is anchored to (the `city` filter matches it exactly). */
   headquarter: string
-  /** Beats on the month's list — the plan. */
-  beatsAllocated: number
-  /** Distinct **listed** beats worked at least once — the actual. */
-  beatsWorked: number
-  /**
-   * `beatsWorked / beatsAllocated`, 0–100. **Zero when nothing is allocated**,
-   * not 100: a rep with no beats has not finished his month, he was never given
-   * one, and that is itself a flag.
-   */
-  completion: number
-  /** Dates so far whose activity is a working day. */
+  status: PlanStatus
+  /** What the admin promised. */
+  daysAllocated: number
+  /** Dates the sales incharge has actually put against it. */
+  daysScheduled: number
+  /** Scheduled dates a visit has landed on. */
+  daysWorked: number
+  /** `scheduled / allocated`. **0 when allocated is 0**, not 100. */
+  schedulingPercentage: number
+  /** `worked / scheduled`. **0 when scheduled is 0**, not 100. */
+  completionPercentage: number
+  citiesAllocated: number
   workingDays: number
   flags: PlanFlag[]
   /** One entry per calendar date. */
@@ -174,16 +213,19 @@ export interface JourneyPlan {
 }
 
 /** Which column the list is sorted by, server-side. */
-export type QueueSortBy = 'sales_incharge' | 'completion' | 'beats_allocated' | 'beats_worked'
+export type QueueSortBy =
+  'sales_incharge' | 'status' | 'scheduling' | 'completion' | 'days_allocated'
 
 /** Server-side query for the list. `periodMonth` is required (`yyyy-MM`). */
 export interface QueueParams {
   periodMonth: string
   page?: number
   pageSize?: number
-  /** Matches rep name OR employee code, case-insensitive. */
+  /** The chain tabs. */
+  status?: PlanStatus
+  /** Matches sales incharge name OR employee code, case-insensitive. */
   search?: string
-  /** Exact match on the rep's territory. */
+  /** Exact match on the sales incharge's territory. */
   city?: string
   sortBy?: QueueSortBy
   sortOrder?: 'asc' | 'desc'
@@ -199,32 +241,88 @@ export interface QueueResult {
   totalPages: number
 }
 
-/* ────────────────────── the allocation (one rep's month) ──────────────────── */
+/* ─────────────────── the allocation (counts, not dates) ───────────────────── */
 
 /**
- * One beat on the month's list.
+ * One activity bucket: "four weekly offs".
  *
- * **There is no per-beat target.** Do not render `workedCount` as `2 / 3`: the
- * allocation carries no count, and `visitsPerMonth` is the beat's general cycle,
- * not a target for this month.
+ * Only activities flagged `is_admin_allocatable` may appear — field selling never
+ * does, because which day the sales incharge sells is his to decide.
  */
-export interface AllocatedPlanBeat {
-  beatId: string
-  beatName: string
-  /** `solver` — proposed by the picker at generate. `manual` — the admin's. */
-  source: 'solver' | 'manual'
-  /** Outlets on the beat — how much skipping it actually costs. */
-  outletCount: number | null
-  /** The beat's general visit cycle. NOT a target for this month. */
-  visitsPerMonth: number | null
-  /** Times worked so far this month. */
-  workedCount: number
-  /** Strings on the wire so precision survives — parse, never assume float. */
-  latitude: string | null
-  longitude: string | null
+export interface ActivityAllocation {
+  activityId: number
+  activityCode: ActivityCode | null
+  activityName: string | null
+  /** Days the admin promised to this activity. */
+  daysCount: number
+  /** Dates the sales incharge has actually put against it. */
+  daysScheduled: number
 }
 
-/** A beat the rep took on a day. */
+/**
+ * One city bucket: "twenty days in Rajkot".
+ *
+ * Only cities the sales incharge's **allocated beats** actually sit in can appear.
+ */
+export interface CityAllocation {
+  cityId: string
+  cityName: string | null
+  daysCount: number
+  daysScheduled: number
+  /** `solver` — proposed at generate. `manual` — the admin's own. */
+  source: 'solver' | 'manual'
+  /** **0 when the sales incharge no longer holds beats here** — the `city_without_beats` flag. */
+  beatCount: number
+  outletCount: number
+}
+
+/**
+ * The pickers behind the allocation editor, and **the whitelist the Save
+ * enforces**: anything absent from it is refused with a 400.
+ *
+ * It needs no plan to exist — the admin opens it to build the month.
+ */
+export interface AllocationOptions {
+  inchargeId: string
+  /** What the counts must add up to. */
+  totalDays: number
+  /** The activity master, filtered to admin-allocatable and active. */
+  activities: {
+    activityId: number
+    code: ActivityCode
+    name: string
+    isWorkingDay: boolean
+  }[]
+  /** Derived from the beats **currently** allocated to the sales incharge. */
+  cities: {
+    cityId: string
+    cityName: string | null
+    beatCount: number
+    outletCount: number
+    /**
+     * **`null` = never worked**, which the solver weighs heaviest. Do not render
+     * it as "long ago".
+     */
+    lastWorkedDate: string | null
+  }[]
+}
+
+/**
+ * The allocation Save body. Each field is a **full replacement** of what it
+ * covers; an omitted field is untouched.
+ *
+ * It does not touch the schedule. Re-allocating under a schedule that no longer
+ * fits is allowed and leaves a `schedule_mismatch` flag — better than deleting
+ * the sales incharge's work. Refused (409) once the plan is `approved`.
+ */
+export interface SaveAllocationInput {
+  activityAllocations?: { activityId: number; daysCount: number }[]
+  cityAllocations?: { cityId: string; daysCount: number }[]
+}
+
+/* ───────────────────────── the schedule (dates) ───────────────────────────── */
+
+/** A beat the day carries, in the intended order. */
 export interface PlanDayBeat {
   /** Id of the day-beat row. */
   id: string
@@ -232,15 +330,16 @@ export interface PlanDayBeat {
   beatName: string
   /** "Best available" order — planned once the day started, advisory before. */
   sequence: number
-  /** Outlets snapshotted when he picked the beat. */
+  /** Outlets snapshotted when the day was opened. */
   stopCount: number
   /** A visit landed on it; it is history. */
   locked: boolean
 }
 
 /**
- * One day row that **exists** — a pinned date, or a date the rep has already
- * chosen. Most of a future month has none.
+ * One dated day of the schedule. **`days` is empty on a `draft` and on a freshly
+ * `published` plan** — draw the calendar from `monthStrip` and use this for the
+ * detail of the dates that exist.
  */
 export interface PlanDay {
   id: string
@@ -251,38 +350,89 @@ export interface PlanDay {
   activityId: number
   activityCode: ActivityCode
   activityName: string
+  cityId: string | null
+  cityName: string | null
+  /** `admin` marks a correction the admin made after submission. */
   origin: DayOrigin
-  /** When the rep chose it. Null on a pinned date he has not touched. */
+  /** When the row was written. */
   selectedAt: string | null
   beats: PlanDayBeat[]
   jointWorkingInchargeId: string | null
   jointWorkingInchargeName: string | null
   /** Free-text note carried with the day (holiday name, leave reason, venue). */
   reason: string | null
-  /** A visit landed on it — the server refuses to move it. */
+  /** A visit landed on it — **it survives whatever the correction pass sends**. */
   locked: boolean
   lockedAt: string | null
 }
 
 /**
- * The month's progress, exactly as the server computes it. Nothing here is
+ * One day of the correction pass, as the save body carries it.
+ *
+ * Per-day rules, enforced server-side and mirrored by the editor:
+ * - An activity with `requiresBeat` needs a `cityId` **and** at least one beat.
+ * - An activity without it must have **neither**.
+ * - Every beat must be allocated to the sales incharge **and** sit in that day's city. (A
+ *   beat whose own city is unknown is allowed — that is a gap in the beat master,
+ *   not a scheduling error.)
+ * - **No limit on beats per day**, and `beatIds` order is the intended order.
+ */
+export interface ScheduleDayInput {
+  /** `yyyy-MM-dd`, inside the period. */
+  date: string
+  activityId: number
+  cityId?: string | null
+  beatIds?: string[]
+  jointWorkingInchargeId?: string | null
+  reason?: string | null
+}
+
+/**
+ * The correction pass — a **full replacement**, so send every date.
+ *
+ * Open from `submitted` onward, **including after approval**, because a live
+ * month has to be correctable and the sales incharge can no longer do it; refused (409) on a
+ * `draft` or `published` plan, where the schedule is his. Correcting an approved
+ * plan does **not** reopen the cycle.
+ *
+ * **Locked dates survive whatever is sent** — send them anyway, they are skipped.
+ */
+export interface SaveScheduleInput {
+  days: ScheduleDayInput[]
+}
+
+/* ───────────────────── one sales incharge's month, in full ───────────────────────────── */
+
+/**
+ * The month's numbers, exactly as the server computes them. Nothing here is
  * recomputed on the client.
+ *
+ * Three day-counts because the interesting question changes as the month
+ * progresses: `daysAllocated` is what the admin promised, `daysScheduled` is what
+ * the sales incharge dated (the figure that matters **before** approval), `daysWorked` is
+ * what a visit landed on (the figure that matters **after** it).
+ *
+ * A past scheduled date with no visit is `missed`, not worked — never derive
+ * "worked" from `date < today`.
  */
 export interface PlanProgress {
-  beatsAllocated: number
-  beatsWorked: number
-  beatsRemaining: number
-  /** 0–100. Zero — not 100 — when nothing is allocated. */
-  completion: number
+  daysAllocated: number
+  daysScheduled: number
+  daysWorked: number
+  /** `scheduled / allocated`. **0 when the denominator is 0**, not 100. */
+  schedulingPercentage: number
+  /** `worked / scheduled`. **0 when the denominator is 0**, not 100. */
+  completionPercentage: number
+  citiesAllocated: number
+  beatsScheduled: number
   workingDays: number
-  /**
-   * Dates available to work a beat: the month's days minus the pinned ones.
-   * **Weekly offs are not subtracted** unless the admin pinned them, because
-   * nothing knows which day a given rep is off. It feeds only the
-   * `over_capacity` warning — never display it as a hard number of free days.
-   */
-  capacity: number
   totalDays: number
+  /**
+   * `daysAllocated - totalDays`. **0 means ready to publish**; publish is refused
+   * otherwise, because a month published two days short is one the sales incharge can never
+   * complete.
+   */
+  allocationVariance: number
 }
 
 /** A sales incharge's month in full, as opened from the list. */
@@ -294,68 +444,87 @@ export interface JourneyPlanDetail {
   headquarter: string
   /** Month covered, as `yyyy-MM` (the API sends the 1st of the month). */
   month: string
+  status: PlanStatus
+  /** Provenance of the allocation. */
+  generatedBy: PlanSource
   generatedAt: string | null
-  /** Provenance — `solver`, `manual` or `import`. */
-  generatedBy: string | null
-  /** THE ALLOCATION: which beats are in play this month. */
-  allocatedBeats: AllocatedPlanBeat[]
+  publishedAt: string | null
+  submittedAt: string | null
+  approvedAt: string | null
+  /** THE ALLOCATION: day-counts per activity and per city. */
+  activityAllocations: ActivityAllocation[]
+  cityAllocations: CityAllocation[]
   progress: PlanProgress
+  /** The server's own verdicts — never re-derived from the flags. */
+  canPublish: boolean
+  canApprove: boolean
   flags: PlanFlag[]
   /** One entry per calendar date — draw the calendar from this. */
   monthStrip: MonthStripDay[]
-  /** Only the rows that exist. Short on a fresh month, and that is correct. */
+  /** Only the dates that exist. **Empty on a draft**, and that is correct. */
   days: PlanDay[]
 }
 
-/** One date the office fixes, as the save body carries it. */
-export interface PinnedDay {
-  /** `yyyy-MM-dd`, inside the period. */
-  date: string
-  activityId: number
+/** What `publish` and `approve` answer with. Both need `journey-plan:approve`. */
+export interface TransitionResult {
+  journeyPlanId: string
+  status: PlanStatus
+  daysAllocated: number
+  daysScheduled: number
 }
 
-/**
- * The save body. Both fields are **full replacements** of what they cover, not
- * deltas — send the whole list. An omitted field is left alone.
- */
-export interface SavePlanInput {
-  /** Beat ids. A beat not allocated to the rep is refused with a 400. */
-  beats?: string[]
-  pinnedDays?: PinnedDay[]
-}
-
-/** One entry of the rep switcher — it already carries the plan id. */
+/** One entry of the sales incharge switcher — it already carries the plan id and status. */
 export interface PlanRepOption {
   inchargeId: string
   inchargeName: string
   employeeCode: string
   journeyPlanId: string
+  status: PlanStatus
 }
 
 /* ───────────────────────────── generate a month ───────────────────────────── */
 
-/** What happened to one rep in a generation run. */
+/** What happened to one sales incharge in a generation run. */
 export type GenerateOutcome =
   | 'created'
   | 'replaced'
   | 'skipped_existing'
+  /** The plan has left `draft` — regenerating would discard the sales incharge's schedule. */
+  | 'skipped_in_progress'
   | 'no_beats'
   | 'failed'
 
-/** What a run asks for. `pinnedDays` applies to EVERY rep in the run. */
+/**
+ * How many days of the month an activity must take, **for every sales incharge in the run**
+ * — "one monthly meeting, four weekly offs" is a company fact.
+ *
+ * Dateless on purpose: the office fixes the *amount*, and which date it lands on
+ * is the sales incharge's to decide a month later.
+ */
+export interface ActivityQuota {
+  activityId: number
+  /** Days in the period, at least 1 and never more than the month is long. */
+  daysCount: number
+}
+
+/**
+ * What a run asks for. The solver then splits each sales incharge's remaining days across
+ * his own cities, weighted by how much work each holds and by how long it has
+ * gone untouched. **Every plan lands as a `draft`.**
+ */
 export interface GenerateInput {
   periodMonth: string
-  /** Omit for every rep in the caller's scope. */
+  /** Omit for every sales incharge in the caller's scope. */
   inchargeIds?: string[]
-  /** Pinning the weekly offs here is what makes `capacity` accurate. */
-  pinnedDays?: PinnedDay[]
-  /** Generation skips a rep who already has an allocation unless this is set. */
+  /** Applies to EVERY sales incharge in the run. */
+  activityAllocations?: ActivityQuota[]
+  /** Generation skips a sales incharge who already has a plan unless this is set. */
   replaceExisting?: boolean
   seed?: string
 }
 
 /**
- * Per-rep outcomes plus the run's totals. **One rep's failure does not fail the
+ * Per sales incharge outcomes plus the run's totals. **One sales incharge's failure does not fail the
  * run** — render the list, never treat a non-zero `failed` as a whole-run error.
  */
 export interface GenerateResult {
@@ -363,8 +532,9 @@ export interface GenerateResult {
     inchargeId: string
     outcome: GenerateOutcome
     journeyPlanId: string | null
-    beatsAllocated: number
-    /** Why it failed or was skipped, when the server says.  */
+    daysAllocated: number
+    citiesAllocated: number
+    /** Why it failed or was skipped, when the server says. */
     message: string | null
   }[]
   created: number
@@ -372,10 +542,18 @@ export interface GenerateResult {
   failed: number
 }
 
-/** A beat allocated to the incharge — the pool the month's beat list draws from. */
+/**
+ * A beat allocated to the incharge — the pool a day's beats are chosen from.
+ *
+ * `cityId` is what makes the correction pass checkable client-side: a beat may
+ * only go on a day whose city it sits in. **`null` is allowed** — that is a gap
+ * in the beat master (its primary distributor has no city), not a scheduling
+ * error, and such a beat is silently absent from the city pickers.
+ */
 export interface AllocatedBeat {
   id: string
   name: string
+  cityId: string | null
   /** Outlets on the beat, when the list carries them. */
   outlets: number | null
 }
@@ -387,12 +565,7 @@ export interface AllocatedBeat {
  * answers.
  */
 export type RepDayStatus =
-  | 'worked'
-  | 'official_work'
-  | 'leave'
-  | 'holiday'
-  | 'weekly_off'
-  | 'not_started'
+  'worked' | 'official_work' | 'leave' | 'holiday' | 'weekly_off' | 'not_started'
 
 /**
  * The numbers a field day is judged on, as the SFA reports them. Displayed, not
@@ -484,7 +657,7 @@ export interface DayVisit {
   id: string
   /** Chronological position in the day — the timeline's numbering. */
   daySequence: number
-  /** Punch time as `HH:mm` in IST, derived from the ISO timestamp. */
+  /** Punch time as `hh:mm a` in IST, derived from the ISO timestamp. */
   at: string | null
   outlet: string
   beatName: string | null
@@ -517,7 +690,7 @@ export type OutletMarker = ScheduledOutlet & { point: GeoPoint }
 /**
  * The day's route — a *reconstruction*, not a GPS trail. No breadcrumb track is
  * stored anywhere; what exists is one fix per visit, so this is the shortest
- * walk through those fixes anchored at the rep's day-start coordinate.
+ * walk through those fixes anchored at the sales incharge's day-start coordinate.
  */
 export interface DayRoute {
   /** `false` ⇒ draw markers and NO line. `state` says why. */
@@ -572,12 +745,15 @@ export interface LiveDayDetail {
   /**
    * The beats he worked, **in the order he took them**. Replaces the old
    * `assignedBeat` / `selectedBeat` pair: nothing assigns beats to dates now, so
-   * every beat here is the rep's own choice.
+   * every beat here is the sales incharge's own choice.
    */
   beats: { id: string; name: string }[]
   /**
-   * Were those beats on the month's list? `false` is a deviation — it did not
-   * block the pick. **`true` on a day with no beats at all.**
+   * Do those beats still sit in the day's **allocated city**?
+   *
+   * The scheduler refuses an out-of-city beat, so `false` means the **beat master
+   * has drifted** since approval — his outlet list is for a town he is not in.
+   * **`true` on a day with no beats at all** — a meeting has no city to be off.
    */
   onAllocation: boolean
   /** Chronological distance — differs from `route.distanceMetres` by backtracking. */
@@ -625,7 +801,8 @@ export interface AgentContentBlock {
 /** The conversation for one (sales incharge, period) — not for one plan id. */
 export interface AgentConversation {
   conversationId: number
-  journeyPlanId: string
+  /** Null when the conversation has outlived the plan it was opened against. */
+  journeyPlanId: string | null
   periodMonth: string
   inchargeId: string
   /** Socket room to join. Never guess it — this is where it comes from. */

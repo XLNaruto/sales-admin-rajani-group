@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   UserCog,
@@ -10,128 +10,136 @@ import {
   ClipboardCheck,
   CalendarRange,
   Map,
-} from "lucide-react";
+} from 'lucide-react'
 
 export interface NavItem {
-  label: string;
+  label: string
   /** Omit for parent items that only expand a submenu. */
-  to?: string;
-  icon: LucideIcon;
-  children?: NavItem[];
+  to?: string
+  icon: LucideIcon
+  children?: NavItem[]
   /** Match the active highlight only on an exact path (use when a sibling route extends this one). */
-  exact?: boolean;
+  exact?: boolean
   /** Permission key gating this item; when set, hide it unless the user holds it. */
-  permission?: string;
+  permission?: string
 }
 
 export interface NavGroup {
   /** Section heading — hidden when the rail is collapsed. */
-  title: string;
-  items: NavItem[];
+  title: string
+  items: NavItem[]
 }
 
 /** Sidebar navigation: section labels → main menu → optional submenu. */
 export const navGroups: NavGroup[] = [
   {
-    title: "Overview",
-    items: [{ label: "Dashboard", to: "/dashboard", icon: LayoutDashboard }],
+    title: 'Overview',
+    items: [{ label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard }],
   },
   {
-    title: "Sales Incharge",
+    title: 'Sales Incharge',
     items: [
       {
-        label: "Sales Incharge",
-        to: "/sales-incharge",
+        label: 'Sales Incharge',
+        to: '/sales-incharge',
         icon: UserCog,
-        permission: "sales-incharge:list",
+        permission: 'sales-incharge:list',
       },
       {
-        label: "Hierarchy",
-        to: "/sales-incharge/hierarchy",
+        label: 'Hierarchy',
+        to: '/sales-incharge/hierarchy',
         icon: Network,
-        permission: "hierarchy:list",
+        permission: 'hierarchy:list',
       },
       {
-        label: "Beat Allocation",
-        to: "/sales-incharge/beat-allocation",
+        label: 'Beat Allocation',
+        to: '/sales-incharge/beat-allocation',
         icon: Route,
-        permission: "beat:allocate",
+        permission: 'beat:allocate',
       },
     ],
   },
   {
-    title: "Network",
+    title: 'Network',
     items: [
       {
-        label: "Distributor Management",
-        to: "/distributors",
+        label: 'Distributor Management',
+        to: '/distributors',
         icon: Building2,
-        permission: "distributor-master:list",
+        permission: 'distributor-master:list',
       },
       {
-        label: "Retailer Management",
-        to: "/retailers",
+        label: 'Retailer Management',
+        to: '/retailers',
         icon: Store,
-        permission: "retailer-master:list",
+        permission: 'retailer-master:list',
       },
     ],
   },
   {
-    title: "Beat Foundation",
+    title: 'Beat Foundation',
     items: [
       {
-        label: "Beat Creation",
-        to: "/beats",
+        label: 'Beat Creation',
+        to: '/beats',
         icon: MapPinned,
-        permission: "beat:list",
+        permission: 'beat:list',
       },
     ],
   },
   {
-    title: "Journey Management",
+    title: 'Journey Management',
     items: [
+      // These two screens are the same subject at two scopes, so they are named by
+      // the scope — "Journey Plans" and "Journey Plan" side by side differed only by
+      // an `s`, which is not a distinction anyone reads in a sidebar. The section
+      // heading already says Journey, so neither label repeats it.
       {
-        // Not "Approval Queue" any more: an allocation is live the moment it
-        // exists, so this screen reviews progress rather than approving anything.
-        // The old `/journey/approvals` path redirects here.
-        label: "Monthly Allocations",
-        to: "/journey/allocations",
+        // Every sales incharge's month, one row each, with the chain tabs. Approving is one of
+        // the things it does, but a plan spends most of its life in the other three
+        // states, so neither the label nor the path is named after the last one. The
+        // older `/journey/approvals` and `/journey/allocations` both redirect here.
+        label: 'Monthly Plans',
+        to: '/journey/plans',
         icon: ClipboardCheck,
-        permission: "journey-plan:list",
+        permission: 'journey-plan:list',
       },
       {
-        label: "Journey Plan",
-        to: "/journey/plan",
+        // One sales incharge's month: the allocation, the calendar, and the two transitions.
+        // Not "Plan Editor" — a reviewer holding only `journey-plan:read` gets the
+        // same screen with every control read-only.
+        label: 'Plan Detail',
+        to: '/journey/plan',
         icon: CalendarRange,
-        permission: "journey-plan:read",
+        permission: 'journey-plan:read',
       },
       {
-        label: "Live Map",
-        to: "/journey/live-map",
+        label: 'Live Map',
+        to: '/journey/live-map',
         icon: Map,
-        permission: "live-day:read",
+        permission: 'live-day:read',
       },
     ],
   },
-];
+]
 
 /** Page names for routes that don't appear in the sidebar (auth, errors, etc.). */
 const extraTitles: Record<string, string> = {
   // Opened from a day card on the Live Map, so it has no sidebar item of its own.
-  "/journey/live-day": "Day Trail",
-  "/profile": "My Profile",
-  "/login": "Login",
-  "/verify-otp": "Verify OTP",
-  "/forgot-password": "Forgot Password",
-  "/reset-password": "Reset Password",
-};
+  '/journey/live-day': 'Day Trail',
+  '/profile': 'My Profile',
+  '/login': 'Login',
+  '/verify-otp': 'Verify OTP',
+  '/forgot-password': 'Forgot Password',
+  '/reset-password': 'Reset Password',
+}
 
 /** Flattened nav items (parents + children) that have a `to`, longest path first. */
 const routableNavItems = navGroups
   .flatMap((group) => group.items)
   .flatMap((item) => [item, ...(item.children ?? [])])
   .filter((item): item is NavItem & { to: string } => Boolean(item.to))
-  .sort((a, b) => b.to.length - a.to.length);
+  .sort((a, b) => b.to.length - a.to.length)
 
 /**
  * Landing page for a section that has no index route of its own.
@@ -140,16 +148,16 @@ const routableNavItems = navGroups
  * section's main screen or is left out here to render as a disabled crumb.
  * `/journey` is intentionally absent: its crumb stays plain text.
  */
-const sectionLanding: Record<string, string> = {};
+const sectionLanding: Record<string, string> = {}
 
 /**
  * Where a breadcrumb crumb for `pathname` should link, or undefined when that path
  * isn't navigable — those crumbs render as plain text rather than dead links.
  */
 export function crumbTarget(pathname: string): string | undefined {
-  if (sectionLanding[pathname]) return sectionLanding[pathname];
-  if (routableNavItems.some((item) => item.to === pathname)) return pathname;
-  return extraTitles[pathname] ? pathname : undefined;
+  if (sectionLanding[pathname]) return sectionLanding[pathname]
+  if (routableNavItems.some((item) => item.to === pathname)) return pathname
+  return extraTitles[pathname] ? pathname : undefined
 }
 
 /**
@@ -163,17 +171,14 @@ export function crumbTarget(pathname: string): string | undefined {
  */
 export function crumbLabel(pathname: string): string | undefined {
   return (
-    routableNavItems.find((item) => item.to === pathname)?.label ??
-    extraTitles[pathname]
-  );
+    routableNavItems.find((item) => item.to === pathname)?.label ?? extraTitles[pathname]
+  )
 }
 
 /** Human-readable page name for a pathname, or undefined if unknown. */
 export function pageNameForPath(pathname: string): string | undefined {
   const navMatch =
     routableNavItems.find((item) => item.to === pathname) ??
-    routableNavItems.find(
-      (item) => item.to !== "/" && pathname.startsWith(item.to),
-    );
-  return navMatch?.label ?? extraTitles[pathname];
+    routableNavItems.find((item) => item.to !== '/' && pathname.startsWith(item.to))
+  return navMatch?.label ?? extraTitles[pathname]
 }

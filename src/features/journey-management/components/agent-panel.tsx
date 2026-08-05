@@ -25,24 +25,26 @@ import { agentError } from '../lib/agent-error'
 import { useAgentChat } from '../hooks/use-agent-chat'
 import type { AgentContentBlock, AgentMessage, ToolActivity } from '../types'
 
-/** Openers the reviewer can send with one tap instead of typing. */
 /**
- * Written against the allocation model: the two things the agent can change are
- * the month's beat list and its pinned days. Nothing here asks it to schedule a
- * beat onto a date — the rep chooses that himself each morning.
+ * Openers the reviewer can send with one tap instead of typing.
+ *
+ * Written against what the admin himself may write: **day-counts**, per activity
+ * and per city. Nothing here asks the agent to date a day or pick a beat — those
+ * are the sales incharge's, and on a month past `submitted` they are a correction pass rather
+ * than an allocation change.
  */
 const QUICK_PROMPTS = [
-  'Add the beats he has gone longest without working.',
-  'Drop the beats he has already worked this month.',
-  'Pin every Sunday as a weekly off.',
+  'Give more days to the cities he has gone longest without working.',
+  'Reserve four weekly offs and one meeting day.',
+  'Make the counts add up to the whole month so it can be published.',
   'Explain the warnings on this month.',
 ]
 
 /** Read-only access: only the questions the assistant can actually answer. */
 const READ_ONLY_PROMPTS = [
-  'Which listed beats has he not worked yet?',
+  'Which allocated cities has he not scheduled yet?',
   'Explain the warnings on this month.',
-  'Which dates has he not accounted for?',
+  'Why can this month not be approved?',
 ]
 
 /** Longest single message. Enforced on the textarea and again on send. */
@@ -87,9 +89,16 @@ function Bubble({
   children: React.ReactNode
 }) {
   return (
-    <div className={cn('bubble-in flex items-end gap-2', !assistant && 'flex-row-reverse')}>
+    <div
+      className={cn('bubble-in flex items-end gap-2', !assistant && 'flex-row-reverse')}
+    >
       <Speaker assistant={assistant} />
-      <div className={cn('flex min-w-0 max-w-[85%] flex-col gap-1', !assistant && 'items-end')}>
+      <div
+        className={cn(
+          'flex min-w-0 max-w-[85%] flex-col gap-1',
+          !assistant && 'items-end',
+        )}
+      >
         <div
           className={cn(
             // `wrap-anywhere` (not just break-words) so an unbroken run of
@@ -228,11 +237,14 @@ interface AgentPanelProps {
 /**
  * Journey Plan → "Ask for a change": a conversation with the planning agent.
  *
- * The agent **writes directly** to the allocation, with the same permissions,
- * locks and refusals as a human admin — an admin without `journey-plan:update`
- * gets a read-only assistant, and a locked day refuses it exactly as it refuses a
- * person. There is no approve tool, because there is nothing to approve: an
- * allocation is live the moment it exists.
+ * The agent **writes directly** to the plan, with the same permissions, statuses,
+ * locks and refusals as a human admin: one without `journey-plan:update` gets a
+ * read-only assistant, an approved plan refuses an allocation change exactly as it
+ * refuses a person, and a locked date survives whatever either of them sends.
+ *
+ * The transitions are deliberately not framed as things to ask for. Publish and
+ * approve are one-way, there is no reject and no unpublish, and each is a
+ * deliberate act with its own button — not a sentence that might be misread.
  *
  * The opening greeting and the suggestion chips are client-side copy; a new
  * conversation starts empty and there is no endpoint for either.
@@ -348,8 +360,8 @@ export function AgentPanel({
             <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
               <WifiOff className="mt-0.5 size-3 shrink-0" />
               Not connected to the live channel. Your message is still sent and the
-              assistant still works on it, but the reply will not appear here until
-              the connection is back — reopen this panel to read it.
+              assistant still works on it, but the reply will not appear here until the
+              connection is back — reopen this panel to read it.
             </p>
           ) : null}
 

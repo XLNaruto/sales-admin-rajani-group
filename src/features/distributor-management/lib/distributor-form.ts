@@ -11,16 +11,40 @@ const optNum = (msg = 'Enter a valid number') =>
 // on submit; the returned storage keys are what get persisted.
 const fileList = () => z.array(z.instanceof(File)).optional()
 
+/**
+ * One owner/partner entry. Mirrors the API's `owners[]` item — the backend only
+ * insists on name + mobile, but the onboarding form collects the e-mail and
+ * birth date too (they drive greetings/notifications), so both are required
+ * here. The marriage anniversary stays optional.
+ */
+export const distributorOwnerSchema = z
+  .object({
+    name: z.string().trim().min(2, "Enter the owner's / partner's name").max(255),
+    mobile: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit mobile number'),
+    email: z.string().trim().email('Enter a valid email address'),
+    birthDate: z.string().min(1, 'Select the birth date'),
+    anniversaryDate: z.string().optional(),
+  })
+  // Anniversary can't fall on/before the owner's date of birth.
+  .refine((v) => !v.anniversaryDate || !v.birthDate || v.anniversaryDate > v.birthDate, {
+    message: 'Anniversary must be after the birth date',
+    path: ['anniversaryDate'],
+  })
+
+export type DistributorOwnerValues = z.infer<typeof distributorOwnerSchema>
+
 export const distributorSchema = z.object({
   // --- Firm & owner details ---
   firmName: z.string().min(2, "Enter the firm's name"),
   firmType: z.enum(['proprietorship', 'partnership', 'company'], {
     message: 'Select the type of firm',
   }),
-  ownerName: z.string().min(2, "Enter the owner's / partner's name"),
-  ownerMobile: z.string().regex(/^\d{10}$/, 'Enter a valid 10-digit mobile number'),
-  ownerBirthDate: z.string().optional(),
-  ownerAnniversaryDate: z.string().optional(),
+  // Every owner/partner of the firm. The API replaces its whole `owners` list on
+  // each save, so this array is always sent complete — and must hold at least one.
+  owners: z
+    .array(distributorOwnerSchema)
+    .min(1, 'Add at least one owner / partner')
+    .max(20, 'At most 20 owners / partners can be added'),
   communicationMobile: z
     .string()
     .optional()
@@ -83,20 +107,12 @@ export const distributorSchema = z.object({
   bankIfsc: z.string().optional(),
   bankName: z.string().optional(),
 })
-  // Anniversary can't fall on/before the owner's date of birth.
-  .refine(
-    (v) => !v.ownerAnniversaryDate || !v.ownerBirthDate || v.ownerAnniversaryDate > v.ownerBirthDate,
-    { message: 'Anniversary must be after the birth date', path: ['ownerAnniversaryDate'] },
-  )
 
 export type DistributorFormValues = z.infer<typeof distributorSchema>
 
 export const distributorDefaults: Partial<DistributorFormValues> = {
   firmName: '',
-  ownerName: '',
-  ownerMobile: '',
-  ownerBirthDate: '',
-  ownerAnniversaryDate: '',
+  owners: [],
   communicationMobile: '',
   email: '',
   code: '',

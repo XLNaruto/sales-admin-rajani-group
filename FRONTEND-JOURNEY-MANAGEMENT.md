@@ -2,51 +2,81 @@
 
 For the web panel (Sales Admin) and the mobile app (Sales Incharge).
 
-> **This replaces an earlier design.** If you have screens or types built against
-> journey plans as a **calendar** — with `status`, approve, bulk-approve,
-> re-solve, day editing, `coverage_percentage` or a period summary — none of
-> those endpoints or fields exist any more. §0 says exactly what went and why.
+> **This replaces the previous design twice over.** If you have screens built
+> against journey plans as a **calendar the solver placed** (v1), or as an
+> **allocation of beats the rep improvised against** (v2), neither contract
+> holds. §0 says what the model is now and what went. In particular: `status`
+> and approval are **back**, `journey_plan_beats` and the day-start beat picker
+> are **gone**, and the rep now schedules the whole month in advance.
 
 ---
 
 ## 0. The model, in one page
 
-**A journey plan is an ALLOCATION for one rep for one month. It is not a
-calendar.** It holds two things:
+**A journey plan is a NEGOTIATION between the sales admin and one rep, for one
+month.** It moves through four states, one direction only:
 
-| | |
-|---|---|
-| **Beat list** | Which of the rep's beats are in play this month. **No per-beat counts.** A rep is permanently allocated 60+ beats and cannot work them all, so choosing *which* is the decision; how many times each is almost always once. |
-| **Pinned days** | The handful of dates the office fixes for everyone — the monthly meeting, a training day, the weekly offs. |
+| State       | Who writes         | What it means                                                                                                           |
+| ----------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `draft`     | admin (allocation) | The solver has proposed day-counts per city. **The rep cannot see it at all** — his `GET /my-plan` reports no plan.     |
+| `published` | **rep** (schedule) | Released. He dates every allocated day and picks the beats. The admin can still change the counts.                      |
+| `submitted` | admin (schedule)   | He has dated everything and handed it back. **He is read-only from here, permanently.**                                 |
+| `approved`  | admin (schedule)   | Signed off. The admin may still correct the calendar — a live month has to be fixable — and the rep still never writes. |
 
-Everything else belongs to the rep. Each morning he picks his activity, checks
-in, and picks a beat. **That is what writes a day row.** So most dates in a
-future month have no entry at all, and that is the normal state — not a gap for
-the UI to fill or flag.
+There is **no reject and no send-back**. An admin who dislikes a schedule
+corrects it and approves. Nothing goes backwards; there is no unpublish and no
+unsubmit.
+
+### The admin allocates COUNTS. He never picks a date or a beat.
+
+|                            |                                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`activity_allocations`** | `{ activity_id, days_count }` — "one meeting day, four weekly offs, one training day". Only activities flagged **`is_admin_allocatable`** may appear. Field selling never does. |
+| **`city_allocations`**     | `{ city_id, days_count }` — "twenty days in Rajkot, seven in Morbi". Only cities the rep's **allocated beats** actually sit in.                                                 |
+
+Which date, and which beats inside the city, are the rep's to decide.
+
+### The counts must add up — and this is enforced twice
+
+- **`POST /journey-plans/:id/publish` is refused** unless
+  `sum(activity days) + sum(city days)` equals the number of calendar dates in
+  the period. A month published two days short is one the rep can never
+  complete. Read `allocation_variance` (0 = ready) and `can_publish`.
+- **`POST /journey/my-plan/submit` is refused** unless the rep's schedule
+  consumes **each bucket exactly** — checked bucket by bucket, not on the
+  totals, because a day moved from Morbi to Rajkot keeps the total right and the
+  month wrong. Read `can_submit`.
+- **Saving** the schedule requires neither. A half-dated month is the normal
+  state of that screen.
 
 ### What was removed, and why
 
-| Gone | Why |
-|---|---|
-| `status` (`draft`/`pending_approval`/`approved`/`superseded`) | Nothing to approve. An allocation is live the moment it exists. |
-| `POST /:id/approve`, `POST /bulk-approve` | Approving a target the rep is free to ignore is ceremony. |
-| `GET /journey-plans/summary` | Every count it returned was by approval status. |
-| `POST /:id/re-solve`, `supersedes_plan_id`, solver replay fields | Nothing to re-solve — there is no calendar to rebuild. |
-| `PATCH /:id/days/:day_id`, day-beat add/remove | The admin does not edit days. The **rep** writes them from the app. |
-| `POST /materialise-stops` | Stops snapshot when the rep picks his beat. Nothing runs ahead. |
-| `coverage_percentage`, `planned_travel_km`, `avg_km_per_day` | Measured a plan that said *which beat on which date*. No such plan exists. Progress is now `beats_worked / beats_allocated`. |
-| `beats.workload` (half-day/full-day) | Never populated, and its pairing rule is gone. |
-| `source: assigned \| selected` on a day's beat | Every beat is now the rep's own choice. The deviation signal is `on_allocation`. |
-| Activity quotas | There are none. An activity is either pinned by the admin or chosen by the rep; nothing plans "20 retailing days". |
+| Gone                                                                        | Why                                                                                                                  |
+| --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `journey_plan_beats`, `allocated_beats`, `beats_allocated` / `beats_worked` | The admin allocates **cities**, not beats. Replaced by `city_allocations` and the three day-counts below.            |
+| `pinned_days`, `origin: "pinned"`                                           | "The 5th is the meeting" became "one meeting day". `origin` is now `rep \| admin` and marks an **admin correction**. |
+| `POST /journey/my-day/activity`, `POST /journey/my-day/beat`                | Both decisions were made a month ago and approved. Replaced by **`POST /journey/my-day/open`**.                      |
+| `GET /journey/my-day/beat-options`                                          | Nothing to rank — the beat for a date was agreed a month earlier.                                                    |
+| `GET /journey/my-month`                                                     | Replaced by **`GET /journey/my-plan`**, which carries the allocation as well as the schedule.                        |
+| `POST /:id/re-solve`                                                        | The solver drafts city counts and the admin edits them in place; re-running would discard his corrections.           |
+| `PATCH /:id/days/:day_id`, day-beat add/remove                              | A day is not edited a field at a time. **`PATCH /:id/schedule`** replaces the whole calendar.                        |
+| `GET /journey-plans/summary`                                                | The list's `status` filter serves the tabs it used to count.                                                         |
+| `label: "absent"` / `"unplanned"`                                           | Replaced by `"missed"` (scheduled, past, never worked) and `"unscheduled"` (no row).                                 |
 
-### The two numbers that replaced them
+### The numbers on a plan
 
-- **`beats_allocated`** — beats on the month's list (planned).
-- **`beats_worked`** — distinct **listed** beats worked at least once (actual).
-  A beat worked off-list does **not** count; that is a deviation, not progress.
-- **`completion_percentage`** = worked / allocated. **0% when nothing is
-  allocated**, not 100% — a rep with no beats has not finished his month, he
-  was never given one, and that is a flag.
+Three, not one, because the interesting question changes as the month progresses:
+
+- **`days_allocated`** — what the admin promised.
+- **`days_scheduled`** — dates the rep has actually put against it.
+  `scheduling_percentage` = scheduled / allocated. **The figure that matters
+  before approval.**
+- **`days_worked`** — scheduled dates a **visit has landed on** (the day's
+  `locked_at` is set). `completion_percentage` = worked / scheduled. **The figure
+  that matters after it.** A past scheduled date with no visit is `missed`, not
+  worked — do not derive "worked" from `date < today`.
+
+Both percentages read **0% when their denominator is zero**, not 100%.
 
 ---
 
@@ -63,18 +93,16 @@ the UI to fill or flag.
 
 ---
 
-## 2. Sales Admin — the allocation screens
+## 2. Sales Admin — the plan screens
 
 ### 2.1 List — `GET /sales-incharge-admin/journey-plans`
 
-Query: `period_month` (`YYYY-MM`, required), `search`, `city`, `page`,
-`page_size`, `sort_by` (`sales_incharge` | `completion` | `beats_allocated` |
-`beats_worked`), `sort_order`.
+Query: `period_month` (`YYYY-MM`, required), `status`, `search`, `city`, `page`,
+`page_size`, `sort_by` (`sales_incharge` | `status` | `scheduling` |
+`completion` | `days_allocated`), `sort_order`.
 
-**There are no status tabs and no flag filters.** The old queue had
-*Pending / Approved* tabs and a "Needs a look" filter; nothing has a status to
-filter by now. If the screen needs a worklist, sort by `completion` ascending or
-scan the `flags` on each row.
+`status` drives the chain tabs. Sorting by it uses **chain order**
+(draft → published → submitted → approved), not alphabetical.
 
 Each row:
 
@@ -85,264 +113,230 @@ Each row:
   "sales_incharge_name": "Ramesh Patel",
   "sales_incharge_code": "SI-007",
   "sales_incharge_city": "Halvad",
-  "beats_allocated": 22,
-  "beats_worked": 9,
-  "completion_percentage": 40.9,
-  "working_days": 11,
-  "flags": [ /* see §2.4 */ ],
-  "month_strip": [ /* see §2.3 — one entry per calendar date */ ]
+  "status": "submitted",
+  "days_allocated": 31,
+  "days_scheduled": 31,
+  "days_worked": 9,
+  "scheduling_percentage": 100,
+  "completion_percentage": 29,
+  "cities_allocated": 3,
+  "working_days": 24,
+  "flags": [/* see §2.8 */],
+  "month_strip": [/* one entry per calendar date */],
 }
 ```
 
-### 2.2 Detail — `GET /sales-incharge-admin/journey-plans/:id`
+`month_strip` covers **every calendar date** of the period, each with a derived
+`label`:
 
-Adds `allocated_beats` (the allocation itself), `beats_remaining`, `capacity`,
-`total_days`, and `days`.
+| Label         | Meaning                                                     |
+| ------------- | ----------------------------------------------------------- |
+| `worked`      | Scheduled, and a visit landed on it.                        |
+| `planned`     | Scheduled, still ahead (or today) and not yet worked.       |
+| `holiday`     | Scheduled with an activity whose `is_working_day` is false. |
+| `missed`      | Scheduled, **past**, and nothing was ever recorded.         |
+| `unscheduled` | No day row. Normal on a draft or a freshly published plan.  |
+
+Whether `unscheduled` is a problem depends on `status` — read it from the plan,
+not from the strip.
+
+### 2.2 Pickers — `GET /journey-plans/allocation-options`
+
+Query: `sales_incharge_id`, `period_month`.
+
+**This is the whitelist the allocation Save enforces**, not a convenience:
+anything absent from it is refused with a 400. It needs no plan to exist — the
+admin opens it to build the month.
+
+- `total_days` — what the counts must add up to.
+- `activities[]` — the activity master filtered to `is_admin_allocatable` and
+  `active`.
+- `cities[]` — derived from the beats **currently** allocated to the rep, with
+  `beat_count`, `outlet_count`, and `last_worked_date`. **`null` = never
+  worked**, which the solver weighs heaviest — do not render it as "long ago".
+
+### 2.3 Detail — `GET /journey-plans/:id`
+
+Both allocation sets, each bucket carrying `days_count` **and**
+`days_scheduled`; the three day-counts and both percentages;
+`allocation_variance`; `can_publish` / `can_approve`; `flags`; `month_strip`;
+and `days`.
+
+**`days` is empty on a `draft` and on a freshly `published` plan.** Draw the
+calendar from `month_strip`; use `days` for the detail of the dates that exist.
+
+`city_allocations[].beat_count` reads **0** when the rep no longer has beats in
+that city — the same thing the `city_without_beats` flag reports.
+
+### 2.4 The allocation Save — `PATCH /journey-plans/:id`
+
+Body: `{ activity_allocations?, city_allocations? }`. Each field is a **full
+replacement** of what it covers; an omitted field is untouched. Returns the
+saved plan.
+
+It does **not** touch the schedule. Re-allocating under a schedule that no
+longer fits is allowed and leaves a `schedule_mismatch` flag that blocks
+approval — better than deleting the rep's work. **Refused (409) once the plan is
+`approved`**; correct the schedule instead.
+
+### 2.5 The correction pass — `PATCH /journey-plans/:id/schedule`
 
 ```jsonc
 {
-  "allocated_beats": [
-    {
-      "beat_id": 10, "beat_name": "Halvad Main Bazar", "source": "solver",
-      "outlet_count": 34, "visits_per_month": 2, "worked_count": 2,
-      "latitude": "22.300000", "longitude": "70.800000"
-    }
+  "days": [
+    { "date": "2026-09-03", "activity_id": 1, "city_id": 20, "beat_ids": [10, 11] },
+    { "date": "2026-09-06", "activity_id": 12, "beat_ids": [] },
   ],
-  "capacity": 26,
-  "days": [ /* ... */ ]
 }
 ```
 
-- `source` — `solver` (proposed by the picker at generate) or `manual` (the
-  admin put it there). Anything saved by hand becomes `manual`.
-- `worked_count` — times worked this month. **There is no target beside it.**
-  Do not render it as `2 / 3`; the allocation carries no per-beat count, and
-  `visits_per_month` is the beat's general cycle, not a target for this month.
-- `capacity` — dates available to work a beat: the month's days minus the pinned
-  ones. **Weekly offs are not subtracted** unless the admin pinned them, because
-  nothing knows which day a given rep is off. It feeds only the `over_capacity`
-  warning; do not display it as a hard number of available days.
+A **full replacement** — send every date. Open from `submitted` onward,
+**including after approval**, because a live month has to be correctable and the
+rep can no longer do it; refused (409) on a `draft` or `published` plan, where
+the schedule is his. Correcting an approved plan does **not** reopen the cycle —
+the status stays `approved`.
 
-> **`days` is SHORT, and that is correct.** A freshly generated month contains
-> only the pinned dates. Draw the calendar from `month_strip`, never from
-> `days`.
+Rows land with `origin: "admin"`, which is how the screen shows where the
+approved calendar differs from what the rep handed over. **Locked dates survive
+whatever you send**; send them anyway, they are skipped.
 
-### 2.3 `month_strip` — one entry per calendar date
+Per-day rules — identical to the rep's save, one implementation:
 
-```jsonc
-{ "date": "2026-08-14", "label": "absent", "activity_code": null, "origin": null, "beat_count": 0 }
-```
+- An activity with `requires_beat` needs a `city_id` **and** at least one beat.
+- An activity without it must have **neither**.
+- Every beat must be allocated to the rep **and** sit in that day's city. (A
+  beat whose own `city_id` is `null` is allowed — that is a gap in the beat
+  master, not a scheduling error.)
+- **No limit on beats per day**, and `beat_ids` order is the intended order.
 
-`label` is **derived at read time** and is the single most important field on
-this screen:
+### 2.6 The two transitions
 
-| `label` | Meaning | Suggested treatment |
-|---|---|---|
-| `worked` | A past date the rep chose an activity for. | Normal / filled |
-| `planned` | Today or later, activity already set (pinned, or chosen this morning). | Outlined |
-| `holiday` | A day row whose activity is not a working day — pinned by the office, or marked by the rep. | Muted |
-| `absent` | **A past date with no entry at all.** Nobody said anything and nobody worked. | Warning |
-| `unplanned` | Today or later, nothing chosen yet. | Empty / neutral |
+`POST /journey-plans/:id/publish` and `POST /journey-plans/:id/approve`. Both
+return `{ journey_plan_id, status, days_allocated, days_scheduled }` and are
+guarded by **`journey-plan:approve`** — one permission for both ends.
 
-**Do not collapse `absent` and `holiday` into one "off" state.** They are the
-reason the label exists: a rep who skipped six days must not render identically
-to one who had six holidays. Equally, **`unplanned` on a future date is not a
-problem** — do not badge it.
+- **publish**: `draft` → `published`. 400 if the allocation does not account for
+  the whole month; 409 if not a draft.
+- **approve**: `submitted` → `approved`. 400 if the schedule does not consume
+  every bucket exactly — the error `details` name the offending buckets; 409 if
+  not submitted, or already approved.
 
-`origin` is `pinned` when the office fixed the date and the rep has not
-overridden it, `rep` when it is his own choice, `null` when no row exists.
+### 2.7 Generate — `POST /journey-plans/generate`
 
-### 2.4 `flags` — inline warnings
+Body: `{ period_month, sales_incharge_ids?, activity_allocations[], replace_existing?, seed? }`.
 
-Most severe first. They **gate nothing** — an allocation with flags is as live
-as one without. Render a marker on the row, not a blocking state.
+The **activity buckets apply to every rep in the run** — "one monthly meeting,
+four weekly offs" is a company fact. The solver then splits each rep's remaining
+days across his own cities, weighted by how much work each holds and by how long
+it has gone untouched. Every plan lands as a **`draft`**.
 
-| `code` | Meaning |
-|---|---|
-| `no_beats_allocated` | The month's list is empty. The rep has nothing to work. |
-| `beat_not_allocated` | A listed beat is no longer allocated to this rep. `outlet_count` is the exposure; `beat_name` is `null` because no beat row survives to read one from. |
-| `over_capacity` | More beats listed than working days. `facts: { allocated, capacity, excess }`. |
-| `pinned_on_non_working_day` | A pinned date carries a non-working activity. Usually deliberate. |
+Per-rep `outcome`: `created`, `replaced`, `skipped_existing`,
+**`skipped_in_progress`** (the plan has left `draft` — regenerating would discard
+the rep's schedule), `no_beats`, `failed`. One rep's failure does not fail the
+run. 400 if an activity is unknown or not allocatable, or if the activity days
+leave no room for field work.
 
-### 2.5 Generate — `POST /sales-incharge-admin/journey-plans/generate` → `201`
+### 2.8 Flags
 
-```jsonc
-{
-  "period_month": "2026-09",
-  "sales_incharge_ids": [7, 8],          // omit for every rep in scope
-  "pinned_days": [                        // applies to EVERY rep in this run
-    { "date": "2026-09-05", "activity_id": 8 },
-    { "date": "2026-09-07", "activity_id": 12 }
-  ],
-  "replace_existing": false,
-  "seed": "optional"
-}
-```
+Computed, never stored, most severe first. Two of them mirror a refusal:
 
-Pinning the weekly offs here is what makes `capacity` accurate. Per-rep pins go
-through Save (§2.6).
+| Code                       | Blocks                    |
+| -------------------------- | ------------------------- |
+| `no_cities_allocated`      | — (publish will fail too) |
+| `allocation_incomplete`    | **publish**               |
+| `schedule_unallocated`     | **approve**               |
+| `schedule_mismatch`        | **approve**               |
+| `city_without_beats`       | —                         |
+| `beat_outside_city`        | —                         |
+| `activity_not_allocatable` | —                         |
+| `awaiting_schedule`        | —                         |
 
-Response reports per rep: `outcome` is `created` | `replaced` |
-`skipped_existing` | `no_beats` | `failed`. **One rep's failure does not fail
-the run** — render the list, do not treat a non-zero `failed` as a whole-run
-error.
-
-### 2.6 Save — `PATCH /sales-incharge-admin/journey-plans/:id` → `200`
-
-The entire admin write surface. One screen, one Save button, one call.
-
-```jsonc
-{
-  "beats": [10, 11, 14],                              // full replacement
-  "pinned_days": [{ "date": "2026-09-05", "activity_id": 8 }]  // full replacement
-}
-```
-
-Both fields are **full replacements**, not deltas — send the whole list. Both
-are optional; an omitted field is left alone. Applied in one transaction.
-Returns the saved allocation (same shape as §2.2).
-
-**Two kinds of day row survive a `pinned_days` replacement whatever you send:**
-a **locked** day (a visit landed on it) and a date the **rep has already taken
-over**. So a stale screen cannot silently un-choose a rep's morning. After
-saving, re-read the response rather than assuming every pin landed.
-
-Refusals (`400`): a beat not allocated to the rep
-(`JOURNEY_PLAN_BEAT_NOT_ALLOCATED`), an unknown activity, a pinned date outside
-the period, or two activities on one date.
-
-### 2.7 Rep switcher — `GET /sales-incharge-admin/journey-plans/reps?period_month=`
-
-`{ sales_incharges: [{ sales_incharge_id, sales_incharge_name, sales_incharge_code, journey_plan_id }] }`.
-Deliberately carries no metrics.
+`schedule_mismatch` is deliberately **silent until the rep has scheduled
+something** — every bucket of an untouched month is mismatched by its full count,
+and forty rows of that is noise, not information.
 
 ---
 
-## 3. Sales Incharge app — the morning
+## 3. Sales Incharge app
 
-**Order matters.**
+### Once a month: schedule it
 
-```
-GET  /sales-incharge/my-month              what I was allocated
-POST /sales-incharge/my-day/activity       1. what am I doing today?
-     (attendance check-in)                 2. — the attendance module
-GET  /sales-incharge/my-day/beat-options   3a. ranked beats, from where I stand
-POST /sales-incharge/my-day/beat           3b. this one → outlets download
-GET  /sales-incharge/my-day                the offline payload
-```
+#### `GET /journey/my-plan?period_month=YYYY-MM`
 
-Beat selection is step 3 because the walking order is computed from his actual
-check-in position, and the outlet list snapshots at that moment.
+Both allocation sets, with **the beats of each allocated city nested inside it**
+— the whole month can be dated without another round trip. Plus `days` (what he
+has scheduled), `total_days`, `can_edit`, `can_submit`.
 
-> **Connectivity:** he needs a connection at **beat selection**, every day.
-> There is no pre-synced outlet list, because the beat was not known the night
-> before. Everything after that call works offline.
+**A `draft` reads as no plan**: `journey_plan_id` and `status` are `null`, the
+same answer as when no plan exists. The admin has not released it, and it may
+change entirely before he does.
 
-### 3.1 `GET /my-month?period_month=YYYY-MM` (defaults to this month)
+`can_edit` is true **only while `published`** — false from submission onward,
+permanently. Approval does not hand it back.
 
-Returns `beats` (the list he may pick from, with `outlet_count`, `worked_count`,
-`last_worked_date`), the full `activities` master, `days` already decided, and
-`beats_allocated` / `beats_worked`.
+#### `PATCH /journey/my-plan/schedule?period_month=YYYY-MM`
 
-Small and slow-changing — cache it. **A month with no allocation returns
-`journey_plan_id: null` and empty beats, not a 404**: he can still mark a
-holiday.
+Body: `{ days: [...] }` — the same day shape as §2.5, and the same per-day rules.
+A **full replacement**. Does **not** require the counts to balance; returns
+`days_written`, `days_held` (locked dates skipped) and `can_submit`. 404 on a
+draft, 409 once submitted.
 
-### 3.2 `POST /my-day/activity` → `201`
+#### `POST /journey/my-plan/submit?period_month=YYYY-MM`
 
-```jsonc
-{ "date": "2026-08-12", "activity_id": 1, "reason": null, "joint_working_sales_incharge_id": null }
-```
+400 unless every bucket is consumed exactly — `details.mismatched` and
+`details.unallocated` name which. There is no unsubmit.
 
-Creates the day row. **Runs before check-in** — marking a holiday involves
-checking in nowhere.
+### Every morning: open it
 
-```jsonc
-{ "journey_plan_day_id": 44, "requires_beat": true, "overrode_pinned": false, "beats_cleared": 0 }
-```
+There is nothing to pick. He checks in (attendance module, not here), then:
 
-- `requires_beat: true` → take him to the beat picker, **after** check-in.
-- `overrode_pinned: true` → he replaced a date the office fixed. **Allowed.** Show
-  a confirmation, not a refusal; the admin sees it as a deviation.
-- `beats_cleared` → switching to a beatless activity dropped that many beats and
-  their stops. Warn before the call.
+#### `POST /journey/my-day/open` — `{ date }`
 
-Refusals: `404` unknown activity or no allocation for the month; `409`
-`JOURNEY_PLAN_DAY_LOCKED`.
+Snapshots the day's outlets from its beats and sequences them from his check-in
+fix. Returns `{ opened, journey_plan_day_id, stops_created, sequenced }`.
 
-### 3.3 `GET /my-day/beat-options?date=` — the ranked picker
+- **`opened: false`** (not a 404) when the approved calendar says nothing about
+  that date. He is not making an error by opening the app on a blank day.
+- **`sequenced: false`** when he has not checked in — the stops still land, but
+  there is no starting point to walk from, so the order is left alone.
+- **Idempotent.** `GET /my-day` re-runs it as a self-heal, so a client that
+  crashed between checking in and calling it does not end up with an empty day.
+- He needs a connection for this one call. Everything after it works offline.
 
-```jsonc
-{
-  "date": "2026-08-12",
-  "day_started": true,
-  "beats": [
-    { "beat_id": 11, "beat_name": "Morbi Road", "rank": 1, "distance_km": 2.4,
-      "worked_this_month": 0, "outlet_count": 28, "reason": "due_and_nearest" }
-  ]
-}
-```
+Outlets are snapshotted here rather than pre-synced because beat membership
+moves — a shop added on the 9th belongs on the 10th's list.
 
-Not-yet-worked first; nearest of those at the top of that group. **A suggestion
-only** — he may pick any beat and nothing consults this order. Show the order,
-highlight rank 1, and render a short phrase from `reason`
-(`due_and_nearest` / `due` / `already_worked`).
+#### `GET /journey/my-day` and the visit endpoints
 
-`day_started: false` means he has not checked in: every `distance_km` is `null`
-and the order is by neglect alone. **Do not render a null distance as 0 km.**
-
-### 3.4 `POST /my-day/beat` → `201`
-
-```jsonc
-{ "date": "2026-08-12", "beat_id": 11 }
-```
-
-```jsonc
-{ "journey_plan_day_id": 44, "beat_id": 11, "stops_created": 28,
-  "sequenced": true, "on_allocation": true }
-```
-
-- `on_allocation: false` → the beat is not on the month's list. **The pick still
-  succeeded** — nothing blocks an off-list beat. Optionally note it; the admin
-  sees the deviation.
-- `sequenced: false` → he had not checked in, so the stops carry only the
-  advisory order.
-
-Refusals: `404` no activity chosen yet, or no such beat. `409` the day is
-locked, its activity takes no beat, the beat is already on the day, or it would
-be a third.
-
-### 3.5 `GET /my-day` — the offline payload
-
-Unchanged in shape except: each entry of `beats` now carries `on_allocation` and
-has **lost** `workload` and `source`. `stops[].sequence` remains the "best
-available" order — planned once the day has started, advisory before.
+Unchanged, except that `beats[].on_allocation` now means **"this beat still sits
+in the day's allocated city"**. The scheduler refuses an out-of-city beat, so
+`false` means the **beat master has drifted** since approval — his outlet list is
+for a town he is not in. `stops[].sequence` remains the "best available" order:
+planned once the day has started, advisory before.
 
 ---
 
 ## 4. Live map
 
-Largely unchanged. Two differences:
-
-- **`sc`** now counts the stops snapshotted for the day's beat — the calls he
-  set out to make. It previously counted admin-assigned beats only and read zero
-  for a self-chosen one; nothing assigns beats to dates now, so that rule would
-  zero it every day.
-- **`assigned_beat` / `selected_beat` are gone**, replaced by `beats` (an array,
-  in the order he took them) and `on_allocation` (a boolean; `true` on a day
-  with no beats at all).
+Unchanged except `on_allocation`, which carries the meaning above and is `true`
+on a day with no beats at all — a meeting has no city to be off.
 
 End-of-day coordinates (`day_end_latitude` / `day_end_longitude`,
-`check_out_latitude` / `check_out_longitude`) are present and are `null` while a
-session is still open — a different null from "no attendance for the day", where
-every `day_*` field is null.
+`check_out_latitude` / `check_out_longitude`) are `null` while a session is still
+open — a different null from "no attendance for the day", where every `day_*`
+field is null.
 
 ---
 
 ## 5. Known gaps
 
-- **Leave requests** are not built. A rep marks leave as an ordinary activity;
-  there is no apply/approve workflow yet.
-- **Absence** is derived (`label: "absent"`), not recorded. There is no
+- **Leave requests** are not built. Leave is an ordinary allocatable activity;
+  there is no apply/approve workflow.
+- **Absence is derived** (`label: "missed"`), not recorded. There is no
   reason-for-absence field.
-- **`capacity`** is optimistic unless the admin pins the weekly offs — see §2.2.
+- **A beat with no `city_id`** (its primary distributor has none) is unreachable
+  by allocation and is silently excluded from the city pickers. Fix it in the
+  beat master.
+- **Coverage** (visits against each beat's `visits_per_month` cycle) is
+  computable now that the beats for a date are agreed in advance, but is not
+  reported — nobody has specified the definition.

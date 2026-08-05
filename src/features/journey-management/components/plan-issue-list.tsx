@@ -1,21 +1,34 @@
-import { CheckCircle2 } from 'lucide-react'
+import { Ban, CheckCircle2 } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import type { IssueCategory, PlanIssue } from '../types'
 
 /** Category chip colour — the chip is a label, so tone follows the category. */
 const CATEGORY_STYLE: Record<IssueCategory, string> = {
-  allocation: 'bg-destructive/12 text-destructive',
-  capacity: 'bg-warning/15 text-warning',
-  calendar: 'bg-muted text-muted-foreground',
+  blocking: 'bg-destructive/12 text-destructive',
+  allocation: 'bg-warning/15 text-warning',
+  schedule: 'bg-info/12 text-info',
+  'master-data': 'bg-muted text-muted-foreground',
+}
+
+/** Shortened for the chip — "master-data" is too wide beside a sentence. */
+const CATEGORY_LABEL: Record<IssueCategory, string> = {
+  blocking: 'blocking',
+  allocation: 'allocation',
+  schedule: 'schedule',
+  'master-data': 'masters',
 }
 
 /**
- * "Worth a look" — the warnings the server put on this allocation, worst first.
+ * The warnings the server put on this plan, worst first.
  *
- * They **gate nothing**: there is nothing to approve, so a flagged month is as
- * live as a clean one. The header says "worth a look", not "blocking", on purpose.
+ * Unlike the old allocation model, **some of these genuinely gate the month**:
+ * `allocation_incomplete` is exactly why publish refuses, and the two schedule
+ * flags are exactly why approve refuses. Those carry the `blocking` chip and a
+ * slash marker, and the header counts them separately — an admin needs to know
+ * which rows he must clear and which merely want a look.
  *
- * Rows that point at a date are clickable and scroll the month table to it.
+ * Rows that point at a date are clickable and scroll the schedule table to it.
  */
 export function PlanIssueList({
   issues,
@@ -34,24 +47,37 @@ export function PlanIssueList({
         <CheckCircle2 className="size-4 shrink-0 text-success" />
         <span className="font-medium text-foreground">Nothing to look at</span>
         <span className="text-muted-foreground">
-          — no warnings on this month&rsquo;s allocation.
+          — no warnings on this month&rsquo;s plan.
         </span>
       </div>
     )
   }
 
+  const blocking = issues.filter((issue) => issue.blocks).length
+
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
-      <div className="flex items-center gap-2 border-b border-border/60 px-4 py-3">
-        <h2 className="font-heading text-sm font-semibold text-foreground">Worth a look</h2>
-        <span className="rounded-full bg-destructive/12 px-2 py-0.5 text-xs font-semibold tabular-nums text-destructive">
+      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-3">
+        <h2 className="font-heading text-sm font-semibold text-foreground">
+          Worth a look
+        </h2>
+        <span
+          className={cn(
+            'rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
+            blocking > 0
+              ? 'bg-destructive/12 text-destructive'
+              : 'bg-warning/15 text-warning',
+          )}
+        >
           {issues.length}
         </span>
         <span className="text-xs text-muted-foreground">
-          warnings only — the month is live either way
+          {blocking > 0
+            ? `${blocking} of these must be cleared before the month can move on`
+            : 'advisory only — none of these stops the month'}
         </span>
       </div>
-      {/* Capped so a badly flagged month can't push the editor off-screen — the
+      {/* Capped so a badly flagged month can't push the editors off-screen — the
           header stays put and the warnings scroll under it. */}
       <ul className="divide-y divide-border/60 overflow-y-auto" style={{ maxHeight }}>
         {issues.map((issue, i) => {
@@ -83,9 +109,17 @@ export function PlanIssueList({
                     CATEGORY_STYLE[issue.category],
                   )}
                 >
-                  {issue.category}
+                  {CATEGORY_LABEL[issue.category]}
                 </span>
                 <span className="min-w-0 flex-1 text-foreground">{issue.label}</span>
+                {issue.blocks ? (
+                  <Hint label={`This is why ${issue.blocks} is refused.`}>
+                    <span className="mt-0.5 inline-flex shrink-0 cursor-default items-center gap-1 text-[11px] font-medium text-destructive">
+                      <Ban className="size-3" />
+                      {issue.blocks}
+                    </span>
+                  </Hint>
+                ) : null}
               </div>
             </li>
           )

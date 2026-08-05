@@ -14,6 +14,19 @@ export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter
 export type MarketSystem = 'ready_stock' | 'booking'
 export type PaymentCondition = 'same_day_cheque' | 'due_date_neft_rtgs' | 'advance'
 
+/**
+ * One owner/partner of a distributor firm. A firm has at least one and at most
+ * 20 (see the `owners` array on POST/PATCH /distributors); the whole list is
+ * replaced on every save. Dates are 'yyyy-MM-dd' strings.
+ */
+export interface DistributorOwner {
+  name: string
+  mobile: string
+  email?: string
+  birthDate?: string
+  anniversaryDate?: string
+}
+
 /** A product-division master option (id + display name). */
 export interface ProductDivision {
   id: number
@@ -35,10 +48,8 @@ export interface Distributor {
   // --- Firm & owner details ---
   firmName: string
   firmType: FirmType
-  ownerName: string
-  ownerMobile: string
-  ownerBirthDate?: string
-  ownerAnniversaryDate?: string
+  /** Owners/partners of the firm, oldest first (`owners`). */
+  owners: DistributorOwner[]
   communicationMobile?: string
   multipleLogin?: YesNo
   email: string
@@ -109,10 +120,8 @@ export interface DistributorCreateInput {
   // --- Firm & owner ---
   firmName: string
   firmType: FirmType
-  ownerName: string
-  ownerMobile: string
-  ownerBirthDate?: string
-  ownerAnniversaryDate?: string
+  /** At least one owner/partner; sent as the complete `owners` list. */
+  owners: DistributorOwner[]
   communicationMobile?: string
   multipleLogin?: YesNo
   email: string
@@ -206,10 +215,8 @@ export interface DistributorDetailView {
   firmName: string
   firmType: FirmType | null
   legalName: string | null
-  ownerName: string | null
-  ownerMobile: string | null
-  ownerBirthDate: string | null
-  ownerAnniversaryDate: string | null
+  /** Owners/partners on the record — empty for pre-migration distributors. */
+  owners: DistributorOwner[]
   communicationMobile: string | null
   multipleLogin: boolean | null
   email: string | null
@@ -265,14 +272,11 @@ export interface DistributorDetailView {
 
 // --- Live list API (GET /sales-incharge-admin/distributors) -----------------
 
-/** Columns the list endpoint can sort by. */
-export type DistributorSortBy =
-  | 'firm_name'
-  | 'owner_name'
-  | 'owner_mobile'
-  | 'email'
-  | 'city_id'
-  | 'status'
+/**
+ * Columns the list endpoint can sort by. Owner columns aren't sortable — owners
+ * live in a child table now, so the API dropped them from `sort_by`.
+ */
+export type DistributorSortBy = 'firm_name' | 'email' | 'city_id' | 'status'
 
 /** Query params accepted by the list endpoint. Forwarded verbatim as snake_case. */
 export interface DistributorListParams {

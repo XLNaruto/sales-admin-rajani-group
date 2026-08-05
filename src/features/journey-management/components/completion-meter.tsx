@@ -2,7 +2,7 @@ import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import { completionBand, type CompletionBand } from '../lib/journey-metrics'
 
-/** Band → fill colour. Low completion is what an admin hunts for, so it reads as
+/** Band → fill colour. A low figure is what an admin hunts for, so it reads as
  *  a warning rather than a neutral bar. */
 const FILL: Record<CompletionBand, string> = {
   low: 'bg-destructive',
@@ -17,43 +17,54 @@ const TEXT: Record<CompletionBand, string> = {
 }
 
 /**
- * Progress through the month's beat list — `beatsWorked / beatsAllocated`, as a
- * slim track plus a mono percentage.
+ * One of the month's two percentages, as a slim track plus a mono figure.
  *
- * **Zero with nothing allocated is not "not started", it is a flag**: a rep with
- * no beats has not finished his month, he was never given one. So that case gets
- * its own reading rather than a 0% bar that looks like a slow start.
+ * The screens use it twice, for the two questions that matter at different points
+ * in the month: **scheduling** (`daysScheduled / daysAllocated`) is the figure
+ * that matters before approval, **completion** (`daysWorked / daysScheduled`)
+ * after it.
+ *
+ * Both read **0% when their denominator is zero**, never 100% — so a zero
+ * denominator replaces the meter with wording rather than showing a 0% bar that
+ * looks like a slow start. What that zero *means* differs per figure, which is why
+ * the caller supplies the copy.
  */
 export function CompletionMeter({
   value,
-  worked,
-  allocated,
+  done,
+  total,
+  emptyLabel = 'Nothing to measure',
+  emptyHint,
   size = 'sm',
+  ariaLabel = 'Progress',
   className,
 }: {
-  /** `completion_percentage`, the server's figure. */
+  /** The server's percentage — never recomputed from `done / total`. */
   value: number
-  /** Distinct listed beats worked at least once. */
-  worked?: number
-  /** Beats on the month's list. */
-  allocated?: number
+  /** Numerator, for the `3/31` suffix. */
+  done?: number
+  /** Denominator. **Zero replaces the whole meter with `emptyLabel`.** */
+  total?: number
+  /** What to say when the denominator is zero. */
+  emptyLabel?: string
+  emptyHint?: string
   size?: 'sm' | 'lg'
+  ariaLabel?: string
   className?: string
 }) {
-  if (allocated === 0) {
-    return (
-      <Hint label="No beats are on this month’s list, so there is nothing to work through.">
-        <span
-          className={cn(
-            'inline-flex cursor-default items-center gap-1.5 font-medium text-destructive',
-            size === 'lg' ? 'text-sm' : 'text-xs',
-            className,
-          )}
-        >
-          Nothing allocated
-        </span>
-      </Hint>
+  if (total === 0) {
+    const chip = (
+      <span
+        className={cn(
+          'inline-flex cursor-default items-center gap-1.5 font-medium text-muted-foreground',
+          size === 'lg' ? 'text-sm' : 'text-xs',
+          className,
+        )}
+      >
+        {emptyLabel}
+      </span>
     )
+    return emptyHint ? <Hint label={emptyHint}>{chip}</Hint> : chip
   }
 
   const band = completionBand(value)
@@ -66,7 +77,7 @@ export function CompletionMeter({
         aria-valuenow={clamped}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-label="Beats worked of beats allocated"
+        aria-label={ariaLabel}
         className={cn(
           'relative block flex-1 overflow-hidden rounded-full bg-muted',
           size === 'lg' ? 'h-2' : 'h-1.5 max-w-24',
@@ -87,9 +98,9 @@ export function CompletionMeter({
       >
         {clamped}%
       </span>
-      {worked != null && allocated != null ? (
+      {done != null && total != null ? (
         <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-          {worked}/{allocated}
+          {done}/{total}
         </span>
       ) : null}
     </div>

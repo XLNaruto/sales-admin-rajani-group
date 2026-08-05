@@ -22,7 +22,6 @@ import type {
 /** Map a table column id → the list endpoint's `sort_by` value. */
 const SORT_BY_COLUMN: Record<string, DistributorSortBy> = {
   firmName: "firm_name",
-  owner: "owner_name",
   city: "city_id",
   status: "status",
 };

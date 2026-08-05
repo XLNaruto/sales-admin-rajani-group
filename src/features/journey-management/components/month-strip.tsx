@@ -6,7 +6,7 @@ import {
   DAY_LABEL_COLOR,
   DAY_LABEL_HINT,
   DAY_LABEL_TEXT,
-  PINNED_MARK_COLOR,
+  ADMIN_MARK_COLOR,
 } from '../lib/day-label'
 import type { MonthStripDay } from '../types'
 
@@ -20,8 +20,8 @@ const COLUMN = 7
 const SPLIT = 1
 /** Gap between week groups in px — must match the `gap-1.5` below. */
 const WEEK_GAP = 6
-/** Height of the pinned-date marker under a pillar, in px. */
-const PIN_MARK = 2
+/** Height of the admin-correction marker under a pillar, in px. */
+const ADMIN_MARK = 2
 
 /**
  * Weekday labels ("18 Sat") for a month, built once and shared by every row.
@@ -49,12 +49,13 @@ function dayLabels(month: string): string[] {
  * the row's `month_strip`.
  *
  * Colour carries the server's **label**, which is the whole point of the strip:
- * `absent` (a past date nobody accounted for) and `holiday` are different colours
- * on purpose, and `unplanned` — most of any future month — reads as empty rather
- * than as a gap to chase. Segment count carries the beats on the day.
+ * `missed` (scheduled, past, never worked) and `holiday` are different colours on
+ * purpose, and `unscheduled` reads as empty rather than as a gap to chase —
+ * whether it is a problem depends on the plan's status, not on the strip. Segment
+ * count carries the beats on the day.
  *
- * A thin underline marks a date the **office pinned** and the rep has not
- * overridden, so his own choices are distinguishable from the ones fixed for him.
+ * A thin underline marks a date the **admin corrected** after the sales incharge submitted
+ * the month, so the two authors of an approved calendar stay distinguishable.
  *
  * Geometry and colour are inline rather than Tailwind classes: these are
  * data-driven marks, so nothing here can be lost to class generation.
@@ -94,11 +95,12 @@ export const MonthStrip = memo(function MonthStrip({
   }, [weeks])
 
   /**
-   * The one figure worth announcing: dates that have passed with nothing on them.
-   * Not the working-day count — the server sends that as its own column.
+   * The one figure worth announcing: dates that were scheduled, have passed, and
+   * were never worked. `unscheduled` is deliberately not counted — on a draft or a
+   * freshly published month it is every date, and it is not a fault there.
    */
-  const absent = useMemo(
-    () => strip.filter((day) => day.label === 'absent').length,
+  const missed = useMemo(
+    () => strip.filter((day) => day.label === 'missed').length,
     [strip],
   )
 
@@ -107,7 +109,7 @@ export const MonthStrip = memo(function MonthStrip({
       className="relative inline-flex items-end gap-1.5"
       style={{ height: TRACK }}
       aria-label={
-        absent ? `Month strip: ${absent} unaccounted days` : 'Month strip: nothing unaccounted'
+        missed ? `Month strip: ${missed} missed days` : 'Month strip: nothing missed'
       }
       onPointerLeave={() => setHovered(null)}
     >
@@ -149,7 +151,7 @@ function DayTooltip({ day, label }: { day: MonthStripDay; label?: string }) {
         <span className="font-mono tabular-nums">{label ?? day.date}</span>
         {': '}
         {DAY_LABEL_TEXT[day.label]}
-        {day.origin === 'pinned' ? ' · pinned' : ''}
+        {day.origin === 'admin' ? ' · corrected' : ''}
       </span>
       <span className="mt-0.5 block max-w-56 text-[11px] font-normal opacity-70">
         {day.activityCode ? activityLabel(day.activityCode) : DAY_LABEL_HINT[day.label]}
@@ -179,10 +181,10 @@ const DayPillar = memo(function DayPillar({
   onHover: (day: MonthStripDay) => void
 }) {
   const color = DAY_LABEL_COLOR[day.label]
-  // A day splits into one segment per beat. Days with no beats — every unplanned
+  // A day splits into one segment per beat. Days with no beats — every unscheduled
   // and holiday date, and a working day whose activity takes none — stay solid.
   const segments = Math.max(1, day.beatCount)
-  const pinned = day.origin === 'pinned'
+  const corrected = day.origin === 'admin'
 
   return (
     <span
@@ -196,9 +198,9 @@ const DayPillar = memo(function DayPillar({
           flexDirection: 'column',
           gap: SPLIT,
           width: BAR,
-          // The pinned marker eats into the track rather than adding to it, so
+          // The correction marker eats into the track rather than adding to it, so
           // every row of the table stays exactly `TRACK` tall.
-          height: pinned ? TRACK - PIN_MARK - 1 : TRACK,
+          height: corrected ? TRACK - ADMIN_MARK - 1 : TRACK,
           flexShrink: 0,
         }}
       >
@@ -214,15 +216,15 @@ const DayPillar = memo(function DayPillar({
           />
         ))}
       </span>
-      {pinned ? (
+      {corrected ? (
         <span
           aria-hidden
           style={{
             marginTop: 1,
             width: BAR,
-            height: PIN_MARK,
+            height: ADMIN_MARK,
             borderRadius: 1,
-            backgroundColor: PINNED_MARK_COLOR,
+            backgroundColor: ADMIN_MARK_COLOR,
           }}
         />
       ) : null}

@@ -125,11 +125,19 @@ export const queryKeys = {
     /** GET /journey-plans — the allocation list (period + server-side filters). */
     plans: (filters?: Record<string, unknown>) =>
       [...queryKeys.journey.all, 'plans', filters ?? {}] as const,
-    /** GET /journey-plans/{id} — one rep's allocation, with the month strip. */
+    /** GET /journey-plans/{id} — one sales incharge's plan, with its allocation and strip. */
     plan: (id: string) => [...queryKeys.journey.all, 'plan', id] as const,
-    /** GET /journey-plans/reps — the rep switcher's options for a period. */
+    /** GET /journey-plans/reps — the sales incharge switcher's options for a period. */
     reps: (periodMonth: string) =>
       [...queryKeys.journey.all, 'reps', periodMonth] as const,
+    /**
+     * GET /journey-plans/allocation-options — the allocatable activities and the
+     * incharge's cities. Keyed by (sales incharge, period) because both narrow it:
+     * the cities come from the beats he holds, and `total_days` from the month's
+     * length.
+     */
+    allocationOptions: (inchargeId: string, periodMonth: string) =>
+      [...queryKeys.journey.all, 'allocation-options', inchargeId, periodMonth] as const,
     /** GET /journey-plans/{id}/agent — the AI agent's transcript. */
     agent: (planId: string) => [...queryKeys.journey.all, 'agent', planId] as const,
     /** GET /activities — the activity master behind the day dropdown. */

@@ -263,20 +263,30 @@ export function DistributorsPage() {
       },
       {
         id: "owner",
-        accessorFn: (d) => d.ownerName,
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title="Owner" />
-        ),
+        header: "Owners / Partners",
+        // Owners live in a child table — the endpoint can't sort by them.
+        enableSorting: false,
+        meta: { className: "w-60 min-w-60 max-w-60" },
         cell: ({ row }) => {
-          const { ownerName, ownerMobile } = row.original;
-          if (!ownerName && !ownerMobile)
+          const owners = row.original.owners;
+          if (owners.length === 0)
             return <span className="text-muted-foreground">N/A</span>;
+          const [first, ...rest] = owners;
           return (
-            <div className="leading-tight">
-              <p className="text-sm text-foreground">{ownerName || "N/A"}</p>
-              {ownerMobile && (
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {ownerMobile}
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-sm text-foreground">{first.name}</p>
+                {rest.length > 0 && (
+                  <Hint label={rest.map((o) => o.name).join(", ")}>
+                    <span className="shrink-0 cursor-default whitespace-nowrap rounded-full bg-accent px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                      +{rest.length}
+                    </span>
+                  </Hint>
+                )}
+              </div>
+              {first.mobile && (
+                <p className="text-xs tabular-nums text-muted-foreground">
+                  {first.mobile}
                 </p>
               )}
             </div>

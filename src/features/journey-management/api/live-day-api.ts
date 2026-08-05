@@ -32,21 +32,36 @@ const STATUSES: RepDayStatus[] = [
 ]
 
 function toStatus(value: string): RepDayStatus {
-  return STATUSES.includes(value as RepDayStatus) ? (value as RepDayStatus) : 'not_started'
+  return STATUSES.includes(value as RepDayStatus)
+    ? (value as RepDayStatus)
+    : 'not_started'
 }
 
-const EMPTY_COUNTERS: DayCounters = { sc: 0, tc: 0, inTurn: 0, ovt: 0, to: 0, pc: 0, ovc: 0 }
+const EMPTY_COUNTERS: DayCounters = {
+  sc: 0,
+  tc: 0,
+  inTurn: 0,
+  ovt: 0,
+  to: 0,
+  pc: 0,
+  ovc: 0,
+}
 
 /** Counters are displayed, never recomputed — this only renames the fields. */
-function toCounters(raw: {
-  sc: number
-  tc: number
-  in_turn: number
-  ovt: number
-  to: number
-  pc: number
-  ovc: number
-} | null | undefined): DayCounters {
+function toCounters(
+  raw:
+    | {
+        sc: number
+        tc: number
+        in_turn: number
+        ovt: number
+        to: number
+        pc: number
+        ovc: number
+      }
+    | null
+    | undefined,
+): DayCounters {
   if (!raw) return EMPTY_COUNTERS
   return {
     sc: raw.sc,
@@ -150,14 +165,16 @@ function toDetail(r: LiveDetailRow): LiveDayDetail {
   }))
 
   // The route's own points, in OPTIMISED order. `sequence` numbers the pins and
-  // `day_sequence` numbers the timeline; they disagree when the rep backtracked,
+  // `day_sequence` numbers the timeline; they disagree when the sales incharge backtracked,
   // and nothing here tries to make them agree.
   const routePoints: VisitMarker[] = (r.route?.points ?? [])
     .map((point) => {
       const at = toPoint(point.latitude, point.longitude)
       if (!at) return null
       const marker: VisitMarker = {
-        id: point.visit_id ? `visit-${point.visit_id}` : `stop-${point.journey_plan_stop_id}`,
+        id: point.visit_id
+          ? `visit-${point.visit_id}`
+          : `stop-${point.journey_plan_stop_id}`,
         daySequence: point.day_sequence,
         at: timeOfDay(point.at),
         outlet: point.party_name ?? 'Unnamed outlet',
@@ -215,7 +232,10 @@ function toDetail(r: LiveDetailRow): LiveDayDetail {
     route: {
       drawable: Boolean(r.route?.drawable),
       state: r.route?.state ?? 'no_mapped_points',
-      origin: toPoint(r.route?.origin?.latitude ?? null, r.route?.origin?.longitude ?? null),
+      origin: toPoint(
+        r.route?.origin?.latitude ?? null,
+        r.route?.origin?.longitude ?? null,
+      ),
       distanceMetres: r.route?.distance_metres ?? null,
       points: routePoints,
     },

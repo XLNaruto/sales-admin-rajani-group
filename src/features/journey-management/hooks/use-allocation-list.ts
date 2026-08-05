@@ -1,14 +1,13 @@
 /**
- * State for the Allocations screen — one row per rep for a month.
+ * State for the Journey Plans screen — one row per sales incharge for a month.
  *
- * Everything the toolbar owns — the month, the search, the page and the sort — is
- * a query param, so each change is one refetch rather than a client-side pass
- * over the page.
+ * Everything the toolbar owns — the month, the chain tab, the search, the page and
+ * the sort — is a query param, so each change is one refetch rather than a
+ * client-side pass over the page.
  *
- * **One request, not two.** The old screen also fetched `/journey-plans/summary`
- * for its stat cards and tab badges; that endpoint is gone, because every count it
- * returned was by approval status and an allocation has none. The header's figure
- * is the list's own `total`.
+ * **One request, not five.** `GET /journey-plans/summary` is gone: every count it
+ * returned was per status, and the list's own `status` filter serves the tabs it
+ * used to badge. The header's figure is the list's `total` for whichever tab is on.
  */
 import { useCallback, useMemo, useState } from 'react'
 import type { PaginationState, SortingState } from '@tanstack/react-table'
@@ -20,14 +19,15 @@ import { useGenerateJourneyPlans, useJourneyPlanQueue } from '../api/use-journey
 import { useActivities } from '../api/use-journey-plan-detail'
 import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
 import { SORT_COLUMNS } from '../lib/journey-metrics'
-import type { PinnedDay, QueueParams } from '../types'
+import type { ActivityQuota, PlanStatus, QueueParams } from '../types'
 
-/** Filters the toolbar owns. */
+/** Filters the toolbar owns. `status: null` is the "All" tab. */
 export interface AllocationFilters {
   search: string
+  status: PlanStatus | null
 }
 
-const EMPTY_FILTERS: AllocationFilters = { search: '' }
+const EMPTY_FILTERS: AllocationFilters = { search: '', status: null }
 
 const DEFAULT_PAGE_SIZE = 10
 
@@ -53,6 +53,7 @@ export function useAllocationList() {
       periodMonth: month,
       page: pagination.pageIndex + 1,
       pageSize: pagination.pageSize,
+      ...(filters.status ? { status: filters.status } : {}),
       search: search.trim() || undefined,
       ...(sort && SORT_COLUMNS[sort.id]
         ? {
@@ -61,15 +62,17 @@ export function useAllocationList() {
           }
         : {}),
     }
-  }, [month, pagination, search, sorting])
+  }, [month, pagination, search, sorting, filters.status])
 
   const queue = useJourneyPlanQueue(params)
 
   /**
-   * The activity master, for the generate dialog's second column. Not fetched
+   * The activity master, for the generate dialog's activity column. Not fetched
    * without the grant to generate — nothing else on this screen reads it.
    */
-  const activities = useActivities({ enabled: canGenerate && can('activity:list') })
+  const activities = useActivities({
+    enabled: canGenerate && can('activity:list'),
+  })
 
   const generate = useGenerateJourneyPlans()
 
@@ -93,61 +96,66 @@ export function useAllocationList() {
   }, [])
 
   /**
-   * Generate the month.
+   * Generate the month. Every plan lands as a **draft**, invisible to the sales incharge.
    *
-   * Idempotent per rep and period: a rep who already has an allocation is skipped
-   * unless `replaceExisting` is set.
+   * Idempotent per sales incharge and period: a sales incharge who already has a plan is skipped unless
+   * `replaceExisting` is set, and one whose plan has left `draft` is skipped
+   * **either way** — regenerating would discard the schedule he wrote.
    *
    * **A non-zero `failed` is not a failed run** — the endpoint answers 201 either
-   * way. With no per-rep receipt on screen, the toast is the only report there is,
-   * so it carries every outcome that isn't a plain success: skipped, no-beats and
-   * failed all get said rather than folded into the total.
+   * way. With no per sales incharge receipt on screen, the toast is the only report there is,
+   * so it names every outcome that isn't a plain success separately rather than
+   * folding them into one total. `skipped_in_progress` in particular has to be said
+   * out loud: it is the one case `replaceExisting` does not override.
    *
-   * `onDone` fires only on a resolved run, so the dialog keeps its pinned rows on
-   * screen if the request itself was refused.
+   * `onDone` fires only on a resolved run, so the dialog keeps its rows on screen
+   * if the request itself was refused.
    */
   const generatePlans = useCallback(
     (
-      input: { pinnedDays: PinnedDay[]; replaceExisting: boolean },
+      input: { activityAllocations: ActivityQuota[]; replaceExisting: boolean },
       onDone?: () => void,
     ) => {
       if (!canGenerate) return
       generate.mutate(
         {
           periodMonth: month,
-          pinnedDays: input.pinnedDays,
+          activityAllocations: input.activityAllocations,
           replaceExisting: input.replaceExisting,
         },
         {
           onSuccess: (result) => {
-            const noBeats = result.results.filter((r) => r.outcome === 'no_beats').length
-            const replaced = result.results.filter((r) => r.outcome === 'replaced').length
-            const written = result.created + replaced
-            // `no_beats` is counted inside `skipped` by the server, so naming both
-            // would double-report it — it is qualified in brackets instead.
+            const count = (outcome: string) =>
+              result.results.filter((r) => r.outcome === outcome).length
+            const inProgress = count('skipped_in_progress')
+            const noBeats = count('no_beats')
+            const existing = count('skipped_existing')
+            const written = result.created + count('replaced')
+
             const notes = [
-              result.skipped
-                ? `${result.skipped} already had one${
-                    noBeats ? `, ${noBeats} with no beats allocated` : ''
-                  }`
-                : noBeats
-                  ? `${noBeats} with no beats allocated`
-                  : '',
+              existing ? `${existing} already had one` : '',
+              // Named apart from the rest: this is the skip `replaceExisting`
+              // cannot override, and an admin who ticked that box needs to know why
+              // some sales incharges still didn't move.
+              inProgress
+                ? `${inProgress} already past draft (the sales incharge's schedule was kept)`
+                : '',
+              noBeats ? `${noBeats} with no beats allocated` : '',
               result.failed ? `${result.failed} failed` : '',
             ].filter(Boolean)
 
             toastsuccessmsg(
               written
-                ? `${written} allocation${written === 1 ? '' : 's'} written${
+                ? `${written} draft${written === 1 ? '' : 's'} written${
                     notes.length ? ` — ${notes.join('; ')}` : ''
-                  }.`
+                  }. Publish each one to release it to the sales incharge.`
                 : notes.length
                   ? `Nothing written — ${notes.join('; ')}.`
-                  : 'Nothing written — every sales incharge already has an allocation for this month.',
+                  : 'Nothing written — every sales incharge already has a plan for this month.',
             )
             onDone?.()
           },
-          onError: (error) => toastApiError(error, 'Failed to generate the allocations.'),
+          onError: (error) => toastApiError(error, 'Failed to generate the plans.'),
         },
       )
     },
@@ -161,7 +169,7 @@ export function useAllocationList() {
     goNextMonth: () => selectMonth(shiftMonth(month, 1)),
     selectMonth,
     rows: queue.data?.rows ?? [],
-    /** Rows matching the current search — the table's `rowCount`. */
+    /** Rows matching the current tab and search — the table's `rowCount`. */
     total: queue.data?.total ?? 0,
     isLoading: queue.isLoading,
     isFetching: queue.isFetching,
@@ -172,7 +180,7 @@ export function useAllocationList() {
     filters,
     patchFilters,
     resetFilters,
-    hasActiveFilters: filters.search.trim() !== '',
+    hasActiveFilters: filters.search.trim() !== '' || filters.status !== null,
     pagination,
     setPagination,
     sorting,

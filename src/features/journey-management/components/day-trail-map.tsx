@@ -5,7 +5,12 @@ import { useRoadRoute } from '../hooks/use-road-route'
 import { markerBadge } from '../lib/marker-icon'
 import { TRAIL_END_ID, TRAIL_START_ID } from '../lib/trail-selection'
 import { MapLayersControl } from './map-layers-control'
-import { kindLabel, kindStyle, NOT_VISITED_STYLE, PRODUCTIVE_STYLE } from '../lib/visit-kinds'
+import {
+  kindLabel,
+  kindStyle,
+  NOT_VISITED_STYLE,
+  PRODUCTIVE_STYLE,
+} from '../lib/visit-kinds'
 import { durationLabel } from '../lib/journey-format'
 import type { GeoPoint, OutletMarker, VisitMarker } from '../types'
 
@@ -214,7 +219,7 @@ function escapeHtml(value: string): string {
 /** One end of the day's trail — where it was punched, when, and roughly where. */
 export type TrailEnd = {
   point: GeoPoint
-  /** `HH:mm` of the punch. */
+  /** Clock time of the punch, e.g. `09:44 AM`. */
   at: string | null
   /** Reverse-geocoded address, when the punch has one. */
   address: string | null
@@ -539,7 +544,9 @@ export function DayTrailMap({
         `<span style="color:#64748b">${escapeHtml(visit.at ?? `#${visit.daySequence}`)} · ${escapeHtml(kindLabel(visit.kind))}` +
         `${visit.beatName ? ` · ${escapeHtml(visit.beatName)}` : ''}</span><br>` +
         `<span style="color:#64748b">${visit.productive ? 'Productive' : 'No order'}${
-          durationLabel(visit.dwellSeconds) ? ` · ${durationLabel(visit.dwellSeconds)}` : ''
+          durationLabel(visit.dwellSeconds)
+            ? ` · ${durationLabel(visit.dwellSeconds)}`
+            : ''
         }</span></div>`,
     )
     infoRef.current?.open({ map, anchor: marker })

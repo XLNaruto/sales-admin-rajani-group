@@ -1,20 +1,15 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { AllocationListPage } from '@/features/journey-management'
-import { requirePermission } from '@/features/permissions'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 /**
- * The month's allocations, one row per sales incharge.
+ * Legacy path for what is now `/journey/plans`.
  *
- * Reading the list needs `journey-plan:list`; generating a month is a separate key
- * (`journey-plan:create`) checked on the control itself, so a reviewer with
- * read-only access still gets the whole screen. There is no `:approve` check —
- * nothing here is approved: an allocation is live the moment it exists.
- *
- * This screen used to live at `/journey/approvals`; that path still resolves and
- * redirects here, so old bookmarks keep working.
+ * It was named for the allocation because that was once the whole of the screen;
+ * a plan now runs `draft → published → submitted → approved` and the allocation is
+ * one part of it, so the path follows the subject rather than one of its fields.
+ * No permission check here: the target route runs it.
  */
 export const Route = createFileRoute('/_authenticated/journey/allocations')({
-  beforeLoad: ({ context }) =>
-    requirePermission(context.queryClient, 'journey-plan:list'),
-  component: AllocationListPage,
+  beforeLoad: () => {
+    throw redirect({ to: '/journey/plans', replace: true })
+  },
 })

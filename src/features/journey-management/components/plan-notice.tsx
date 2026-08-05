@@ -5,7 +5,7 @@ import { X } from 'lucide-react'
  *
  * The stat rail and the warnings both move when the beat list changes, and a save
  * can silently drop a pin the server refuses to move (a locked date, or one the
- * rep has taken over). This is where that gets said, so a row that didn't change
+ * sales incharge has taken over). This is where that gets said, so a row that didn't change
  * never looks like a glitch.
  */
 export function PlanNotice({

@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
 import {
   CalendarX2,
+  CheckCircle2,
   Clock,
   Hash,
   Loader2,
@@ -8,6 +9,7 @@ import {
   RotateCcw,
   Route,
   Save,
+  Send,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -17,15 +19,18 @@ import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { RouteError } from '@/features/error'
 import { AgentPanel } from '../components/agent-panel'
-import { BeatAllocationPicker } from '../components/beat-picker'
+import { AllocationEditor } from '../components/allocation-editor'
+import { DayBeatDialog } from '../components/day-beat-dialog'
 import { MonthStepper } from '../components/month-stepper'
-import { MonthTable } from '../components/month-table'
 import { PlanIssueList } from '../components/plan-issue-list'
 import { PlanNotice } from '../components/plan-notice'
 import { PlanSkeleton } from '../components/plan-skeleton'
 import { PlanStatRail } from '../components/plan-stat-rail'
+import { ScheduleTable } from '../components/schedule-table'
+import { StatusChip } from '../components/status-chip'
 import { useJourneyPlan } from '../hooks/use-journey-plan'
 import { stampLabel } from '../lib/journey-format'
+import { PLAN_STATUS_HINT } from '../lib/plan-status'
 
 /**
  * One provenance fact in the header, as an icon + value chip.
@@ -64,7 +69,7 @@ function HeaderChip({
  * offsets resolve against a scroll container's **padding box** — not its border
  * box. So `top-0` would park 24px inside that padding and leave a strip at each
  * edge for rows to scroll through. The two sticky bands below cancel it out with
- * `-top-6` / `-bottom-6`, and the month table's own sticky header subtracts it
+ * `-top-6` / `-bottom-6`, and the schedule table's own sticky header subtracts it
  * again to land flush under the page header.
  *
  * Keep this in step with the layout's padding: 6 → 1.5rem → 24px.
@@ -79,21 +84,26 @@ interface JourneyPlanPageProps {
 /**
  * Journey Management → Journey Plan.
  *
- * One sales incharge's **allocation** for a month: which of his beats are in play,
- * which dates the office has pinned, and what he has actually done with the month
- * so far.
+ * One sales incharge's month, and the negotiation over it. The screen has **two
+ * independent write surfaces**, because the server treats them as opposites and one
+ * combined Save would always be half-refused:
  *
- * The admin edits exactly two things and saves them together, because the API is
- * one PATCH carrying two full replacements. He does **not** edit the rep's days —
- * the rep writes those himself each morning, and a date he has taken over survives
- * any save.
+ * - **The allocation** — day-counts per activity and per city. His, everywhere
+ *   except an approved plan. He never picks a date or a beat here.
+ * - **The schedule** — the sales incharge's calendar. His only from `submitted` onward, and
+ *   still his after approval, because a live month has to be fixable and the sales incharge is
+ *   read-only from submission permanently.
  *
- * There is nothing to approve: the allocation is live the moment it exists.
+ * Plus the two transitions, which share one permission: **publish** hands the draft
+ * to the sales incharge, **approve** signs off what he handed back. Nothing goes backwards —
+ * there is no reject, no send-back, no unpublish, no unsubmit. An admin who dislikes
+ * a schedule corrects it and approves.
  */
 export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
   const {
     plan,
     planId,
+    status,
     isLoading,
     isLoadingReps,
     error,
@@ -105,17 +115,45 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     prevMonth,
     nextMonth,
     selectMonth,
-    beats,
-    pins,
-    setBeats,
-    pin,
-    unpin,
-    dirty,
-    discard,
-    submit,
-    isSaving,
+
+    allocationOptions,
+    activityBuckets,
+    cityBuckets,
+    setActivityBuckets,
+    setCityBuckets,
+    activityScheduledById,
+    allocationDirty,
+    allocationEditable,
+    discardAllocation,
+    submitAllocation,
+    isSavingAllocation,
+
+    schedule,
     activities,
-    beatPool,
+    cityOptions,
+    setDayActivity,
+    setDayCity,
+    setDayBeats,
+    clearDay,
+    scheduleDirty,
+    scheduleEditable,
+    discardSchedule,
+    submitSchedule,
+    isSavingSchedule,
+    beatDate,
+    openBeatDialog,
+    beatsForOpenDate,
+
+    canTransition,
+    showPublish,
+    showApprove,
+    canPublish,
+    canApprove,
+    submitPublish,
+    submitApprove,
+    isPublishing,
+    isApproving,
+
     issues,
     notice,
     dismissNotice,
@@ -127,12 +165,12 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
   const [agentOpen, setAgentOpen] = useState(false)
 
   /**
-   * How tall the sticky header is, so the month table's own sticky column header
+   * How tall the sticky header is, so the schedule table's own sticky column header
    * can park directly beneath it instead of sliding underneath it.
    *
    * Measured rather than hard-coded: the provenance chips wrap at narrow widths, so
    * the header is one, two or three lines tall depending on the viewport and on how
-   * many facts the allocation actually carries.
+   * many facts the plan actually carries.
    */
   const headerRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState(0)
@@ -145,8 +183,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     const observer = new ResizeObserver(measure)
     observer.observe(el)
     return () => observer.disconnect()
-    // Re-run once the allocation lands: the header is not mounted before that, so
-    // the first attempt has no element to observe.
+    // Re-run once the plan lands: the header is not mounted before that, so the
+    // first attempt has no element to observe.
   }, [plan])
 
   // Before anything else: a failed read leaves `plan` undefined for good, so the
@@ -156,18 +194,14 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
 
   if (missing) {
     return (
-      <div>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <Combobox
-            variant="inline"
-            withAvatars
-            placeholder="Select sales incharge"
-            searchPlaceholder="Search sales incharge…"
-            value={incharge.value}
-            onChange={incharge.onChange}
-            options={incharge.options}
-            loading={incharge.loading}
-          />
+      // Fills the shell's content area instead of leaving a dead half-screen under
+      // a short dashed box: `h-full` resolves against the layout's `flex-1` outlet
+      // wrapper, so the panel below grows to the footer without ever overflowing.
+      <div className="flex h-full flex-col">
+        {/* No incharge picker here: an unrun month has no sales incharge list to pick from, so
+            the control could only ever read "Select sales incharge" and open empty.
+            The month pager is the way out of this state, and it stands alone. */}
+        <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
           <MonthStepper
             month={month}
             label={monthLabel}
@@ -177,18 +211,19 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           />
         </div>
         <EmptyState
+          className="min-h-88 flex-1"
           icon={CalendarX2}
-          title="No allocation for this month"
-          description={`Nothing has been allocated for ${monthLabel} yet. Generate the month from the allocations list, or pick another month.`}
+          title="No plan for this month"
+          description={`Nothing has been generated for ${monthLabel} yet. Generate the month from the plans list, or pick another month.`}
         />
       </div>
     )
   }
 
-  if (isLoading || !plan) {
-    // The rep list resolves on its own request, so as soon as it lands the picker
+  if (isLoading || !plan || !status) {
+    // The sales incharge list resolves on its own request, so as soon as it lands the picker
     // and the month pager go live — the admin can switch person or month while the
-    // allocation behind them is still loading, instead of waiting on a spinner.
+    // plan behind them is still loading, instead of waiting on a spinner.
     return (
       <div>
         {!isLoadingReps ? (
@@ -217,8 +252,19 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     )
   }
 
+  const busy = isSavingAllocation || isSavingSchedule || isPublishing || isApproving
+  /**
+   * Anything at the bottom to render? Mirrors the band's children exactly — being
+   * *allowed* to edit is not enough, since both Saves only appear once there is
+   * something unsaved. Anything looser leaves an empty band with a rule across it.
+   */
+  const hasActions =
+    (allocationEditable && allocationDirty) ||
+    (scheduleEditable && scheduleDirty) ||
+    (canTransition && (showPublish || showApprove))
+
   return (
-    // The month table's own sticky header has to clear this page header, and this
+    // The schedule table's sticky header has to clear this page header, and this
     // one's height moves with the chip row wrapping — so it is measured and handed
     // down as a custom property rather than guessed at as a fixed offset. The
     // header sits at `-top-6`, so its stuck bottom edge is that much higher.
@@ -229,27 +275,17 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         } as CSSProperties
       }
     >
-      {/* Header — who and when. The name itself is the incharge picker.
-
-          Sticky: the rep switcher and the month pager are how you move around this
-          screen, and the month table below is 28–31 rows, so scrolling to the
-          bottom used to leave you with no way to change person or month.
-
+      {/* Header — who, where in the cycle, and when.
+          Sticky: the sales incharge switcher and the month pager are how you move around this
+          screen, and the schedule below is 28–31 rows.
           `-mx-6 -mt-6 px-6 pt-6` eats the shell's padding in flow, and `-top-6`
-          eats it again once stuck (see SHELL_PADDING) — so the band reaches the
-          real top edge instead of floating 24px below it.
-
-          Fully opaque, deliberately: the card inside is opaque `bg-card`, so any
-          translucency here shows rows through the padding above and below it and
-          reads as two stray gaps rather than as one solid band. */}
+          eats it again once stuck (see SHELL_PADDING). Fully opaque, deliberately:
+          the card inside is opaque `bg-card`, so any translucency here shows rows
+          through the padding and reads as two stray gaps rather than one band. */}
       <div
         ref={headerRef}
         className="sticky -top-6 z-20 -mx-6 -mt-6 mb-5 bg-background px-6 pt-6"
       >
-        {/* The rule sits INSIDE the horizontal padding, so it starts and ends level
-            with the cards below rather than running edge-to-edge past them. The
-            opaque background still bleeds the full width — it has to, or rows show
-            in the corners as they scroll under. */}
         <div className="border-b border-border/60 pb-4">
           <div className="rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-card">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -259,9 +295,14 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                 </span>
 
                 <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Monthly allocation
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                      Journey plan
+                    </p>
+                    {/* The status belongs in the most prominent row on the screen:
+                        it decides which of the two editors below is even live. */}
+                    <StatusChip status={status} />
+                  </div>
                   <Combobox
                     variant="inline"
                     withAvatars
@@ -282,11 +323,31 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                       value={plan.employeeCode}
                       mono
                     />
-                    <HeaderChip icon={MapPin} label="Headquarter" value={plan.headquarter} />
+                    <HeaderChip
+                      icon={MapPin}
+                      label="Headquarter"
+                      value={plan.headquarter}
+                    />
+                    {/* The timestamp that matters is the latest one the chain
+                        reached, not the generation stamp — that is the fact an admin
+                        is looking for on a month already in flight. */}
                     <HeaderChip
                       icon={Clock}
-                      label={`Generated by ${plan.generatedBy ?? 'the picker'}`}
-                      value={stampLabel(plan.generatedAt)}
+                      label={
+                        plan.approvedAt
+                          ? 'Approved'
+                          : plan.submittedAt
+                            ? 'Submitted by the sales incharge'
+                            : plan.publishedAt
+                              ? 'Published'
+                              : `Drafted by the ${plan.generatedBy}`
+                      }
+                      value={stampLabel(
+                        plan.approvedAt ??
+                          plan.submittedAt ??
+                          plan.publishedAt ??
+                          plan.generatedAt,
+                      )}
                     />
                   </div>
                 </div>
@@ -304,95 +365,221 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         </div>
       </div>
 
-      <PlanStatRail progress={plan.progress} />
+      <PlanStatRail progress={plan.progress} status={status} />
 
       <div className="mt-4 space-y-4">
         {notice ? <PlanNotice message={notice} onDismiss={dismissNotice} /> : null}
 
+        {/* What this state means, stated once. `draft` in particular is not
+            guessable: the sales incharge cannot see the month at all. */}
+        <PlanNotice message={PLAN_STATUS_HINT[status]} />
+
         {!canUpdate ? (
-          <PlanNotice message="You have read-only access to allocations, so the month below can be reviewed but not changed." />
+          <PlanNotice message="You have read-only access to journey plans, so the month below can be reviewed but not changed." />
         ) : null}
 
         <PlanIssueList issues={issues} onSelectDay={setFocusedDay} />
 
-        {/* The allocation itself — the decision this screen exists for. */}
-        <BeatAllocationPicker
-          pool={beatPool}
-          value={beats}
-          onChange={setBeats}
-          allocated={plan.allocatedBeats}
-          readOnly={!canUpdate}
-          busy={isSaving}
+        {/* The allocation — the decision the admin actually makes. */}
+        <AllocationEditor
+          options={
+            allocationOptions ?? {
+              inchargeId: plan.inchargeId,
+              // Falls back to the plan's own figures so the variance stays truthful
+              // while the pickers load, or when the admin has no grant to fetch them.
+              totalDays: plan.progress.totalDays,
+              activities: [],
+              cities: [],
+            }
+          }
+          activityBuckets={activityBuckets}
+          cityBuckets={cityBuckets}
+          onChangeActivities={setActivityBuckets}
+          onChangeCities={setCityBuckets}
+          savedCities={plan.cityAllocations}
+          savedActivityScheduled={activityScheduledById}
+          readOnly={!allocationEditable}
+          busy={busy}
+          lockedReason={
+            allocationEditable
+              ? undefined
+              : status === 'approved'
+                ? 'This month is approved, so the counts are frozen — correct the calendar below instead.'
+                : undefined
+          }
         />
 
-        <MonthTable
+        <ScheduleTable
           strip={plan.monthStrip}
           days={plan.days}
+          status={status}
           activities={activities}
-          pinned={pins}
-          onPin={pin}
-          onUnpin={unpin}
+          cityOptions={cityOptions}
+          draft={schedule}
+          onSetActivity={setDayActivity}
+          onSetCity={setDayCity}
+          onClearDay={clearDay}
+          onEditBeats={openBeatDialog}
           focusedDay={focusedDay}
-          readOnly={!canUpdate}
-          busy={isSaving}
+          editable={scheduleEditable}
+          busy={busy}
         />
       </div>
 
-      {/* One screen, one Save — the API is a single PATCH carrying both lists.
-
-          Sticky to the bottom of the scroll area: the two things being saved sit at
-          opposite ends of a 31-row table, so an edit made in the beat list is
-          otherwise a full scroll away from the button that commits it.
+      {/* Two Saves and the transitions, sticky to the bottom of the scroll area:
+          the allocation and the calendar sit at opposite ends of a 31-row table, so
+          an edit is otherwise a full scroll away from the button that commits it.
 
           `-bottom-6` reaches past the shell's padding to the real bottom edge, and
           the extra `pb-10` is that 24px back again — so the buttons stay optically
           where `py-4` put them instead of dropping into the corner. */}
-      {canUpdate || canUseAgent ? (
+      {hasActions ? (
         <div className="sticky -bottom-6 z-20 -mx-6 mt-6 bg-background px-6 pb-10">
           {/* Rule inside the padding, so it lines up with the header's and with the
               cards between them — the background still bleeds the full width. */}
           <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
-            {canUpdate ? (
+            {allocationEditable && allocationDirty ? (
               <>
-                <Hint
-                  label={
-                    dirty
-                      ? 'Write the beat list and the pinned days in one call'
-                      : 'Nothing has changed yet'
-                  }
+                <Button
+                  className="cursor-pointer"
+                  disabled={busy}
+                  onClick={submitAllocation}
                 >
+                  {isSavingAllocation ? <Loader2 className="animate-spin" /> : <Save />}{' '}
+                  Save allocation
+                </Button>
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  disabled={busy}
+                  onClick={discardAllocation}
+                >
+                  <RotateCcw /> Discard counts
+                </Button>
+              </>
+            ) : null}
+
+            {scheduleEditable && scheduleDirty ? (
+              <>
+                <Hint label="Replaces the whole calendar. Dates a visit has landed on are kept as history whatever is sent.">
                   <span className="inline-flex">
                     <Button
                       className="cursor-pointer"
-                      disabled={!dirty || isSaving}
-                      onClick={submit}
+                      disabled={busy}
+                      onClick={submitSchedule}
                     >
-                      {isSaving ? <Loader2 className="animate-spin" /> : <Save />} Save
-                      allocation
+                      {isSavingSchedule ? <Loader2 className="animate-spin" /> : <Save />}{' '}
+                      Save corrections
                     </Button>
                   </span>
                 </Hint>
-                {dirty ? (
-                  <Button
-                    variant="outline"
-                    className="cursor-pointer"
-                    disabled={isSaving}
-                    onClick={discard}
-                  >
-                    <RotateCcw /> Discard changes
-                  </Button>
-                ) : null}
-                {dirty ? (
-                  <span className="text-xs text-muted-foreground">
-                    Unsaved: {beats.length} beat{beats.length === 1 ? '' : 's'}, {pins.size}{' '}
-                    pinned day{pins.size === 1 ? '' : 's'}.
-                  </span>
-                ) : null}
+                <Button
+                  variant="outline"
+                  className="cursor-pointer"
+                  disabled={busy}
+                  onClick={discardSchedule}
+                >
+                  <RotateCcw /> Discard corrections
+                </Button>
               </>
+            ) : null}
+
+            {/* Publish and approve share one permission, and each is one-way. Both
+                consult the SERVER's verdict rather than a recomputed sum: approve is
+                checked bucket by bucket, and the totals can balance while the
+                buckets do not. */}
+            {canTransition && showPublish ? (
+              <Hint
+                label={
+                  allocationDirty
+                    ? 'Save the counts first — publish reads what the server holds, not the draft on screen.'
+                    : canPublish
+                      ? 'Hand this month to the sales incharge. He dates every allocated day and picks the beats. There is no unpublish.'
+                      : 'The counts do not account for every date of the month yet, so publish would be refused.'
+                }
+              >
+                <span className="inline-flex">
+                  <Button
+                    className="cursor-pointer"
+                    disabled={busy || !canPublish || allocationDirty}
+                    onClick={submitPublish}
+                  >
+                    {isPublishing ? <Loader2 className="animate-spin" /> : <Send />}{' '}
+                    Publish to sales incharge
+                  </Button>
+                </span>
+              </Hint>
+            ) : null}
+
+            {canTransition && showApprove ? (
+              <Hint
+                label={
+                  scheduleDirty
+                    ? 'Save your corrections first — approve reads what the server holds, not the draft on screen.'
+                    : canApprove
+                      ? 'Sign the month off. You can still correct the calendar afterwards; that does not reopen the cycle.'
+                      : 'His schedule does not yet consume every bucket exactly, so approve would be refused. Correct the calendar above — there is nothing to send back.'
+                }
+              >
+                <span className="inline-flex">
+                  <Button
+                    className="cursor-pointer"
+                    disabled={busy || !canApprove || scheduleDirty}
+                    onClick={submitApprove}
+                  >
+                    {isApproving ? (
+                      <Loader2 className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 />
+                    )}{' '}
+                    Approve
+                  </Button>
+                </span>
+              </Hint>
+            ) : null}
+
+            {allocationDirty || scheduleDirty ? (
+              <span className="text-xs text-muted-foreground">
+                Unsaved:{' '}
+                {[
+                  allocationDirty
+                    ? `${activityBuckets.length + cityBuckets.length} bucket${
+                        activityBuckets.length + cityBuckets.length === 1 ? '' : 's'
+                      }`
+                    : '',
+                  scheduleDirty
+                    ? `${schedule.size} dated day${schedule.size === 1 ? '' : 's'}`
+                    : '',
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+                .
+              </span>
             ) : null}
           </div>
         </div>
       ) : null}
+
+      {/* One dialog reused for all 31 dates: the pool is already narrowed to the
+          open date's city, because a beat may only go on a day whose city it sits
+          in and the server refuses anything else. */}
+      <DayBeatDialog
+        open={beatDate !== null}
+        onOpenChange={(open) => openBeatDialog(open ? beatDate : null)}
+        date={beatDate ?? ''}
+        cityName={
+          cityOptions.find(
+            (option) =>
+              option.value === (beatDate ? schedule.get(beatDate)?.cityId : null),
+          )?.label ?? null
+        }
+        pool={beatsForOpenDate}
+        value={beatDate ? (schedule.get(beatDate)?.beatIds ?? []) : []}
+        onSave={(beatIds) => {
+          if (beatDate) setDayBeats(beatDate, beatIds)
+        }}
+        readOnly={!scheduleEditable}
+      />
 
       <AgentPanel
         open={agentOpen && canUseAgent}

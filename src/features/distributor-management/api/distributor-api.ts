@@ -7,6 +7,7 @@ import {
   distributorDetailSchema,
   distributorListResponseSchema,
   distributorProductDivisionsResponseSchema,
+  type DistributorOwnerRow,
   type DistributorRow,
 } from '../schemas'
 import type { DistributorFormValues } from '../lib/distributor-form'
@@ -21,6 +22,7 @@ import type {
   DistributorListResult,
   DistributorMarketType,
   DistributorOnboardingAction,
+  DistributorOwner,
   DistributorStatus,
   DistributorUpdateInput,
   FirmType,
@@ -28,14 +30,40 @@ import type {
   PaymentCondition,
 } from '../types'
 
+/** Map the API's `owners[]` rows to the client-facing (camelCase) owner list. */
+function toOwners(rows: DistributorOwnerRow[] | null | undefined): DistributorOwner[] {
+  return (rows ?? []).map((o) => ({
+    name: o.name,
+    mobile: o.mobile,
+    email: o.email ?? '',
+    birthDate: o.birth_date ?? '',
+    anniversaryDate: o.marriage_anniversary ?? '',
+  }))
+}
+
+/**
+ * Map the form's owner list into the request body's `owners[]`. The API replaces
+ * the entire list on every create/update, so this is always sent complete;
+ * blank optional values are sent as explicit `null`s rather than omitted, since
+ * clearing a date has to overwrite what's stored.
+ */
+function ownersBody(owners: DistributorOwner[]) {
+  return owners.map((o) => ({
+    name: o.name.trim(),
+    mobile: o.mobile.trim(),
+    email: str(o.email) ?? null,
+    birth_date: str(o.birthDate) ?? null,
+    marriage_anniversary: str(o.anniversaryDate) ?? null,
+  }))
+}
+
 /** Map a validated API row to the client-facing (camelCase) `Distributor`. */
 function toDistributor(row: DistributorRow): Distributor {
   return {
     id: row.id,
     firmName: row.firm_name,
     firmType: (row.firm_type ?? '') as FirmType,
-    ownerName: row.owner_name ?? '',
-    ownerMobile: row.owner_mobile ?? '',
+    owners: toOwners(row.owners),
     email: row.email ?? '',
     code: row.distributor_code ?? '',
     status: row.status as DistributorStatus,
@@ -211,10 +239,7 @@ function buildScalarBody(input: DistributorCreateInput) {
       .filter((n) => Number.isFinite(n) && n > 0),
     firm_name: input.firmName,
     firm_type: input.firmType,
-    owner_name: input.ownerName,
-    owner_mobile: input.ownerMobile,
-    owner_birth_date: str(input.ownerBirthDate),
-    owner_marriage_anniversary: str(input.ownerAnniversaryDate),
+    owners: ownersBody(input.owners),
     communication_mobile: str(input.communicationMobile),
     multiple_login_allowed: input.multipleLogin === 'yes',
     email: input.email,
@@ -302,10 +327,14 @@ export async function fetchDistributor(id: string): Promise<{
     const values: DistributorFormValues = {
       firmName: r.firm_name,
       firmType: (r.firm_type ?? '') as FirmType,
-      ownerName: r.owner_name ?? '',
-      ownerMobile: r.owner_mobile ?? '',
-      ownerBirthDate: r.owner_birth_date ?? '',
-      ownerAnniversaryDate: r.owner_marriage_anniversary ?? '',
+      // Empty for pre-migration records — the form then requires re-entry.
+      owners: toOwners(r.owners).map((o) => ({
+        name: o.name,
+        mobile: o.mobile,
+        email: o.email ?? '',
+        birthDate: o.birthDate ?? '',
+        anniversaryDate: o.anniversaryDate ?? '',
+      })),
       communicationMobile: r.communication_mobile ?? '',
       multipleLogin: r.multiple_login_allowed == null ? undefined : r.multiple_login_allowed ? 'yes' : 'no',
       email: r.email ?? '',
@@ -383,10 +412,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       firmName: r.firm_name,
       firmType: (r.firm_type ?? null) as FirmType | null,
       legalName: r.legal_name ?? null,
-      ownerName: r.owner_name ?? null,
-      ownerMobile: r.owner_mobile ?? null,
-      ownerBirthDate: r.owner_birth_date ?? null,
-      ownerAnniversaryDate: r.owner_marriage_anniversary ?? null,
+      owners: toOwners(r.owners),
       communicationMobile: r.communication_mobile ?? null,
       multipleLogin: r.multiple_login_allowed ?? null,
       email: r.email ?? null,

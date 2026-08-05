@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { Building2, X } from "lucide-react";
+import { Building2, Users, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -195,26 +195,54 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
               <SectionTitle>Firm &amp; Owner</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
                 <Field label="Legal Name" value={data.legalName} />
-                <Field label="Owner Name" value={data.ownerName} />
-                <Field label="Owner Mobile" value={data.ownerMobile} />
                 <Field
                   label="Communication Mobile"
                   value={data.communicationMobile}
                 />
                 <Field label="Email" value={data.email} wide />
                 <Field
-                  label="Owner Birth Date"
-                  value={formatDate(data.ownerBirthDate)}
-                />
-                <Field
-                  label="Owner Anniversary"
-                  value={formatDate(data.ownerAnniversaryDate)}
-                />
-                <Field
                   label="Multiple Login"
                   value={yesNo(data.multipleLogin)}
                 />
               </dl>
+
+              <SectionTitle>
+                Owners &amp; Partners
+                {data.owners.length > 0 ? ` (${data.owners.length})` : ""}
+              </SectionTitle>
+              {data.owners.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No owners / partners on this record.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {data.owners.map((owner, index) => (
+                    <div
+                      key={`${owner.mobile}-${index}`}
+                      className="rounded-xl border border-border/60 p-4"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="size-4 text-muted-foreground" />
+                        <p className="text-sm font-medium text-foreground">
+                          {owner.name}
+                        </p>
+                      </div>
+                      <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                        <Field label="Mobile" value={owner.mobile} />
+                        <Field label="Email" value={owner.email} />
+                        <Field
+                          label="Birth Date"
+                          value={formatDate(owner.birthDate ?? null)}
+                        />
+                        <Field
+                          label="Marriage Anniversary"
+                          value={formatDate(owner.anniversaryDate ?? null)}
+                        />
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <SectionTitle>Location &amp; Coverage</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">

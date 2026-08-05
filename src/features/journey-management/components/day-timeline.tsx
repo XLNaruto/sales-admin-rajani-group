@@ -16,7 +16,7 @@ import type { DayVisit, ScheduledOutlet } from '../types'
  *
  * Rows are numbered by `daySequence` (chronological). The map numbers its pins by
  * the route's own `sequence` (optimised), and the two are deliberately not made to
- * agree — where they disagree is exactly where the rep backtracked.
+ * agree — where they disagree is exactly where the sales incharge backtracked.
  */
 export function DayTimeline({
   visits,
@@ -33,9 +33,9 @@ export function DayTimeline({
   missed: ScheduledOutlet[]
   /** Of those, the ones the map is currently drawing a pin for. */
   missIdsOnMap: Set<string>
-  /** `HH:mm` of the day's check-in, if there was one. */
+  /** Clock time of the day's check-in (`09:44 AM`), if there was one. */
   dayStart: string | null
-  /** `HH:mm` of the day's check-out, if it was punched. */
+  /** Clock time of the day's check-out (`06:44 PM`), if it was punched. */
   dayEnd: string | null
   selectedId: string | null
   onSelect: (id: string | null) => void
@@ -151,7 +151,9 @@ export function DayTimeline({
                         } as React.CSSProperties
                       }
                     />
-                    <span className="truncate text-sm text-muted-foreground">{outlet.name}</span>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {outlet.name}
+                    </span>
                   </span>
                   <span className="mt-0.5 block truncate pl-3.5 text-[11px] text-muted-foreground">
                     {outlet.stopType}
@@ -210,7 +212,7 @@ function PunchRow({
 }: {
   icon: LucideIcon
   label: string
-  /** `HH:mm` of the punch. */
+  /** Clock time of the punch, e.g. `09:44 AM`. */
   at: string
   id: typeof TRAIL_START_ID | typeof TRAIL_END_ID
   selectedId: string | null

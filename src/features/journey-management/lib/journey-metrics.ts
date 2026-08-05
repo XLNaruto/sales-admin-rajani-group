@@ -1,14 +1,14 @@
 /**
- * List-side pure helpers: completion bands, the sort translation, and the month
- * strip's week grouping.
+ * List-side pure helpers: the percentage bands, the sort translation, and the
+ * month strip's week grouping.
  *
- * Nothing here recomputes a number the server already sends. `completion` is
- * `beats_worked / beats_allocated` as the server computed it — including the case
- * that matters most, **0% when nothing is allocated**.
+ * Nothing here recomputes a number the server already sends. Both percentages
+ * arrive computed — including the case that matters most, **0% when their
+ * denominator is zero**, never 100%.
  */
 import type { MonthStripDay, QueueParams } from '../types'
 
-/** Completion quality band — drives the meter colour. */
+/** Quality band — drives the meter colour. */
 export type CompletionBand = 'low' | 'fair' | 'good'
 
 /** Inclusive lower bounds for each band (below `fair` is `low`). */
@@ -23,14 +23,15 @@ export function completionBand(completion: number): CompletionBand {
 /**
  * Column id (the table's) → the API's `sort_by` value.
  *
- * `completion` ascending is the closest thing to a worklist this screen has:
- * there are no status tabs and no flag filters, because nothing has a status.
+ * Sorting by `status` uses **chain order** server-side (draft → published →
+ * submitted → approved), not alphabetical — which is what makes it a worklist.
  */
 export const SORT_COLUMNS: Record<string, QueueParams['sortBy']> = {
   inchargeName: 'sales_incharge',
-  completion: 'completion',
-  beatsAllocated: 'beats_allocated',
-  beatsWorked: 'beats_worked',
+  status: 'status',
+  schedulingPercentage: 'scheduling',
+  completionPercentage: 'completion',
+  daysAllocated: 'days_allocated',
 }
 
 /**
@@ -64,10 +65,14 @@ export function groupIntoWeeks(
  * client can brand on them; the copy belongs here.
  */
 const FLAG_LABELS: Record<string, string> = {
-  no_beats_allocated: 'No beats allocated',
-  beat_not_allocated: 'Beat no longer allocated',
-  over_capacity: 'More beats than working days',
-  pinned_on_non_working_day: 'Pinned on a non-working day',
+  no_cities_allocated: 'No cities allocated',
+  allocation_incomplete: 'Allocation does not cover the month',
+  schedule_unallocated: 'Scheduled outside the allocation',
+  schedule_mismatch: 'Schedule does not match the counts',
+  city_without_beats: 'Allocated city has no beats',
+  beat_outside_city: 'Beat outside its day’s city',
+  activity_not_allocatable: 'Activity not allocatable',
+  awaiting_schedule: 'Awaiting the sales incharge’s schedule',
 }
 
 export function flagCodeLabel(code: string): string {

@@ -17,6 +17,21 @@ export const distributorOnboardingStatusSchema = z.enum([
 ])
 
 /**
+ * One owner/partner of a firm, as returned inside the `owners` array on both the
+ * list and detail endpoints. Every field but `name`/`mobile` is nullable; the
+ * two date columns come back as 'YYYY-MM-DD' strings.
+ */
+export const distributorOwnerSchema = z.object({
+  name: z.string(),
+  mobile: z.string(),
+  email: z.string().nullish(),
+  birth_date: z.string().nullish(),
+  marriage_anniversary: z.string().nullish(),
+})
+
+export type DistributorOwnerRow = z.infer<typeof distributorOwnerSchema>
+
+/**
  * A single row from GET /sales-incharge-admin/distributors. Only the documented
  * (sortable/searchable) columns are relied on; everything else is optional so a
  * sparsely-populated record still validates. `id`/`city_id` accept number or
@@ -27,8 +42,9 @@ export const distributorRowSchema = z.object({
   distributor_code: z.string().nullish(),
   firm_name: z.string(),
   firm_type: z.string().nullish(),
-  owner_name: z.string().nullish(),
-  owner_mobile: z.string().nullish(),
+  // Owners/partners of the firm, oldest first. Empty for records created before
+  // the backend's owners migration — those must be re-entered on the edit form.
+  owners: z.array(distributorOwnerSchema).nullish(),
   email: z.string().nullish(),
   city_id: z.union([z.number(), z.string()]).nullish(),
   city_name: z.string().nullish(),
@@ -68,10 +84,8 @@ export const distributorDetailSchema = z.object({
   firm_name: z.string(),
   firm_type: z.string().nullish(),
   legal_name: z.string().nullish(),
-  owner_name: z.string().nullish(),
-  owner_mobile: z.string().nullish(),
-  owner_birth_date: z.string().nullish(),
-  owner_marriage_anniversary: z.string().nullish(),
+  // The firm's owners/partners (replaces the old single owner_* columns).
+  owners: z.array(distributorOwnerSchema).nullish(),
   communication_mobile: z.string().nullish(),
   multiple_login_allowed: z.boolean().nullish(),
   email: z.string().nullish(),

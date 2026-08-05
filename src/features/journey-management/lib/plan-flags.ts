@@ -1,13 +1,13 @@
 /**
- * The allocation's flags, prepared for display.
+ * The plan's flags, prepared for display.
  *
- * Every number is the server's — the outlet exposure behind a flag and the
- * allocated/capacity split both come down in `facts`. This module only chooses
- * wording, category and severity.
+ * Every number is the server's — bucket counts, day counts and beat counts all
+ * come down in `facts`. This module only chooses wording, category and severity.
  *
- * The flags **gate nothing**. There is no approval step, so an allocation with
- * flags is as live as one without; these are warnings on a live month, never a
- * blocking state.
+ * **Three of the eight flags mirror a refusal** and so genuinely gate a
+ * transition: `allocation_incomplete` blocks publish, `schedule_unallocated` and
+ * `schedule_mismatch` block approve. They get their own `blocking` category, so a
+ * flag that merely wants attention never reads like one that stops the month.
  */
 import { format, parseISO } from 'date-fns'
 import type {
@@ -17,9 +17,9 @@ import type {
   PlanFlag,
   PlanIssue,
 } from '../types'
-import { dayOfMonth, todayISO } from './journey-format'
+import { dayOfMonth } from './journey-format'
 
-/** Completion bands used by the allocation's stat rail. */
+/** Scheduling / completion bands used by the plan's stat rail. */
 export const COMPLETION_GOOD = 70
 export const COMPLETION_FAIR = 40
 
@@ -32,78 +32,144 @@ function dateLabel(date: string): string {
   }
 }
 
+/** Which transition a flag mirrors the refusal of, when it mirrors one. */
+const BLOCKS: Record<string, 'publish' | 'approve'> = {
+  allocation_incomplete: 'publish',
+  schedule_unallocated: 'approve',
+  schedule_mismatch: 'approve',
+}
+
 const CATEGORY: Record<string, IssueCategory> = {
-  no_beats_allocated: 'allocation',
-  beat_not_allocated: 'allocation',
-  over_capacity: 'capacity',
-  pinned_on_non_working_day: 'calendar',
+  no_cities_allocated: 'allocation',
+  allocation_incomplete: 'blocking',
+  schedule_unallocated: 'blocking',
+  schedule_mismatch: 'blocking',
+  city_without_beats: 'master-data',
+  beat_outside_city: 'master-data',
+  activity_not_allocatable: 'schedule',
+  awaiting_schedule: 'schedule',
 }
 
 /**
  * How loudly a flag reads.
  *
- * `no_beats_allocated` is the loudest thing on this screen: the rep has nothing
- * to work all month, and it is also why his completion reads 0%.
- * `pinned_on_non_working_day` is usually deliberate — the office pinned a holiday
- * — so it stays quiet.
+ * The three that block a transition are `high`, because the admin cannot move the
+ * month on until each is gone. `awaiting_schedule` stays `low`: a published month
+ * the sales incharge has not started is a normal Tuesday, not a fault.
  */
 function severityOf(flag: PlanFlag): FlagSeverity {
   switch (flag.code) {
-    case 'no_beats_allocated':
+    case 'allocation_incomplete':
+    case 'schedule_unallocated':
+    case 'schedule_mismatch':
+    case 'no_cities_allocated':
       return 'high'
-    case 'beat_not_allocated':
-      return 'high'
-    case 'over_capacity':
+    case 'city_without_beats':
+    case 'beat_outside_city':
+    case 'activity_not_allocatable':
       return 'medium'
-    case 'pinned_on_non_working_day':
+    case 'awaiting_schedule':
       return 'low'
     default:
       return 'medium'
   }
 }
 
-/** " — 34 outlets exposed", dropped when the flag names no beat. */
-function exposure(outlets: number | null): string {
-  if (outlets == null || outlets <= 0) return ''
-  return ` — ${outlets} outlet${outlets === 1 ? '' : 's'} exposed`
+/** The bucket a flag points at, named however the server named it. */
+function bucketName(flag: PlanFlag): string {
+  return flag.cityName ?? flag.activityName ?? 'A bucket'
 }
 
-/** One flag as a sentence, carrying the exposure the server measured. */
+/** A signed day count as "2 days short" / "3 days exceeded". */
+function variance(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return 'out by 0 days'
+  return value < 0
+    ? `${Math.abs(value)} day${Math.abs(value) === 1 ? '' : 's'} short`
+    : `${value} day${value === 1 ? '' : 's'} exceeded`
+}
+
+/** One flag as a sentence, carrying the numbers the server measured. */
 function labelOf(flag: PlanFlag): string {
-  const beat = flag.beatName ?? 'A beat'
-  const allocated = Number(flag.facts.allocated ?? NaN)
-  const capacity = Number(flag.facts.capacity ?? NaN)
-  const excess = Number(flag.facts.excess ?? NaN)
+  const allocated = Number(flag.facts.days_count ?? flag.facts.allocated ?? NaN)
+  const scheduled = Number(flag.facts.days_scheduled ?? flag.facts.scheduled ?? NaN)
+  const total = Number(flag.facts.total_days ?? NaN)
+  const outlets = Number(flag.facts.outlet_count ?? NaN)
 
   switch (flag.code) {
-    case 'no_beats_allocated':
-      return 'No beats are on this month’s list — there is nothing for this rep to work.'
-    case 'beat_not_allocated':
-      // `beatName` is null by design here: no beat row survives to read one from,
-      // so the outlet count is the only thing that can describe the exposure.
-      return flag.beatName
-        ? `${beat} is on the list but no longer allocated to this rep${exposure(flag.outletCount)}.`
-        : `A listed beat is no longer allocated to this rep${exposure(flag.outletCount)}.`
-    case 'over_capacity':
-      if (Number.isFinite(allocated) && Number.isFinite(capacity)) {
-        return `${allocated} beats listed against ${capacity} available dates${
-          Number.isFinite(excess) && excess > 0 ? ` — ${excess} too many` : ''
-        }.`
+    case 'no_cities_allocated':
+      return 'No cities are allocated, so the sales incharge has nowhere to work — publishing will be refused.'
+
+    case 'allocation_incomplete':
+      // The variance is the actionable number: how many days to add or take away
+      // before publish stops refusing.
+      if (Number.isFinite(allocated) && Number.isFinite(total)) {
+        return `The counts cover ${allocated} of ${total} days — ${variance(
+          allocated - total,
+        )}. Publish is refused until they add up.`
       }
-      return 'More beats are listed than there are dates to work them.'
-    case 'pinned_on_non_working_day':
+      return 'The counts do not account for the whole month. Publish is refused until they add up.'
+
+    case 'schedule_unallocated':
+      return flag.date
+        ? `${dateLabel(
+            flag.date,
+          )} is scheduled to something the allocation never covered. Approve is refused until it is corrected.`
+        : 'Some scheduled dates fall outside every bucket. Approve is refused until they are corrected.'
+
+    case 'schedule_mismatch':
+      if (Number.isFinite(allocated) && Number.isFinite(scheduled)) {
+        return `${bucketName(flag)}: ${scheduled} day${
+          scheduled === 1 ? '' : 's'
+        } scheduled against ${allocated} allocated — ${variance(
+          scheduled - allocated,
+        )}. Approve is refused until every bucket matches exactly.`
+      }
+      return `${bucketName(
+        flag,
+      )} does not match its allocated count. Approve is refused until every bucket matches exactly.`
+
+    case 'city_without_beats':
+      // Not a scheduling error and not fixable here: the beat master moved under
+      // an allocation that was correct when it was made.
+      return `${bucketName(
+        flag,
+      )} is allocated days but the sales incharge no longer holds any beats there — fix it in the beat master, or move the days elsewhere.`
+
+    case 'beat_outside_city':
+      return `${flag.beatName ?? 'A scheduled beat'}${
+        flag.date ? ` on ${dateLabel(flag.date)}` : ''
+      } no longer sits in that day's city — the beat master has drifted since approval${
+        Number.isFinite(outlets) && outlets > 0 ? ` (${outlets} outlets)` : ''
+      }.`
+
+    case 'activity_not_allocatable':
       return `${
-        flag.date ? dateLabel(flag.date) : 'A pinned date'
-      } is pinned to a non-working activity — usually deliberate.`
+        flag.activityName ?? 'An activity'
+      }${flag.date ? ` on ${dateLabel(flag.date)}` : ''} is not one the admin may allocate.`
+
+    case 'awaiting_schedule':
+      return 'Published, and the sales incharge has not started dating the month yet.'
+
     default:
       return `${flag.code.replace(/_/g, ' ')}.`
   }
 }
 
 /** Order rows read best in: worst first. */
-const SEVERITY_RANK: Record<FlagSeverity, number> = { high: 0, medium: 1, low: 2 }
+const SEVERITY_RANK: Record<FlagSeverity, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+}
 
-/** Every flag the allocation carries, worst first. */
+/**
+ * Every flag the plan carries, worst first.
+ *
+ * `schedule_mismatch` is deliberately **silent server-side until the sales incharge has
+ * scheduled something** — every bucket of an untouched month is mismatched by its
+ * full count, and forty rows of that is noise, not information — so nothing here
+ * needs to suppress it.
+ */
 export function planIssues(plan: JourneyPlanDetail): PlanIssue[] {
   const rows: PlanIssue[] = plan.flags.map((flag) => ({
     code: flag.code,
@@ -111,40 +177,26 @@ export function planIssues(plan: JourneyPlanDetail): PlanIssue[] {
     severity: severityOf(flag),
     label: labelOf(flag),
     day: flag.date ? dayOfMonth(flag.date) : undefined,
+    blocks: BLOCKS[flag.code],
   }))
 
   return rows.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])
 }
 
 /**
- * A locked day is history — the server refuses to move it, and a `pinned_days`
- * replacement leaves it standing whatever we send.
+ * A locked day is history — a visit landed on it, and the correction pass leaves it
+ * standing whatever is sent.
  *
- * The server locks a day as a visit lands on it, so today and every earlier date
- * are already history there whether or not this copy carries the flag yet.
- * Comparing the calendar date is what keeps the screen honest — string comparison
- * on `yyyy-MM-dd`, never a `Date` round-trip (see journey-format).
- */
-export function isLocked(day: {
-  date: string
-  locked: boolean
-  lockedAt: string | null
-}): boolean {
-  return day.locked || Boolean(day.lockedAt) || day.date <= todayISO()
-}
-
-/**
- * Can the admin still pin this date?
+ * **Only the server's own fields count.** It would be tempting to also treat any
+ * past date as history, but that is strictly *stricter* than the server: a
+ * scheduled date that passed with no visit is `missed`, not locked, and the
+ * correction pass will happily rewrite it. Inferring from the calendar would grey
+ * out rows the server would accept — and a control that refuses a legal edit is a
+ * worse lie than one whose edit gets skipped, because the skip is reported.
  *
- * Two things survive a pinned-days replacement regardless of what we send: a
- * locked day, and a date the **rep has already taken over**. Offering a control
- * for either would promise a change the server will drop.
+ * A row this copy has not caught up on yet (the sales incharge opened the day a moment ago) is
+ * handled the same way: the save reports the dates that did not move.
  */
-export function isPinnable(day: {
-  date: string
-  origin: 'rep' | 'pinned'
-  locked: boolean
-  lockedAt: string | null
-}): boolean {
-  return !isLocked(day) && day.origin === 'pinned'
+export function isLocked(day: { locked: boolean; lockedAt: string | null }): boolean {
+  return day.locked || Boolean(day.lockedAt)
 }

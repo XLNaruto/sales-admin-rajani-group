@@ -3,7 +3,6 @@ import { CalendarDays, Loader2, Plus, Trash2, Wand2 } from 'lucide-react'
 import { Hint } from '@/components/common/hint'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import {
   Dialog,
   DialogContent,
@@ -13,33 +12,40 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ActivitySelect } from './activity-select'
-import { dayLabel, monthDates } from '../lib/journey-format'
-import type { ActivityDef, PinnedDay } from '../types'
+import { DayCountInput } from './day-count-input'
+import { monthDates } from '../lib/journey-format'
+import type { ActivityDef, ActivityQuota } from '../types'
 
 /** A row in the editor — `key` keeps React identity as rows are added/removed. */
-interface DayRow extends PinnedDay {
+interface QuotaRow extends ActivityQuota {
   key: number
 }
 
 /**
- * Journey Management → Allocations → "Generate month".
+ * Journey Management → Journey Plans → "Generate month".
  *
- * The run builds each rep's **beat list** for the month — suggested from how long
- * each beat has gone untouched — plus the dates pinned for **every rep in the
- * run**. It does not build a calendar: the rep chooses what he does on each
- * unpinned date.
+ * The run **drafts** each sales incharge's month: the activity buckets below, applied to every
+ * sales incharge in the run, plus the solver's split of each sales incharge's remaining days across his
+ * own cities — weighted by how much work each city holds and by how long it has
+ * gone untouched.
  *
- * Pinning the weekly offs here is the one thing that makes `capacity` accurate,
- * because nothing else knows which day a given rep is off. Per-rep pins go through
- * the allocation screen's Save instead.
+ * Every plan lands as a **`draft`**, which the sales incharge cannot see at all. Publishing is
+ * a separate, deliberate step per plan.
  *
- * Two rules are enforced by construction rather than by a validator, because a
- * dropdown that can't offer a wrong answer beats an error message:
+ * A bucket is an activity and a **count of days**, never a date: "four weekly offs"
+ * is a company fact, and which date it falls on is the sales incharge's to decide a month
+ * later.
  *
- * - **Only this month.** The date options *are* the month's calendar days, so a
- *   date outside the period being generated is unreachable.
- * - **One row per date.** A date already pinned by another row is dropped from
- *   this row's options, so two rows can never claim the same day.
+ * Three rules are enforced by construction rather than by a validator, because a
+ * control that can't take a wrong answer beats an error message:
+ *
+ * - **Beatless activities only.** See `allocatableActivities` — a whole-run generate
+ *   has no sales incharge to fetch the real allocatable whitelist for, so it offers everything
+ *   that does not require a beat and lets the server refuse the rest.
+ * - **One row per activity.** An activity another row holds is dropped from this
+ *   row's options, so two rows can never allocate the same activity.
+ * - **Never the whole month.** Each count is clamped to leave at least one day for
+ *   field work — the endpoint refuses a run whose activity days leave no room.
  */
 export function GenerateMonthDialog({
   open,
@@ -56,54 +62,88 @@ export function GenerateMonthDialog({
   month: string
   /** That period as "August 2026", for the copy. */
   monthLabel: string
-  /** Activity master — the second column's options. */
+  /** Activity master — the first column's options. */
   activities: ActivityDef[]
   /** A run is in flight; the dialog stays open and the confirm button spins. */
   isPending?: boolean
-  /** Called with the pins (possibly none) and whether to replace existing months. */
-  onGenerate: (input: { pinnedDays: PinnedDay[]; replaceExisting: boolean }) => void
+  /** Called with the buckets (possibly none) and whether to replace existing months. */
+  onGenerate: (input: {
+    activityAllocations: ActivityQuota[]
+    replaceExisting: boolean
+  }) => void
 }) {
-  const [rows, setRows] = useState<DayRow[]>([])
+  const [rows, setRows] = useState<QuotaRow[]>([])
   const [replaceExisting, setReplaceExisting] = useState(false)
   // Row keys only need to be unique within one editing session, not stable
   // across them — a counter is enough and never collides after a reset.
   const nextKey = useRef(0)
 
-  const dates = useMemo(() => monthDates(month), [month])
+  const daysInMonth = useMemo(() => monthDates(month).length, [month])
 
   // Reopening starts clean, and a month step while open would otherwise leave
-  // rows holding dates from the month that is no longer being generated.
+  // counts sized for the month that is no longer being generated.
   useEffect(() => {
     setRows([])
     setReplaceExisting(false)
     nextKey.current = 0
   }, [open, month])
 
-  const taken = useMemo(() => new Set(rows.map((row) => row.date).filter(Boolean)), [rows])
+  const taken = useMemo(
+    () => new Set(rows.map((row) => row.activityId).filter(Boolean)),
+    [rows],
+  )
 
-  /** The first calendar day nothing has claimed yet — `''` when the month is full. */
-  const firstFreeDate = dates.find((date) => !taken.has(date)) ?? ''
+  /**
+   * Days the rows already claim. The ceiling is `daysInMonth - 1`, not the month:
+   * the endpoint refuses a run whose activity days leave no room for field work,
+   * and there is nothing for the solver to spread across the cities either.
+   */
+  const claimed = rows.reduce((sum, row) => sum + row.daysCount, 0)
+  const daysLeft = Math.max(0, daysInMonth - 1 - claimed)
+
+  /**
+   * Measured against the ALLOCATABLE set, not the whole master: field-selling rows
+   * are filtered out of every picker, so counting them here would leave the "Add
+   * activity" button live with nothing left to choose.
+   */
+  const allocatable = useMemo(() => allocatableActivities(activities), [activities])
+  const allActivitiesUsed = allocatable.every((activity) => taken.has(activity.id))
+  const canAddRow = allocatable.length > 0 && !allActivitiesUsed && daysLeft > 0
 
   const addRow = () => {
-    if (!firstFreeDate) return
-    setRows((prev) => [
-      ...prev,
-      { key: nextKey.current++, date: firstFreeDate, activityId: 0 },
-    ])
+    if (!canAddRow) return
+    setRows((prev) => [...prev, { key: nextKey.current++, activityId: 0, daysCount: 1 }])
   }
 
-  const removeRow = (key: number) => setRows((prev) => prev.filter((row) => row.key !== key))
+  const removeRow = (key: number) =>
+    setRows((prev) => prev.filter((row) => row.key !== key))
 
-  const patchRow = (key: number, patch: Partial<PinnedDay>) =>
+  const patchRow = (key: number, patch: Partial<ActivityQuota>) =>
     setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)))
 
-  /** Rows still missing a date or an activity — the confirm button's blocker. */
-  const incomplete = rows.filter((row) => !row.date || !row.activityId).length
+  /**
+   * The most days one row may take: what is free once every *other* row has taken
+   * its share, leaving one day spare — a month entirely of fixed activities has no
+   * field work in it, and the endpoint refuses that run.
+   */
+  const rowCeiling = (key: number) => {
+    const others = rows.reduce(
+      (sum, row) => (row.key === key ? sum : sum + row.daysCount),
+      0,
+    )
+    return Math.max(1, daysInMonth - 1 - others)
+  }
+
+  /** Rows still missing an activity — the confirm button's blocker. */
+  const incomplete = rows.filter((row) => !row.activityId).length
 
   const handleGenerate = () => {
     if (incomplete) return
     onGenerate({
-      pinnedDays: rows.map(({ date, activityId }) => ({ date, activityId })),
+      activityAllocations: rows.map(({ activityId, daysCount }) => ({
+        activityId,
+        daysCount,
+      })),
       replaceExisting,
     })
   }
@@ -115,27 +155,35 @@ export function GenerateMonthDialog({
           <span className="mb-3 grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
             <Wand2 className="size-5" />
           </span>
-          <DialogTitle>Generate allocations for {monthLabel}?</DialogTitle>
+          <DialogTitle>Generate {monthLabel} plans?</DialogTitle>
           <DialogDescription>
-            Each sales incharge gets a beat list for the month, picked from the beats he
-            holds. The rest of the month is his — he chooses what he does each morning.
-            Pin the dates the office fixes for everyone below.
+            Each sales incharge gets a <strong>draft</strong> allocation: the fixed
+            activity days below, plus his remaining days split across the cities his beats
+            sit in. A draft is invisible to the sales incharge until you publish it.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-5">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-foreground">
-              Pinned days
+              Fixed activity days
               <span className="ml-2 font-normal text-muted-foreground">
-                {rows.length ? `${rows.length} pinned` : 'optional'}
+                {rows.length
+                  ? `${claimed} of ${daysInMonth} day${claimed === 1 ? '' : 's'} — ${
+                      daysInMonth - claimed
+                    } left for the cities`
+                  : 'optional'}
               </span>
             </p>
             <Hint
               label={
-                firstFreeDate
-                  ? 'Pin another day'
-                  : `Every day of ${monthLabel} is already pinned`
+                allocatable.length === 0
+                  ? 'No allocatable activity is available'
+                  : allActivitiesUsed
+                    ? 'Every activity already has a count'
+                    : daysLeft === 0
+                      ? `No day of ${monthLabel} is left for another activity — one has to stay free for field work`
+                      : 'Add another activity'
               }
             >
               <span className="inline-flex">
@@ -144,10 +192,10 @@ export function GenerateMonthDialog({
                   variant="outline"
                   size="sm"
                   className="cursor-pointer"
-                  disabled={isPending || !firstFreeDate}
+                  disabled={isPending || !canAddRow}
                   onClick={addRow}
                 >
-                  <Plus /> Add day
+                  <Plus /> Add activity
                 </Button>
               </span>
             </Hint>
@@ -159,8 +207,9 @@ export function GenerateMonthDialog({
                 <CalendarDays className="size-5" />
               </span>
               <p className="max-w-xs text-sm text-muted-foreground">
-                No pinned days — every date is the rep&rsquo;s to choose. Pin the weekly
-                offs here and the capacity warning gets accurate.
+                No fixed activities — the solver will give every date of the month to the
+                cities. Set the weekly offs and the monthly meeting here and the
+                allocation lands realistic.
               </p>
             </div>
           ) : (
@@ -171,37 +220,36 @@ export function GenerateMonthDialog({
             <div className="-mx-1 mt-3 max-h-72 space-y-2 overflow-y-auto px-1 py-1">
               {rows.map((row) => (
                 <div key={row.key} className="flex items-center gap-2">
-                  {/* Both controls are the same `<Combobox>` at the same width,
-                      so the pair reads as one field — the row's two halves must
-                      not differ in size, border or focus ring. */}
-                  <Combobox
-                    value={row.date}
-                    onChange={(date) => patchRow(row.key, { date })}
-                    // Its own date stays in the list (otherwise the trigger would
-                    // read blank); every other row's is gone.
-                    options={dateOptions(dates, taken, row.date)}
-                    icon={CalendarDays}
-                    placeholder="Select date"
-                    searchable
-                    searchPlaceholder="Search date"
-                    disabled={isPending}
-                    aria-label="Pinned day date"
-                    className="min-w-0 flex-1"
-                  />
+                  {/* The activity takes the width; the count is a narrow fixed
+                      field, because it never holds more than two digits. */}
                   <ActivitySelect
-                    activities={activities}
+                    activities={activityOptions(activities, taken, row.activityId)}
                     value={row.activityId}
                     onChange={(activityId) => patchRow(row.key, { activityId })}
                     disabled={isPending}
                     placeholder="Select activity"
                     className="min-w-0 flex-1"
                   />
-                  <Hint label="Remove this day">
+                  <div className="flex shrink-0 items-center gap-2">
+                    <DayCountInput
+                      value={row.daysCount}
+                      max={rowCeiling(row.key)}
+                      disabled={isPending}
+                      ariaLabel="How many days"
+                      onChange={(daysCount) => patchRow(row.key, { daysCount })}
+                    />
+                    {/* Fixed width, so "day" and "days" both leave the delete
+                        button on the same vertical line down the list. */}
+                    <span className="w-8 text-sm text-muted-foreground">
+                      {row.daysCount === 1 ? 'day' : 'days'}
+                    </span>
+                  </div>
+                  <Hint label="Remove this activity">
                     <button
                       type="button"
                       disabled={isPending}
                       onClick={() => removeRow(row.key)}
-                      aria-label="Remove this day"
+                      aria-label="Remove this activity"
                       className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:text-rose-400"
                     >
                       <Trash2 className="size-4" />
@@ -215,15 +263,15 @@ export function GenerateMonthDialog({
           {incomplete > 0 ? (
             <p className="mt-3 text-xs font-medium text-rose-600 dark:text-rose-400">
               {incomplete === 1
-                ? 'One pinned day still needs an activity.'
-                : `${incomplete} pinned days still need an activity.`}
+                ? 'One row still needs an activity.'
+                : `${incomplete} rows still need an activity.`}
             </p>
           ) : null}
 
-          {activities.length === 0 ? (
+          {allocatable.length === 0 ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              The activity master isn&rsquo;t available, so days can&rsquo;t be pinned —
-              generating without them still works.
+              No allocatable activity is available, so no day can be fixed — generating
+              without any still works, and the solver gives the whole month to the cities.
             </p>
           ) : null}
 
@@ -239,12 +287,13 @@ export function GenerateMonthDialog({
             />
             <span className="min-w-0">
               <span className="block text-sm font-medium text-foreground">
-                Replace allocations that already exist
+                Replace plans that already exist
               </span>
               <span className="mt-0.5 block text-xs text-muted-foreground">
-                Off by default: a rep who already has {monthLabel} is skipped. Turning this
-                on rewrites his beat list and his untouched pins — days he has already
-                taken, and days a visit has landed on, survive either way.
+                Off by default: a sales incharge who already has {monthLabel} is skipped.
+                Turning this on rewrites his <strong>draft</strong> allocation. A plan
+                that has left draft is skipped either way — regenerating it would throw
+                away the schedule the sales incharge wrote.
               </span>
             </span>
           </label>
@@ -274,9 +323,32 @@ export function GenerateMonthDialog({
   )
 }
 
-/** The month's dates, minus the ones other rows hold. */
-function dateOptions(dates: string[], taken: Set<string>, own: string): ComboboxOption[] {
-  return dates
-    .filter((date) => date === own || !taken.has(date))
-    .map((date) => ({ label: dayLabel(date), value: date }))
+/**
+ * The activities a run may allocate: **the ones that take no beats**, working or not.
+ *
+ * `is_admin_allocatable` is not on the activity master, and the one endpoint that
+ * filters by it (`allocation-options`) is keyed on a sales incharge, which a whole-run generate
+ * has none of. So the dialog narrows on `requires_beat: false`, which is the same
+ * cut in practice: an activity that needs beats is field selling, and which day the
+ * sales incharge sells is his to decide. Everything else is allocatable whether it is a working
+ * day or not — a meeting day and a training day as much as a weekly off.
+ *
+ * The server stays the authority: a 400 naming a non-allocatable activity is shown
+ * verbatim.
+ */
+function allocatableActivities(activities: ActivityDef[]): ActivityDef[] {
+  return activities.filter((activity) => !activity.requiresBeat)
+}
+
+/** The allocatable master, minus the activities other rows hold. */
+function activityOptions(
+  activities: ActivityDef[],
+  taken: Set<number>,
+  own: number,
+): ActivityDef[] {
+  // Its own activity stays in the list (otherwise the trigger would read blank);
+  // every other row's is gone.
+  return allocatableActivities(activities).filter(
+    (activity) => activity.id === own || !taken.has(activity.id),
+  )
 }
