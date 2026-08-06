@@ -326,7 +326,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                     <HeaderChip
                       icon={MapPin}
                       label="Headquarter"
-                      value={plan.headquarter}
+                      value={plan.headquarter ?? '—'}
                     />
                     {/* The timestamp that matters is the latest one the chain
                         reached, not the generation stamp — that is the fact an admin

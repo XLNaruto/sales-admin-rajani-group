@@ -75,6 +75,13 @@ interface ComboboxProps {
   withAvatars?: boolean
   /** Read-only: the trigger shows the current label but won't open. */
   disabled?: boolean
+  /**
+   * Label to show in the trigger while `value` is set but its option isn't in
+   * `options` — a lazy/paginated list that hasn't reached it, or a value filled
+   * in from elsewhere (e.g. a parent auto-selected from a child). The real
+   * option's label wins as soon as it loads.
+   */
+  fallbackLabel?: string
   /** Accessible name for the trigger when there's no visible label beside it. */
   'aria-label'?: string
 }
@@ -114,6 +121,7 @@ export function Combobox({
   variant = 'input',
   withAvatars = false,
   disabled = false,
+  fallbackLabel,
   'aria-label': ariaLabel,
 }: ComboboxProps) {
   const inline = variant === 'inline'
@@ -174,6 +182,7 @@ export function Combobox({
   }, [open])
 
   const selected = options.find((o) => o.value === value)
+  const label = selected?.label ?? (value ? fallbackLabel : undefined)
   // With server-side search the parent already returns the matching page, so
   // show options verbatim; otherwise filter the loaded options locally.
   const filtered =
@@ -254,10 +263,10 @@ export function Combobox({
             // an inline trigger would collapse to an ellipsis however much room
             // it has. Inline keeps its full label on one line instead.
             inline ? 'shrink-0 whitespace-nowrap' : 'flex-1 truncate',
-            !selected && 'font-normal text-muted-foreground',
+            !label && 'font-normal text-muted-foreground',
           )}
         >
-          {selected?.label ?? placeholder ?? ''}
+          {label ?? placeholder ?? ''}
         </span>
         {clearable && value && !disabled ? (
           <span

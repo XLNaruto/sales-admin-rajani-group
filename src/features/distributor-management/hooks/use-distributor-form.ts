@@ -13,6 +13,7 @@ import {
   distributorDefaults,
   type DistributorFormValues,
 } from "../lib/distributor-form";
+import type { GeoLabels } from "@/features/location";
 import type {
   DistributorCreateInput,
   DistributorExistingFiles,
@@ -185,11 +186,18 @@ export function useDistributorForm(id?: string) {
   const [existingImages, setExistingImages] =
     useState<ExistingImages>(EMPTY_EXISTING);
 
+  // Names for the currently-held geography ids. The five selects are lazy and
+  // parent-scoped, so an id can be set before its own option has been fetched —
+  // these keep the right name in the trigger meanwhile. Seeded from the record
+  // in edit mode, and rewritten by the page when a city back-fills its ancestry.
+  const [geoLabels, setGeoLabels] = useState<GeoLabels>({});
+
   // Seed the form once the record loads (edit mode only).
   useEffect(() => {
     if (detail.data) {
       reset(detail.data.values);
       setExistingImages(toExistingImages(detail.data.existing));
+      setGeoLabels(detail.data.geoLabels);
     }
   }, [detail.data, reset]);
 
@@ -241,6 +249,8 @@ export function useDistributorForm(id?: string) {
     setValue,
     existingImages,
     removeExistingImage,
+    geoLabels,
+    setGeoLabels,
     stateId,
     zoneId,
     districtId,

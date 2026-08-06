@@ -132,23 +132,31 @@ export function AllocationListPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Sales Incharge" />
         ),
-        cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
-              {initials(row.original.inchargeName)}
-            </span>
-            <div className="leading-tight">
-              <p className="font-medium text-foreground">{row.original.inchargeName}</p>
-              <p className="text-xs text-muted-foreground">
-                <span className="font-mono tabular-nums">
-                  {row.original.employeeCode}
-                </span>
-                {' · '}
-                {row.original.headquarter}
-              </p>
+        cell: ({ row }) => {
+          // Either half of the sub-line can be missing (no employee code, no
+          // territory). Drop what's absent — and the separator with it — rather
+          // than printing a dash the reader has to decode.
+          const { employeeCode, headquarter } = row.original
+          return (
+            <div className="flex items-center gap-3">
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
+                {initials(row.original.inchargeName)}
+              </span>
+              <div className="leading-tight">
+                <p className="font-medium text-foreground">{row.original.inchargeName}</p>
+                {employeeCode || headquarter ? (
+                  <p className="text-xs text-muted-foreground">
+                    {employeeCode ? (
+                      <span className="font-mono tabular-nums">{employeeCode}</span>
+                    ) : null}
+                    {employeeCode && headquarter ? ' · ' : null}
+                    {headquarter}
+                  </p>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ),
+          )
+        },
       },
       {
         // Sorted server-side in CHAIN order (draft → published → submitted →

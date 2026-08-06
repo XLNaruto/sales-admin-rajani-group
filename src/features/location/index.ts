@@ -28,6 +28,7 @@ export {
 } from './api/location-api'
 export { toLocationOptions } from './lib/location-options'
 export type {
+  GeoLabels,
   StateItem,
   ZoneItem,
   DistrictItem,

@@ -10,6 +10,7 @@ import {
   type DistributorOwnerRow,
   type DistributorRow,
 } from '../schemas'
+import type { GeoLabels } from '@/features/location'
 import type { DistributorFormValues } from '../lib/distributor-form'
 import { joinLatLng, splitLatLng } from '../lib/distributor-reference'
 import type {
@@ -319,6 +320,12 @@ export async function fetchDistributor(id: string): Promise<{
   id: string
   values: DistributorFormValues
   existing: DistributorExistingFiles
+  /**
+   * Display names for the saved geography ids. The selects are lazy-loaded and
+   * paginated, so a seeded id can arrive long before (or without) its own
+   * option — the form shows these until the real option lands.
+   */
+  geoLabels: GeoLabels
 }> {
   try {
     const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.GET(id))
@@ -388,7 +395,14 @@ export async function fetchDistributor(id: string): Promise<{
       gstPhotoPath: r.gst_photo_path ?? '',
       advanceChequePhotoPath: r.advance_cheque_photo_path ?? '',
     }
-    return { id: r.id, values, existing }
+    const geoLabels: GeoLabels = {
+      stateId: r.state_name ?? undefined,
+      zoneId: r.zone_name ?? undefined,
+      districtId: r.district_name ?? undefined,
+      talukaId: r.taluka_name ?? undefined,
+      cityId: r.city_name ?? undefined,
+    }
+    return { id: r.id, values, existing, geoLabels }
   } catch (error) {
     throw asApiError(error, 'Failed to load the distributor.')
   }

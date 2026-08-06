@@ -46,10 +46,11 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
     setValue,
     existingPhoto,
     removeExistingPhoto,
+    geoLabels,
+    setGeoLabels,
     stateId,
     zoneId,
     districtId,
-    talukaId,
     onSubmit,
     isEdit,
     isPending,
@@ -79,7 +80,41 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
   const zoneSelect = useZoneSelect(toId(stateId))
   const districtSelect = useDistrictSelect(toId(zoneId))
   const talukaSelect = useTalukaSelect(toId(districtId))
-  const citySelect = useCitySelect(toId(talukaId))
+  // Deliberately unscoped: no `taluka_id` is ever sent, so the dropdown always
+  // offers (and server-searches) every city, whatever the levels above it hold.
+  // That's what makes the territory settable bottom-up — pick a city and its
+  // ancestry fills in. `alwaysEnabled` is required because the query otherwise
+  // idles while `taluka_id` is absent.
+  const citySelect = useCitySelect(undefined, { alwaysEnabled: true })
+
+  /**
+   * Picking a city sets taluka → district → zone → state from the same row the
+   * cities API returns (it carries the full ancestry), so the user only has to
+   * choose one field. Choosing a level manually clears the back-filled names
+   * below it, since those selects go back to driving themselves.
+   */
+  const onCityChange = (value: string, onChange: (v: string) => void) => {
+    onChange(value)
+
+    const city = citySelect.items.find((c) => String(c.id) === value)
+    if (!city) {
+      setGeoLabels({})
+      return
+    }
+
+    if (city.stateId) setValue('stateId', String(city.stateId))
+    if (city.zoneId) setValue('zoneId', String(city.zoneId))
+    if (city.districtId) setValue('districtId', String(city.districtId))
+    setValue('talukaId', String(city.talukaId))
+
+    setGeoLabels({
+      stateId: city.stateName ?? undefined,
+      zoneId: city.zoneName ?? undefined,
+      districtId: city.districtName ?? undefined,
+      talukaId: city.talukaName ?? undefined,
+      cityId: city.name,
+    })
+  }
 
   const outletTypes = useOutletTypeOptions()
 
@@ -233,26 +268,81 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
             <Input placeholder="Market / trade area" {...register('market')} />
           </Field>
 
-          <Field label="State" error={errors.stateId?.message}>
+          {/* The territory fields run bottom-up — City first, then Taluka,
+              District, Zone, State — because City is the one that fills the
+              rest. The levels below it stay editable for the top-down path. */}
+          <Field
+            label="City/Village"
+            hint="Fills taluka, district, zone and state automatically"
+            error={errors.cityId?.message}
+          >
             <Controller
               control={control}
-              name="stateId"
+              name="cityId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ''}
+                  onChange={(v) => onCityChange(v, field.onChange)}
+                  fallbackLabel={geoLabels.cityId}
+                  options={citySelect.options}
+                  onScrollEnd={citySelect.onScrollEnd}
+                  loading={citySelect.loading}
+                  onSearchChange={citySelect.onSearchChange}
+                  placeholder="Select…"
+                  searchPlaceholder="Search city"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="Taluka" error={errors.talukaId?.message}>
+            <Controller
+              control={control}
+              name="talukaId"
               render={({ field }) => (
                 <Combobox
                   value={field.value ?? ''}
                   onChange={(v) => {
                     field.onChange(v)
-                    setValue('zoneId', '')
-                    setValue('districtId', '')
+                    setValue('cityId', '')
+                    setGeoLabels((l) => ({
+                      stateId: l.stateId,
+                      zoneId: l.zoneId,
+                      districtId: l.districtId,
+                    }))
+                  }}
+                  fallbackLabel={geoLabels.talukaId}
+                  options={talukaSelect.options}
+                  onScrollEnd={talukaSelect.onScrollEnd}
+                  loading={talukaSelect.loading}
+                  onSearchChange={talukaSelect.onSearchChange}
+                  placeholder={districtId ? 'Select…' : 'Pick a city, or a district first'}
+                  searchPlaceholder="Search taluka"
+                />
+              )}
+            />
+          </Field>
+
+          <Field label="District" error={errors.districtId?.message}>
+            <Controller
+              control={control}
+              name="districtId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ''}
+                  onChange={(v) => {
+                    field.onChange(v)
                     setValue('talukaId', '')
                     setValue('cityId', '')
+                    setGeoLabels((l) => ({ stateId: l.stateId, zoneId: l.zoneId }))
                   }}
-                  options={stateSelect.options}
-                  onScrollEnd={stateSelect.onScrollEnd}
-                  loading={stateSelect.loading}
-                  onSearchChange={stateSelect.onSearchChange}
-                  placeholder="Select…"
-                  searchPlaceholder="Search state"
+                  fallbackLabel={geoLabels.districtId}
+                  options={districtSelect.options}
+                  onScrollEnd={districtSelect.onScrollEnd}
+                  loading={districtSelect.loading}
+                  onSearchChange={districtSelect.onSearchChange}
+                  placeholder={zoneId ? 'Select…' : 'Pick a city, or a zone first'}
+                  searchPlaceholder="Search district"
                 />
               )}
             />
@@ -270,77 +360,42 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
                     setValue('districtId', '')
                     setValue('talukaId', '')
                     setValue('cityId', '')
+                    setGeoLabels((l) => ({ stateId: l.stateId }))
                   }}
+                  fallbackLabel={geoLabels.zoneId}
                   options={zoneSelect.options}
                   onScrollEnd={zoneSelect.onScrollEnd}
                   loading={zoneSelect.loading}
                   onSearchChange={zoneSelect.onSearchChange}
-                  placeholder={stateId ? 'Select…' : 'Select a state first'}
+                  placeholder={stateId ? 'Select…' : 'Pick a city, or a state first'}
                   searchPlaceholder="Search zone"
                 />
               )}
             />
           </Field>
 
-          <Field label="District" error={errors.districtId?.message}>
+          <Field label="State" error={errors.stateId?.message}>
             <Controller
               control={control}
-              name="districtId"
+              name="stateId"
               render={({ field }) => (
                 <Combobox
                   value={field.value ?? ''}
                   onChange={(v) => {
                     field.onChange(v)
+                    setValue('zoneId', '')
+                    setValue('districtId', '')
                     setValue('talukaId', '')
                     setValue('cityId', '')
+                    setGeoLabels({})
                   }}
-                  options={districtSelect.options}
-                  onScrollEnd={districtSelect.onScrollEnd}
-                  loading={districtSelect.loading}
-                  onSearchChange={districtSelect.onSearchChange}
-                  placeholder={zoneId ? 'Select…' : 'Select a zone first'}
-                  searchPlaceholder="Search district"
-                />
-              )}
-            />
-          </Field>
-
-          <Field label="Taluka" error={errors.talukaId?.message}>
-            <Controller
-              control={control}
-              name="talukaId"
-              render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ''}
-                  onChange={(v) => {
-                    field.onChange(v)
-                    setValue('cityId', '')
-                  }}
-                  options={talukaSelect.options}
-                  onScrollEnd={talukaSelect.onScrollEnd}
-                  loading={talukaSelect.loading}
-                  onSearchChange={talukaSelect.onSearchChange}
-                  placeholder={districtId ? 'Select…' : 'Select a district first'}
-                  searchPlaceholder="Search taluka"
-                />
-              )}
-            />
-          </Field>
-
-          <Field label="City" error={errors.cityId?.message}>
-            <Controller
-              control={control}
-              name="cityId"
-              render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ''}
-                  onChange={field.onChange}
-                  options={citySelect.options}
-                  onScrollEnd={citySelect.onScrollEnd}
-                  loading={citySelect.loading}
-                  onSearchChange={citySelect.onSearchChange}
-                  placeholder={talukaId ? 'Select…' : 'Select a taluka first'}
-                  searchPlaceholder="Search city"
+                  fallbackLabel={geoLabels.stateId}
+                  options={stateSelect.options}
+                  onScrollEnd={stateSelect.onScrollEnd}
+                  loading={stateSelect.loading}
+                  onSearchChange={stateSelect.onSearchChange}
+                  placeholder="Select…"
+                  searchPlaceholder="Search state"
                 />
               )}
             />

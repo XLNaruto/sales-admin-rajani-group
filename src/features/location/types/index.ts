@@ -9,6 +9,17 @@
 export type LocationSortBy = 'name' | 'created_at' | 'updated_at'
 export type SortOrder = 'asc' | 'desc'
 
+/**
+ * Display names for the five levels, keyed by the form-field name each id sits
+ * in. The selects are lazy and parent-scoped, so an id can be held before its
+ * own option has been fetched — a form shows these until the option lands. Both
+ * directions of the cascade need them: a saved record seeds ids the selects
+ * haven't paged to, and picking a city back-fills its ancestry's ids.
+ */
+export type GeoLabels = Partial<
+  Record<'stateId' | 'zoneId' | 'districtId' | 'talukaId' | 'cityId', string>
+>
+
 /** Params common to all five endpoints (page-based pagination). */
 export interface BaseLocationParams {
   /** 1-based page number. */

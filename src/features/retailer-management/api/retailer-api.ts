@@ -8,6 +8,7 @@ import {
   retailerListResponseSchema,
   type RetailerRow,
 } from '../schemas'
+import type { GeoLabels } from '@/features/location'
 import type { RetailerFormValues } from '../lib/retailer-form'
 import type {
   Retailer,
@@ -196,6 +197,12 @@ export async function fetchRetailer(id: string): Promise<{
   id: string
   values: RetailerFormValues
   existing: RetailerExistingFiles
+  /**
+   * Display names for the saved geography ids. The selects are lazy and
+   * paginated, so a seeded id can arrive before (or without) its own option —
+   * the form shows these until the real option loads.
+   */
+  geoLabels: GeoLabels
 }> {
   try {
     const raw = await http.get<unknown>(endpoints.RETAILER.GET(id))
@@ -227,10 +234,18 @@ export async function fetchRetailer(id: string): Promise<{
       outletTypeId: idStr(r.outlet_type_id),
       shopPhoto: [],
     }
+    const geoLabels: GeoLabels = {
+      stateId: r.state_name ?? undefined,
+      zoneId: r.zone_name ?? undefined,
+      districtId: r.district_name ?? undefined,
+      talukaId: r.taluka_name ?? undefined,
+      cityId: r.city_name ?? undefined,
+    }
     return {
       id: r.id,
       values,
       existing: { shopPhotoPath: r.shop_photo_path ?? '' },
+      geoLabels,
     }
   } catch (error) {
     throw asApiError(error, 'Failed to load the retailer.')

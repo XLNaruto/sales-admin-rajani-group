@@ -15,6 +15,7 @@ import {
   type RetailerFormValues,
 } from '../lib/retailer-form'
 import { splitLatLng } from '../lib/retailer-reference'
+import type { GeoLabels } from '@/features/location'
 import type { RetailerCreateInput } from '../types'
 
 const CURRENT_YEAR = new Date().getFullYear()
@@ -128,12 +129,19 @@ export function useRetailerForm(id?: string) {
   // removing it drops it from the payload.
   const [existingPhoto, setExistingPhoto] = useState<string[]>([])
 
+  // Names for the currently-held geography ids. The five selects are lazy and
+  // parent-scoped, so an id can be set before its own option has been fetched —
+  // these keep the right name in the trigger meanwhile. Seeded from the record
+  // in edit mode, and rewritten by the page when a city back-fills its ancestry.
+  const [geoLabels, setGeoLabels] = useState<GeoLabels>({})
+
   // Seed the form once the record loads (edit mode only).
   useEffect(() => {
     if (detail.data) {
       reset(detail.data.values)
       const path = detail.data.existing.shopPhotoPath.trim()
       setExistingPhoto(path ? [path] : [])
+      setGeoLabels(detail.data.geoLabels)
     }
   }, [detail.data, reset])
 
@@ -202,6 +210,8 @@ export function useRetailerForm(id?: string) {
     setValue,
     existingPhoto,
     removeExistingPhoto,
+    geoLabels,
+    setGeoLabels,
     stateId,
     zoneId,
     districtId,

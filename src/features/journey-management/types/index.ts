@@ -192,8 +192,12 @@ export interface JourneyPlan {
   inchargeId: string
   inchargeName: string
   employeeCode: string
-  /** Territory the sales incharge is anchored to (the `city` filter matches it exactly). */
-  headquarter: string
+  /**
+   * Territory the sales incharge is anchored to (the `city` filter matches it
+   * exactly). Null when the API sends no `sales_incharge_city` — render sites
+   * omit it rather than showing a placeholder.
+   */
+  headquarter: string | null
   status: PlanStatus
   /** What the admin promised. */
   daysAllocated: number
@@ -441,7 +445,7 @@ export interface JourneyPlanDetail {
   inchargeId: string
   inchargeName: string
   employeeCode: string
-  headquarter: string
+  headquarter: string | null
   /** Month covered, as `yyyy-MM` (the API sends the 1st of the month). */
   month: string
   status: PlanStatus
