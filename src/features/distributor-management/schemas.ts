@@ -132,7 +132,10 @@ export const distributorDetailSchema = z.object({
   gst_photo_path: z.string().nullish(),
   advance_cheque_numbers: z.string().nullish(),
   advance_cheque_photo_path: z.string().nullish(),
-  payment_condition: z.string().nullish(),
+  // Payment terms come from the master: the id is what's stored, the name is
+  // what the API resolves alongside it for display.
+  payment_condition_id: z.number().nullish(),
+  payment_condition_name: z.string().nullish(),
   bank_account_name: z.string().nullish(),
   bank_account_number: z.string().nullish(),
   bank_ifsc: z.string().nullish(),

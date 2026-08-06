@@ -7,6 +7,28 @@ const optNum = (msg = 'Enter a valid number') =>
     .optional()
     .refine((v) => !v || (!Number.isNaN(Number(v)) && v.trim() !== ''), msg)
 
+/**
+ * An optional dropdown field.
+ *
+ * "Not chosen" arrives in two shapes — `undefined` (never touched) and `''`
+ * (the Combobox's empty value, and what the API sends back for a blank column)
+ * — and both must pass, or an untouched optional select shows an error the
+ * user can't clear. Anything else must be one of `values`, and when it isn't
+ * the message is a plain sentence rather than Zod's raw "Invalid option:
+ * expected one of …" dump. The `''` is collapsed to `undefined` on submit (see
+ * `optValue` in use-distributor-form).
+ */
+const optEnum = <const T extends readonly [string, ...string[]]>(
+  values: T,
+  message: string,
+) =>
+  // The cast keeps the member literals ("local" | "rural" | …) in the inferred
+  // form type — through the generic, `z.enum` alone widens them to `string`.
+  z.union([z.enum(values), z.literal('')], { message }).optional() as z.ZodType<
+    T[number] | '' | undefined,
+    T[number] | '' | undefined
+  >
+
 // A list of picked files (optional). The raw `File`s are presigned + uploaded
 // on submit; the returned storage keys are what get persisted.
 const fileList = () => z.array(z.instanceof(File)).optional()
@@ -49,11 +71,13 @@ export const distributorSchema = z.object({
     .string()
     .optional()
     .refine((v) => !v || /^\d{10}$/.test(v), 'Enter a valid 10-digit mobile number'),
-  multipleLogin: z.enum(['yes', 'no']).optional(),
+  multipleLogin: optEnum(['yes', 'no'], 'Choose Yes or No'),
   email: z.string().email('Enter a valid email address'),
   code: z.string().optional(),
   // API accepts only these three (see /sales-incharge-admin/docs → POST /distributors).
-  status: z.enum(['active', 'inactive', 'suspended']),
+  status: z.enum(['active', 'inactive', 'suspended'], {
+    message: 'Select the distributor status',
+  }),
   // Product-division ids this distributor handles (option values are stringified ids).
   productDivisions: z.array(z.string()).optional(),
 
@@ -72,11 +96,17 @@ export const distributorSchema = z.object({
     .refine((v) => !v || /^\d{6}$/.test(v), 'Enter a valid 6-digit pincode'),
   deliveryRoute: z.string().optional(),
   agencyTalukaIds: z.array(z.string()).optional(),
-  marketType: z.enum(['local', 'rural', 'local_rural', 'counter_sales']).optional(),
+  marketType: optEnum(
+    ['local', 'rural', 'local_rural', 'counter_sales'],
+    'Choose a market type from the list',
+  ),
   villageIds: z.array(z.string()).optional(),
   retailersLocal: optNum('Enter a valid count'),
   retailersRural: optNum('Enter a valid count'),
-  marketSystem: z.enum(['ready_stock', 'booking']).optional(),
+  marketSystem: optEnum(
+    ['ready_stock', 'booking'],
+    'Choose a market system from the list',
+  ),
   weeklyOff: z.string().optional(),
   // Captured by the map picker as "lat, lng"; split into the API's
   // geo_latitude / geo_longitude string columns on submit.
@@ -89,7 +119,7 @@ export const distributorSchema = z.object({
   similarAgencies: z.string().optional(),
   assignedProducts: z.string().optional(),
   productTargets: z.string().optional(),
-  deliveryVehicle: z.enum(['yes', 'no']).optional(),
+  deliveryVehicle: optEnum(['yes', 'no'], 'Choose Yes or No'),
   deliveryVehicleDetail: z.string().optional(),
   godownSize: optNum('Enter a valid size'),
   yearOfEst: optNum('Enter a valid year'),
@@ -101,7 +131,9 @@ export const distributorSchema = z.object({
   gstPhoto: fileList(),
   advanceChequeNumbers: z.string().optional(),
   advanceChequePhoto: fileList(),
-  paymentCondition: z.enum(['same_day_cheque', 'due_date_neft_rtgs', 'advance']).optional(),
+  // Id of a row in the payment-condition master (Masters → Payment Conditions),
+  // stringified like every other select value; sent as `payment_condition_id`.
+  paymentConditionId: z.string().optional(),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   bankIfsc: z.string().optional(),

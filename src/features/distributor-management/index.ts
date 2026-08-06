@@ -16,5 +16,5 @@ export type {
   FirmType,
   DistributorMarketType,
   MarketSystem,
-  PaymentCondition,
+  PaymentConditionId,
 } from './types'

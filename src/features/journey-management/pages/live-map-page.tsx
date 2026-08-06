@@ -88,8 +88,7 @@ export function LiveMapPage({ data }: LiveMapPageProps) {
 
   return (
     <div>
-      {/* Header — who is being watched, and over which month. The name itself is
-          the incharge picker. */}
+      {/* Header — who is being watched, and over which month. The name itself is the incharge picker. */}
       <div className="mb-5 rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-4">

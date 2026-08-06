@@ -12,7 +12,12 @@ export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
 export type MarketSystem = 'ready_stock' | 'booking'
-export type PaymentCondition = 'same_day_cheque' | 'due_date_neft_rtgs' | 'advance'
+/**
+ * The payment terms a distributor trades on: the id of a row in the
+ * payment-condition master (`@/features/master-management`). Not an enum — the
+ * master is maintained by the user, so ids are all the app can rely on.
+ */
+export type PaymentConditionId = number
 
 /**
  * One owner/partner of a distributor firm. A firm has at least one and at most
@@ -102,7 +107,7 @@ export interface Distributor {
   gstPhotoPath?: string
   advanceChequeNumbers?: string
   advanceChequePhotoPath?: string
-  paymentCondition?: PaymentCondition
+  paymentConditionId?: PaymentConditionId
   bankAccountName?: string
   bankAccountNumber?: string
   bankIfsc?: string
@@ -169,7 +174,7 @@ export interface DistributorCreateInput {
   gstPhoto?: File[]
   advanceChequeNumbers?: string
   advanceChequePhoto?: File[]
-  paymentCondition?: PaymentCondition
+  paymentConditionId?: PaymentConditionId
   bankAccountName?: string
   bankAccountNumber?: string
   bankIfsc?: string
@@ -263,6 +268,8 @@ export interface DistributorDetailView {
   gstPhotoUrl: string
   advanceChequeNumbers: string | null
   advanceChequePhotoUrl: string
+  paymentConditionId: number | null
+  /** Master name resolved by the API — what the detail view shows. */
   paymentCondition: string | null
   bankAccountName: string | null
   bankAccountNumber: string | null

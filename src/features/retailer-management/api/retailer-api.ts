@@ -6,6 +6,8 @@ import { uploadFiles } from '@/lib/upload'
 import {
   retailerDetailSchema,
   retailerListResponseSchema,
+  type RetailerDistributorRow,
+  type RetailerOwnerRow,
   type RetailerRow,
 } from '../schemas'
 import type { GeoLabels } from '@/features/location'
@@ -14,13 +16,40 @@ import type {
   Retailer,
   RetailerCreateInput,
   RetailerDetailView,
+  RetailerDistributor,
   RetailerExistingFiles,
   RetailerLifecycleStatus,
   RetailerListParams,
   RetailerListResult,
   RetailerOnboardingAction,
+  RetailerOwner,
   RetailerUpdateInput,
 } from '../types'
+
+/**
+ * Map an API `owners[]` array to the client-facing (camelCase) list. Shared by
+ * the list, edit and detail mappers so all three work off one shape. `name` can
+ * come back null on records migrated from the old single-owner columns.
+ */
+function toOwners(rows: RetailerOwnerRow[] | null | undefined): RetailerOwner[] {
+  return (rows ?? []).map((o) => ({
+    name: o.name ?? '',
+    mobile: o.mobile,
+    alternateMobile: o.alternate_mobile ?? '',
+    birthDate: o.birth_date ?? '',
+    anniversaryDate: o.marriage_anniversary ?? '',
+  }))
+}
+
+/**
+ * Map an API `distributors[]` array to the client-facing list. Entries with no
+ * resolved firm name are dropped — there's nothing to show for them.
+ */
+function toDistributors(
+  rows: RetailerDistributorRow[] | null | undefined,
+): RetailerDistributor[] {
+  return (rows ?? []).flatMap((d) => (d.name ? [{ id: d.id, name: d.name }] : []))
+}
 
 /** Map a validated API row to the client-facing (camelCase) `Retailer`. */
 function toRetailer(row: RetailerRow): Retailer {
@@ -28,8 +57,7 @@ function toRetailer(row: RetailerRow): Retailer {
     id: row.id,
     code: row.retailer_code ?? '',
     shopName: row.shop_name,
-    ownerName: row.owner_name ?? '',
-    ownerMobile: row.owner_mobile ?? '',
+    owners: toOwners(row.owners),
     status: row.status,
     onboardingStatus: row.onboarding_status,
     market: row.market ?? undefined,
@@ -37,7 +65,7 @@ function toRetailer(row: RetailerRow): Retailer {
     cityName: row.city_name ?? undefined,
     beatId: row.beat_id != null ? String(row.beat_id) : '',
     beatName: row.beat_name ?? undefined,
-    distributorName: row.distributor_name ?? undefined,
+    distributors: toDistributors(row.distributors),
     outletTypeName: row.outlet_type_name ?? undefined,
   }
 }
@@ -102,22 +130,37 @@ function toId(value?: string): number | string | undefined {
 const str = (v?: string) => (v && v.trim() !== '' ? v.trim() : undefined)
 
 /**
+ * Map the form's owner list into the request body's `owners[]` — the endpoint's
+ * item shape is `{ name, mobile, alternate_mobile, birth_date,
+ * marriage_anniversary }`. Blank optional values are sent as explicit `null`s
+ * rather than omitted, since clearing a number or a date has to overwrite
+ * what's stored.
+ */
+function ownersBody(owners: RetailerOwner[]) {
+  return owners.map((o) => ({
+    name: o.name.trim(),
+    mobile: o.mobile.trim(),
+    alternate_mobile: str(o.alternateMobile) ?? null,
+    birth_date: str(o.birthDate) ?? null,
+    marriage_anniversary: str(o.anniversaryDate) ?? null,
+  }))
+}
+
+/**
  * Build the non-file portion of the create/update body — shared by both, since
  * PATCH is a full resubmit of the same shape. Two fields are deliberately
- * absent: `status` (rejected here — PATCH …/status owns it) and `beat_id` (the
- * server picks the beat nearest the coordinates, and the distributor follows
- * from that beat). `shop_photo_path` is filled in by the caller once the upload
- * resolves.
+ * absent: `status` (rejected here — PATCH …/status owns it) and `beat_id` (on
+ * create the server picks the beat nearest the coordinates, and PATCH leaves it
+ * alone — PATCH …/beat moves it). `shop_photo_path` is filled in by the caller
+ * once the upload resolves.
  */
 function buildScalarBody(input: RetailerCreateInput) {
   return {
     retailer_code: str(input.code),
     shop_name: input.shopName,
-    owner_name: str(input.ownerName),
-    owner_mobile: input.ownerMobile,
-    alternate_mobile: str(input.alternateMobile),
-    owner_birth_date: str(input.ownerBirthDate),
-    owner_marriage_anniversary: str(input.ownerAnniversaryDate),
+    // Always sent complete — the API replaces the whole list on every save, so
+    // an owner left out of this array is removed from the record.
+    owners: ownersBody(input.owners),
 
     address_line: str(input.addressLine),
     address: str(input.address),
@@ -211,11 +254,7 @@ export async function fetchRetailer(id: string): Promise<{
     const values: RetailerFormValues = {
       code: r.retailer_code ?? '',
       shopName: r.shop_name,
-      ownerName: r.owner_name ?? '',
-      ownerMobile: r.owner_mobile ?? '',
-      alternateMobile: r.alternate_mobile ?? '',
-      ownerBirthDate: r.owner_birth_date ?? '',
-      ownerAnniversaryDate: r.owner_marriage_anniversary ?? '',
+      owners: toOwners(r.owners),
 
       addressLine: r.address_line ?? '',
       address: r.address ?? '',
@@ -277,11 +316,7 @@ export async function fetchRetailerDetail(id: string): Promise<RetailerDetailVie
       onboardingStatus: r.onboarding_status,
 
       shopName: r.shop_name,
-      ownerName: r.owner_name ?? null,
-      ownerMobile: r.owner_mobile ?? null,
-      alternateMobile: r.alternate_mobile ?? null,
-      ownerBirthDate: r.owner_birth_date ?? null,
-      ownerAnniversaryDate: r.owner_marriage_anniversary ?? null,
+      owners: toOwners(r.owners),
 
       addressLine: r.address_line ?? null,
       address: r.address ?? null,
@@ -295,7 +330,7 @@ export async function fetchRetailerDetail(id: string): Promise<RetailerDetailVie
       cityName: r.city_name ?? null,
       pincode: r.pincode ?? null,
       beatName: r.beat_name ?? null,
-      distributorName: r.distributor_name ?? null,
+      distributors: toDistributors(r.distributors),
 
       geoLocation: joinLatLng(r.latitude, r.longitude),
 

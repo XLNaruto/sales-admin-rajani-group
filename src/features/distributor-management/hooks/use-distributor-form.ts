@@ -64,6 +64,12 @@ const fromExistingImages = (e: ExistingImages): DistributorExistingFiles => ({
 const num = (v?: string) => (v && v.trim() !== "" ? Number(v) : undefined);
 /** Trim an optional text field, collapsing blanks to undefined. */
 const str = (v?: string) => (v && v.trim() !== "" ? v.trim() : undefined);
+/**
+ * An unset optional dropdown holds `""` (the Combobox's empty value) — the API
+ * wants the key omitted instead, so collapse it back to `undefined`.
+ */
+const optValue = <T extends string>(v?: T): Exclude<T, ""> | undefined =>
+  (v || undefined) as Exclude<T, ""> | undefined;
 
 /**
  * On an invalid submit, bring the topmost errored field into view and focus its
@@ -98,7 +104,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
       anniversaryDate: str(o.anniversaryDate),
     })),
     communicationMobile: str(values.communicationMobile),
-    multipleLogin: values.multipleLogin,
+    multipleLogin: optValue(values.multipleLogin),
     email: values.email,
     code: values.code ?? "",
     status: values.status,
@@ -115,11 +121,11 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     pincode: str(values.pincode),
     deliveryRoute: str(values.deliveryRoute),
     agencyTalukaIds: values.agencyTalukaIds ?? [],
-    marketType: values.marketType,
+    marketType: optValue(values.marketType),
     villageIds: values.villageIds ?? [],
     retailersLocal: num(values.retailersLocal),
     retailersRural: num(values.retailersRural),
-    marketSystem: values.marketSystem,
+    marketSystem: optValue(values.marketSystem),
     weeklyOff: str(values.weeklyOff),
     geoLocation: str(values.geoLocation),
     officeImages: values.officeImages ?? [],
@@ -129,7 +135,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     similarAgencies: str(values.similarAgencies),
     assignedProducts: str(values.assignedProducts),
     productTargets: str(values.productTargets),
-    deliveryVehicle: values.deliveryVehicle,
+    deliveryVehicle: optValue(values.deliveryVehicle),
     deliveryVehicleDetail: str(values.deliveryVehicleDetail),
     godownSize: num(values.godownSize),
     yearOfEst: str(values.yearOfEst),
@@ -140,7 +146,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     gstPhoto: values.gstPhoto ?? [],
     advanceChequeNumbers: str(values.advanceChequeNumbers),
     advanceChequePhoto: values.advanceChequePhoto ?? [],
-    paymentCondition: values.paymentCondition,
+    paymentConditionId: num(values.paymentConditionId),
     bankAccountName: str(values.bankAccountName),
     bankAccountNumber: str(values.bankAccountNumber),
     bankIfsc: str(values.bankIfsc),

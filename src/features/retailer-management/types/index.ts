@@ -10,32 +10,38 @@ export type RetailerOnboardingStatus = 'pending' | 'approved' | 'rejected'
 /** Action accepted by PATCH …/retailers/{id}/onboarding. */
 export type RetailerOnboardingAction = 'approve' | 'reject'
 
-/** An outlet-type master option (id + display name, mapped from `type_name`). */
-export interface OutletType {
-  id: number
+/**
+ * One owner/partner of an outlet. An outlet can have several (the API's
+ * `owners[]`, 1–20 entries) and the whole list is replaced on every save. Each
+ * owner carries their own alternate number — a second line for that person.
+ */
+export interface RetailerOwner {
   name: string
-  status: RetailerStatus
-}
-
-/** Normalised outlet-type list result: a page of rows + pagination. */
-export interface OutletTypeListResult {
-  items: OutletType[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
+  mobile: string
+  alternateMobile?: string
+  birthDate?: string
+  anniversaryDate?: string
 }
 
 /**
- * A retailer as shown in the list. Only the columns the list endpoint returns
- * are populated; the detail screens fetch the rest.
+ * A distributor serving the outlet's beat. Derived from the beat rather than
+ * linked directly, so an outlet can have several (primary first) or none.
+ */
+export interface RetailerDistributor {
+  id: string
+  name: string
+}
+
+/**
+ * A retailer as shown in the list. The list endpoint returns the full record,
+ * so every owner and distributor is available here without a second fetch.
  */
 export interface Retailer {
   id: string
   code: string
   shopName: string
-  ownerName: string
-  ownerMobile: string
+  /** Every owner/partner of the outlet, oldest first (may be empty). */
+  owners: RetailerOwner[]
   status: RetailerStatus
   onboardingStatus: RetailerOnboardingStatus
   /** Free-text market / trade area the outlet sits in. */
@@ -47,8 +53,8 @@ export interface Retailer {
   beatId: string
   /** Beat display name resolved by the list endpoint (`beat_name`). */
   beatName?: string
-  /** Firm name of the beat's distributor (`distributor_name`) — derived, not linked. */
-  distributorName?: string
+  /** Firms serving the outlet's beat, primary first — derived, not linked. */
+  distributors: RetailerDistributor[]
   /** Outlet-type name resolved by the list endpoint (`outlet_type_name`). */
   outletTypeName?: string
 }
@@ -66,11 +72,12 @@ export interface RetailerCreateInput {
   // --- Shop & owner ---
   code?: string
   shopName: string
-  ownerName?: string
-  ownerMobile: string
-  alternateMobile?: string
-  ownerBirthDate?: string
-  ownerAnniversaryDate?: string
+  /**
+   * Every owner/partner of the outlet — sent complete as `owners[]`, since the
+   * API replaces the whole list on each save (an owner left out is removed).
+   * At least one entry, at most 20 — each with its own alternate number.
+   */
+  owners: RetailerOwner[]
 
   // --- Address / geography ---
   addressLine?: string
@@ -129,11 +136,8 @@ export interface RetailerDetailView {
 
   // --- Shop & owner ---
   shopName: string
-  ownerName: string | null
-  ownerMobile: string | null
-  alternateMobile: string | null
-  ownerBirthDate: string | null
-  ownerAnniversaryDate: string | null
+  /** Owners/partners of the outlet, oldest first. */
+  owners: RetailerOwner[]
 
   // --- Address / geography ---
   addressLine: string | null
@@ -147,9 +151,9 @@ export interface RetailerDetailView {
   talukaName: string | null
   cityName: string | null
   pincode: string | null
-  /** Auto-assigned beat, and the distributor that beat belongs to. */
+  /** Auto-assigned beat, and the firms serving it (primary first, may be empty). */
   beatName: string | null
-  distributorName: string | null
+  distributors: RetailerDistributor[]
 
   /** "lat, lng" assembled from the two stored columns (null when unset). */
   geoLocation: string | null
@@ -166,11 +170,13 @@ export interface RetailerDetailView {
 
 // --- Live list API (GET /sales-incharge-admin/retailers) --------------------
 
-/** Columns the list endpoint can sort by (its documented `sort_by` enum). */
+/**
+ * Columns the list endpoint can sort by (its documented `sort_by` enum). Owner
+ * name/mobile are deliberately absent — an outlet can have several owners, so
+ * there's no single value to order on.
+ */
 export type RetailerSortBy =
   | 'shop_name'
-  | 'owner_name'
-  | 'owner_mobile'
   | 'city_id'
   | 'status'
   | 'created_at'
@@ -182,7 +188,10 @@ export interface RetailerListParams {
   page?: number
   /** Rows per page (1–100). Default 20. */
   pageSize?: number
-  /** Case-insensitive match against shop/owner name, mobile or code. */
+  /**
+   * Case-insensitive match against the shop name, the retailer code, or ANY
+   * owner's name / mobile / e-mail.
+   */
   search?: string
   /** Filter by lifecycle status. */
   status?: RetailerStatus

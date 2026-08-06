@@ -84,11 +84,9 @@ export const MARKET_SYSTEMS: ComboboxOption[] = [
   { value: 'booking', label: 'Booking' },
 ]
 
-export const PAYMENT_CONDITIONS: ComboboxOption[] = [
-  { value: 'same_day_cheque', label: 'Same Day Cheque' },
-  { value: 'due_date_neft_rtgs', label: 'Due Date NEFT/RTGS' },
-  { value: 'advance', label: 'Advance' },
-]
+/* Payment conditions are no longer a fixed list — they come from the
+   payment-condition master (`usePaymentConditions`); the form stores the chosen
+   row's id and the API resolves its name for display. */
 
 export const DISTRIBUTOR_STATUSES: ComboboxOption[] = [
   { value: 'active', label: 'Active' },

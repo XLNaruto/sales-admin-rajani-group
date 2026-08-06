@@ -56,8 +56,27 @@ export const queryKeys = {
       [...queryKeys.retailers.all, 'list-infinite', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.retailers.all, 'detail', id] as const,
     detailView: (id: string) => [...queryKeys.retailers.all, 'detail-view', id] as const,
+  },
+  /** Master Management — the small reference masters (outlet types, …). */
+  masters: {
+    all: ['masters'] as const,
+    /** GET /outlet-types — one page of the outlet-type master. */
     outletTypes: (filters?: Record<string, unknown>) =>
-      [...queryKeys.retailers.all, 'outlet-types', filters ?? {}] as const,
+      [...queryKeys.masters.all, 'outlet-types', filters ?? {}] as const,
+    /** Infinite ("All") variant of the outlet-type list. */
+    outletTypesInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.masters.all, 'outlet-types-infinite', filters ?? {}] as const,
+    /** GET /outlet-types/{id} — a single outlet type. */
+    outletType: (id: number) => [...queryKeys.masters.all, 'outlet-type', id] as const,
+    /** GET /payment-conditions — one page of the payment-condition master. */
+    paymentConditions: (filters?: Record<string, unknown>) =>
+      [...queryKeys.masters.all, 'payment-conditions', filters ?? {}] as const,
+    /** Infinite ("All") variant of the payment-condition list. */
+    paymentConditionsInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.masters.all, 'payment-conditions-infinite', filters ?? {}] as const,
+    /** GET /payment-conditions/{id} — a single payment condition. */
+    paymentCondition: (id: number) =>
+      [...queryKeys.masters.all, 'payment-condition', id] as const,
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,

@@ -295,7 +295,7 @@ export function AllocationListPage() {
         isLoading={isLoading}
         itemName="plans"
         maxHeight="65vh"
-        pageSizeOptions={[10, 25, 50]}
+        pageSizeOptions={[5,10, 25, 50]}
         // Server-side everything: the response is one page, in the server's order.
         manualPagination
         pagination={pagination}

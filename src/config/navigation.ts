@@ -2,7 +2,6 @@ import type { LucideIcon } from 'lucide-react'
 import {
   LayoutDashboard,
   UserCog,
-  Network,
   Building2,
   MapPinned,
   Route,
@@ -10,6 +9,8 @@ import {
   ClipboardCheck,
   CalendarRange,
   Map,
+  Tags,
+  HandCoins,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -45,12 +46,12 @@ export const navGroups: NavGroup[] = [
         icon: UserCog,
         permission: 'sales-incharge:list',
       },
-      {
-        label: 'Hierarchy',
-        to: '/sales-incharge/hierarchy',
-        icon: Network,
-        permission: 'hierarchy:list',
-      },
+      // {
+      //   label: 'Hierarchy',
+      //   to: '/sales-incharge/hierarchy',
+      //   icon: Network,
+      //   permission: 'hierarchy:list',
+      // },
       {
         label: 'Beat Allocation',
         to: '/sales-incharge/beat-allocation',
@@ -90,24 +91,13 @@ export const navGroups: NavGroup[] = [
   {
     title: 'Journey Management',
     items: [
-      // These two screens are the same subject at two scopes, so they are named by
-      // the scope — "Journey Plans" and "Journey Plan" side by side differed only by
-      // an `s`, which is not a distinction anyone reads in a sidebar. The section
-      // heading already says Journey, so neither label repeats it.
       {
-        // Every sales incharge's month, one row each, with the chain tabs. Approving is one of
-        // the things it does, but a plan spends most of its life in the other three
-        // states, so neither the label nor the path is named after the last one. The
-        // older `/journey/approvals` and `/journey/allocations` both redirect here.
         label: 'Monthly Plans',
         to: '/journey/plans',
         icon: ClipboardCheck,
         permission: 'journey-plan:list',
       },
       {
-        // One sales incharge's month: the allocation, the calendar, and the two transitions.
-        // Not "Plan Editor" — a reviewer holding only `journey-plan:read` gets the
-        // same screen with every control read-only.
         label: 'Plan Detail',
         to: '/journey/plan',
         icon: CalendarRange,
@@ -121,6 +111,21 @@ export const navGroups: NavGroup[] = [
       },
     ],
   },
+  {
+    title: 'Master Management',
+    items: [
+      {
+        label: 'Outlet Types',
+        to: '/masters/outlet-types',
+        icon: Tags,
+      },
+      {
+        label: 'Payment Conditions',
+        to: '/masters/payment-conditions',
+        icon: HandCoins,
+      },
+    ],
+  },
 ]
 
 /** Page names for routes that don't appear in the sidebar (auth, errors, etc.). */
@@ -129,7 +134,6 @@ const extraTitles: Record<string, string> = {
   '/journey/live-day': 'Day Trail',
   '/profile': 'My Profile',
   '/login': 'Login',
-  '/verify-otp': 'Verify OTP',
   '/forgot-password': 'Forgot Password',
   '/reset-password': 'Reset Password',
 }

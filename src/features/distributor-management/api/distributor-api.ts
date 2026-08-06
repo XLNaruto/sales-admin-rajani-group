@@ -28,7 +28,6 @@ import type {
   DistributorUpdateInput,
   FirmType,
   MarketSystem,
-  PaymentCondition,
 } from '../types'
 
 /** Map the API's `owners[]` rows to the client-facing (camelCase) owner list. */
@@ -277,7 +276,7 @@ function buildScalarBody(input: DistributorCreateInput) {
     pan: str(input.panNumber),
     gstin: str(input.gstNumber),
     advance_cheque_numbers: str(input.advanceChequeNumbers),
-    payment_condition: input.paymentCondition,
+    payment_condition_id: input.paymentConditionId,
     bank_account_name: str(input.bankAccountName),
     bank_account_number: str(input.bankAccountNumber),
     bank_ifsc: str(input.bankIfsc),
@@ -382,7 +381,7 @@ export async function fetchDistributor(id: string): Promise<{
       gstPhoto: [],
       advanceChequeNumbers: r.advance_cheque_numbers ?? '',
       advanceChequePhoto: [],
-      paymentCondition: (r.payment_condition ?? undefined) as PaymentCondition | undefined,
+      paymentConditionId: idStr(r.payment_condition_id),
       bankAccountName: r.bank_account_name ?? '',
       bankAccountNumber: r.bank_account_number ?? '',
       bankIfsc: r.bank_ifsc ?? '',
@@ -469,7 +468,8 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       gstPhotoUrl: mediaUrl(r.gst_photo_path),
       advanceChequeNumbers: r.advance_cheque_numbers ?? null,
       advanceChequePhotoUrl: mediaUrl(r.advance_cheque_photo_path),
-      paymentCondition: r.payment_condition ?? null,
+      paymentConditionId: r.payment_condition_id ?? null,
+      paymentCondition: r.payment_condition_name ?? null,
       bankAccountName: r.bank_account_name ?? null,
       bankAccountNumber: r.bank_account_number ?? null,
       bankIfsc: r.bank_ifsc ?? null,

@@ -29,7 +29,7 @@ export interface AllocationFilters {
 
 const EMPTY_FILTERS: AllocationFilters = { search: '', status: null }
 
-const DEFAULT_PAGE_SIZE = 10
+const DEFAULT_PAGE_SIZE = 5
 
 export function useAllocationList() {
   const { can } = useCan()

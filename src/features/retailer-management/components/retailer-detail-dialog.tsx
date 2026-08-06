@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns'
-import { Store, X } from 'lucide-react'
+import { Store, Users, X } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -168,18 +168,50 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
                 </div>
               </div>
 
-              <SectionTitle>Shop &amp; Owner</SectionTitle>
+              <SectionTitle>Shop</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                <Field label="Owner Name" value={data.ownerName} />
-                <Field label="Owner Mobile" value={data.ownerMobile} />
-                <Field label="Alternate Mobile" value={data.alternateMobile} />
                 <Field label="Outlet Type" value={data.outletTypeName} />
-                <Field label="Owner Birth Date" value={formatDate(data.ownerBirthDate)} />
-                <Field
-                  label="Owner Anniversary"
-                  value={formatDate(data.ownerAnniversaryDate)}
-                />
+                <Field label="Market" value={data.market} />
               </dl>
+
+              <SectionTitle>
+                Owners &amp; Partners
+                {data.owners.length > 0 ? ` (${data.owners.length})` : ''}
+              </SectionTitle>
+              {data.owners.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No owners / partners on this record.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {data.owners.map((owner, index) => (
+                    <div
+                      key={`${owner.mobile}-${index}`}
+                      className="rounded-xl border border-border/60 p-4"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Users className="size-4 text-muted-foreground" />
+                        {/* Migrated single-owner records can have no name. */}
+                        <p className="text-sm font-medium text-foreground">
+                          {owner.name || `Owner ${index + 1}`}
+                        </p>
+                      </div>
+                      <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+                        <Field label="Mobile" value={owner.mobile} />
+                        <Field label="Alternate Mobile" value={owner.alternateMobile} />
+                        <Field
+                          label="Birth Date"
+                          value={formatDate(owner.birthDate ?? null)}
+                        />
+                        <Field
+                          label="Marriage Anniversary"
+                          value={formatDate(owner.anniversaryDate ?? null)}
+                        />
+                      </dl>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <SectionTitle>Address</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
@@ -187,9 +219,13 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
                 <Field label="Address" value={data.address} wide />
                 <Field label="Landmark" value={data.landmark} />
                 <Field label="Market" value={data.market} />
-                {/* Both derived: the nearest beat, and that beat's distributor. */}
+                {/* Both derived: the nearest beat, and the firms serving it —
+                    several when the beat is shared, so they're listed. */}
                 <Field label="Beat" value={data.beatName} />
-                <Field label="Distributor" value={data.distributorName} />
+                <Field
+                  label={data.distributors.length > 1 ? 'Distributors' : 'Distributor'}
+                  value={data.distributors.map((d) => d.name).join(', ')}
+                />
                 <Field label="State" value={data.stateName} />
                 <Field label="Zone" value={data.zoneName} />
                 <Field label="District" value={data.districtName} />

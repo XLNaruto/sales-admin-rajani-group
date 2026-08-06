@@ -2,10 +2,17 @@ import type { AuthUser } from '@/stores/auth-store'
 
 export type { AuthUser }
 
+/** Credentials POST /sales-incharge-admin/auth/password-login expects. */
+export interface LoginCredentials {
+  /** Login handle; case-sensitive. */
+  username: string
+  password: string
+}
+
 /**
- * Raw token response from POST /sales-incharge-admin/auth/login and /auth/refresh.
- * The login response carries no `user` object — the client user is built from
- * the verified phone identity (see `userFromPhone` in `api/auth-api.ts`).
+ * Raw token response from POST /sales-incharge-admin/auth/password-login and
+ * /auth/refresh. Neither carries a `user` object — the signed-in profile comes
+ * from `GET /sales-incharge-admin/me`.
  */
 export interface TokenResponse {
   access_token: string

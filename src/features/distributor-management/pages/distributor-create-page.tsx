@@ -12,6 +12,7 @@ import { FileInput } from "@/components/common/file-input";
 import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { useProductDivisions } from "../api/use-distributors";
+import { usePaymentConditions } from "@/features/master-management";
 import {
   useCitySelect,
   useDistrictSelect,
@@ -23,7 +24,6 @@ import {
   FIRM_TYPES,
   MARKET_SYSTEMS,
   MARKET_TYPES,
-  PAYMENT_CONDITIONS,
   WEEKLY_OFF_DAYS,
   YES_NO,
   toOptions,
@@ -87,6 +87,15 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     label: d.name,
   }));
 
+  // Payment-condition master — same shape as product divisions: a small list
+  // fetched whole and searched in-place. The form holds the picked row's id,
+  // which is what the distributor API stores as `payment_condition_id`.
+  const paymentConditions = usePaymentConditions();
+  const paymentConditionOptions = (paymentConditions.data?.items ?? []).map((c) => ({
+    value: String(c.id),
+    label: c.name,
+  }));
+
   const stateSelect = useStateSelect();
   const zoneSelect = useZoneSelect(toId(stateId));
   const districtSelect = useDistrictSelect(toId(zoneId));
@@ -114,10 +123,14 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
       return;
     }
 
-    if (city.stateId) setValue("stateId", String(city.stateId));
-    if (city.zoneId) setValue("zoneId", String(city.zoneId));
-    if (city.districtId) setValue("districtId", String(city.districtId));
-    setValue("talukaId", String(city.talukaId));
+    // Written with `shouldValidate` so a "Select a district" style error left
+    // over from a failed submit clears the moment the city supplies the value —
+    // `setValue` alone doesn't re-run validation.
+    const fill = { shouldValidate: true, shouldDirty: true } as const;
+    if (city.stateId) setValue("stateId", String(city.stateId), fill);
+    if (city.zoneId) setValue("zoneId", String(city.zoneId), fill);
+    if (city.districtId) setValue("districtId", String(city.districtId), fill);
+    setValue("talukaId", String(city.talukaId), fill);
 
     setGeoLabels({
       stateId: city.stateName ?? undefined,
@@ -884,18 +897,20 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           <Field
             label="Payment Condition"
             optional
-            error={errors.paymentCondition?.message}
+            error={errors.paymentConditionId?.message}
           >
             <Controller
               control={control}
-              name="paymentCondition"
+              name="paymentConditionId"
               render={({ field }) => (
                 <Combobox
                   value={field.value ?? ""}
                   onChange={field.onChange}
-                  options={PAYMENT_CONDITIONS}
-                  placeholder="Select…"
-                  searchable={false}
+                  options={paymentConditionOptions}
+                  placeholder={
+                    paymentConditions.isLoading ? "Loading…" : "Select…"
+                  }
+                  searchPlaceholder="Search payment condition"
                 />
               )}
             />

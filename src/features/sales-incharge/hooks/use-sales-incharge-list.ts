@@ -44,7 +44,7 @@ export function useSalesInchargeList() {
   // Server-side pagination + sorting state (mirrors TanStack Table's shapes).
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 5,
   });
   const [sorting, setSorting] = useState<SortingState>([]);
 

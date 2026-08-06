@@ -1,24 +1,22 @@
 import { z } from 'zod'
 
-/** 10-digit Indian mobile number (leading 6–9). */
-const mobile = z
-  .string()
-  .trim()
-  .regex(/^[6-9]\d{9}$/, 'Enter a valid 10-digit mobile number')
-
-/** Step 1 — request an OTP for a mobile number. */
-export const mobileSchema = z.object({
-  mobile,
+/**
+ * Sign-in credentials. Mirrors the constraints the backend enforces on
+ * POST /sales-incharge-admin/auth/password-login, so bad input never leaves
+ * the browser.
+ */
+export const loginSchema = z.object({
+  username: z
+    .string()
+    .trim()
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username must be at most 50 characters')
+    .regex(/^[A-Za-z0-9._-]+$/, 'Only letters, numbers and . _ - are allowed'),
+  password: z
+    .string()
+    .min(1, 'Enter your password')
+    .max(200, 'Password must be at most 200 characters'),
   remember: z.boolean(),
 })
 
-/** Step 2 — verify the 6-digit code. */
-export const otpSchema = z.object({
-  otp: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
-})
-
-export type MobileValues = z.infer<typeof mobileSchema>
-export type OtpValues = z.infer<typeof otpSchema>
+export type LoginValues = z.infer<typeof loginSchema>

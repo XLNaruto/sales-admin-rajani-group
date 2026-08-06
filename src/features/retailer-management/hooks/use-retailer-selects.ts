@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { ComboboxOption } from '@/components/ui/combobox'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useBeatsInfinite } from '@/features/beat-creation'
-import { useOutletTypes } from '../api/use-retailers'
+import { useOutletTypes } from '@/features/master-management'
 
 /**
  * Outlet-type options. The master is small, so the whole list is fetched once

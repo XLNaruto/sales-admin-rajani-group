@@ -22,10 +22,13 @@ import type {
   RetailerStatus,
 } from '../types'
 
-/** Map a table column id → the list endpoint's `sort_by` value. */
+/**
+ * Map a table column id → the list endpoint's `sort_by` value. The owner column
+ * is absent on purpose: an outlet can have several owners, so the endpoint won't
+ * sort on them.
+ */
 const SORT_BY_COLUMN: Record<string, RetailerSortBy> = {
   shopName: 'shop_name',
-  owner: 'owner_name',
   city: 'city_id',
   status: 'status',
 }
@@ -51,7 +54,7 @@ export function useRetailersList() {
   // Server-side pagination + sorting state (mirrors TanStack Table's shapes).
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 10,
+    pageSize: 5,
   })
   const [sorting, setSorting] = useState<SortingState>([])
 

@@ -7,7 +7,7 @@ import { FileInput } from '@/components/common/file-input'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox } from '@/components/ui/combobox'
-import { Field, DatePicker } from '@/features/beat-creation'
+import { Field } from '@/features/beat-creation'
 import { GeoLocationPicker } from '@/components/maps/geo-location-picker'
 import {
   useCitySelect,
@@ -16,6 +16,7 @@ import {
   useTalukaSelect,
   useZoneSelect,
 } from '@/features/location'
+import { OwnerPartnersField } from '../components/owner-partners-field'
 import { useRetailerForm } from '../hooks/use-retailer-form'
 import { useOutletTypeOptions } from '../hooks/use-retailer-selects'
 
@@ -57,16 +58,7 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
     isLoading,
     isError,
     goBack,
-    currentYear,
-    maxBirthDate,
-    maxDate,
-    birthDate,
   } = useRetailerForm(id || undefined)
-
-  // Keep a mobile input to digits only, capped at 10 — mirrors the login page.
-  const digitsOnly = (max: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, max)
-  }
 
   const title = isEdit ? 'Edit Retailer' : 'Add Retailer'
   const description = isEdit
@@ -92,6 +84,10 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
    * cities API returns (it carries the full ancestry), so the user only has to
    * choose one field. Choosing a level manually clears the back-filled names
    * below it, since those selects go back to driving themselves.
+   *
+   * The back-filled levels are written with `shouldValidate` so a "Select a
+   * district" style error left over from a failed submit clears the moment the
+   * city supplies the value — `setValue` alone doesn't re-run validation.
    */
   const onCityChange = (value: string, onChange: (v: string) => void) => {
     onChange(value)
@@ -102,10 +98,11 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
       return
     }
 
-    if (city.stateId) setValue('stateId', String(city.stateId))
-    if (city.zoneId) setValue('zoneId', String(city.zoneId))
-    if (city.districtId) setValue('districtId', String(city.districtId))
-    setValue('talukaId', String(city.talukaId))
+    const fill = { shouldValidate: true, shouldDirty: true } as const
+    if (city.stateId) setValue('stateId', String(city.stateId), fill)
+    if (city.zoneId) setValue('zoneId', String(city.zoneId), fill)
+    if (city.districtId) setValue('districtId', String(city.districtId), fill)
+    setValue('talukaId', String(city.talukaId), fill)
 
     setGeoLabels({
       stateId: city.stateName ?? undefined,
@@ -170,70 +167,25 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
             <Input placeholder="Shop Name" {...register('shopName')} />
           </Field>
 
-          <Field label="Owner Name" optional error={errors.ownerName?.message}>
-            <Input placeholder="Owner Name" {...register('ownerName')} />
-          </Field>
-
-          <Field label="Owner Mobile Number" error={errors.ownerMobile?.message}>
-            <Input
-              type="text"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="10-digit mobile number"
-              {...register('ownerMobile', { onChange: digitsOnly(10) })}
-            />
-          </Field>
-
-          <Field
-            label="Alternate Mobile Number"
-            optional
-            error={errors.alternateMobile?.message}
-          >
-            <Input
-              type="text"
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="10-digit mobile number"
-              {...register('alternateMobile', { onChange: digitsOnly(10) })}
-            />
-          </Field>
-
-          <Field label="Owner Birth Date" optional error={errors.ownerBirthDate?.message}>
-            <Controller
-              control={control}
-              name="ownerBirthDate"
-              render={({ field }) => (
-                <DatePicker
-                  value={field.value ?? ''}
-                  onChange={field.onChange}
-                  fromYear={1940}
-                  toYear={currentYear}
-                  maxDate={maxBirthDate}
-                />
-              )}
-            />
-          </Field>
-
-          <Field
-            label="Owner Marriage Anniversary Date"
-            optional
-            error={errors.ownerAnniversaryDate?.message}
-          >
-            <Controller
-              control={control}
-              name="ownerAnniversaryDate"
-              render={({ field }) => (
-                <DatePicker
-                  value={field.value ?? ''}
-                  onChange={field.onChange}
-                  fromYear={1960}
-                  toYear={currentYear}
-                  minDate={birthDate}
-                  maxDate={maxDate}
-                />
-              )}
-            />
-          </Field>
+          {/* Every owner/partner of the outlet — managed in its own modal since
+              a shop can have several, each with contact + greeting dates. */}
+          <Controller
+            control={control}
+            name="owners"
+            render={({ field }) => (
+              <OwnerPartnersField
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={
+                  errors.owners?.message ??
+                  errors.owners?.root?.message ??
+                  (Array.isArray(errors.owners)
+                    ? 'Some owner details are incomplete. Open “Manage Owners” to fix them.'
+                    : undefined)
+                }
+              />
+            )}
+          />
 
           {/* ---------------------- Address -------------------- */}
           <FormSection

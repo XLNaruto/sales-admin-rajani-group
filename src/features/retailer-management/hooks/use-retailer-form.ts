@@ -18,27 +18,6 @@ import { splitLatLng } from '../lib/retailer-reference'
 import type { GeoLabels } from '@/features/location'
 import type { RetailerCreateInput } from '../types'
 
-const CURRENT_YEAR = new Date().getFullYear()
-
-/** Latest allowed birth date — today shifted back 18 years, so anyone younger
- *  than 18 can't be selected. */
-const MAX_BIRTH_DATE = (() => {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - 18)
-  return d
-})()
-
-/** Today — the latest selectable date, so future anniversaries can't be picked. */
-const TODAY = new Date()
-
-/** Parse a 'yyyy-MM-dd' form value into a local Date (or undefined when blank),
- *  for use as a date-picker bound. */
-const toDate = (v?: string) => {
-  if (!v) return undefined
-  const [y, m, d] = v.split('-').map(Number)
-  return y && m && d ? new Date(y, m - 1, d) : undefined
-}
-
 /** Trim an optional text field, collapsing blanks to undefined. */
 const str = (v?: string) => (v && v.trim() !== '' ? v.trim() : undefined)
 
@@ -66,11 +45,13 @@ function toInput(values: RetailerFormValues): RetailerCreateInput {
   return {
     code: str(values.code),
     shopName: values.shopName,
-    ownerName: str(values.ownerName),
-    ownerMobile: values.ownerMobile,
-    alternateMobile: str(values.alternateMobile),
-    ownerBirthDate: str(values.ownerBirthDate),
-    ownerAnniversaryDate: str(values.ownerAnniversaryDate),
+    owners: values.owners.map((o) => ({
+      name: o.name,
+      mobile: o.mobile,
+      alternateMobile: o.alternateMobile,
+      birthDate: o.birthDate,
+      anniversaryDate: o.anniversaryDate,
+    })),
 
     addressLine: str(values.addressLine),
     address: str(values.address),
@@ -149,9 +130,6 @@ export function useRetailerForm(id?: string) {
   const removeExistingPhoto = (index: number) =>
     setExistingPhoto((prev) => prev.filter((_, i) => i !== index))
 
-  // Owner's birth date bounds the anniversary picker.
-  const birthDate = toDate(watch('ownerBirthDate'))
-
   // Cascading territory selection — watch parents to scope child options.
   const stateId = watch('stateId')
   const zoneId = watch('zoneId')
@@ -224,10 +202,5 @@ export function useRetailerForm(id?: string) {
     isLoading: isEdit && detail.isLoading,
     isError: isEdit && detail.isError,
     goBack,
-    currentYear: CURRENT_YEAR,
-    maxBirthDate: MAX_BIRTH_DATE,
-    maxDate: TODAY,
-    /** Owner's birth date as a Date — lower bound for the anniversary picker. */
-    birthDate,
   }
 }

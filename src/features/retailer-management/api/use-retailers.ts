@@ -17,7 +17,6 @@ import {
   updateRetailer,
   updateRetailerOnboarding,
 } from './retailer-api'
-import { fetchOutletTypes, type OutletTypeListParams } from './outlet-type-api'
 import type {
   RetailerCreateInput,
   RetailerLifecycleStatus,
@@ -59,28 +58,6 @@ export function useRetailersInfinite(
     getNextPageParam: (lastPage) =>
       lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     enabled: options.enabled ?? true,
-  })
-}
-
-/**
- * GET /sales-incharge-admin/outlet-types — the master behind the form's
- * "Outlet Type" select. Rarely changes, so it's cached for 5 minutes; a large
- * page_size fetches the full (small) list in one go.
- */
-export function useOutletTypes(params: OutletTypeListParams = {}) {
-  return useQuery({
-    queryKey: queryKeys.retailers.outletTypes(params as Record<string, unknown>),
-    // Only active types are offerable, and the master is small enough to fetch
-    // in one page (`page_size` caps at 100).
-    queryFn: () =>
-      fetchOutletTypes({
-        pageSize: 100,
-        status: 'active',
-        sortBy: 'type_name',
-        sortOrder: 'asc',
-        ...params,
-      }),
-    staleTime: 5 * 60 * 1000,
   })
 }
 

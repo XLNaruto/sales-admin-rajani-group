@@ -339,7 +339,7 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="GST Number" value={data.gstNumber} />
                 <Field
                   label="Payment Condition"
-                  value={data.paymentCondition ? labelFor(data.paymentCondition) : null}
+                  value={data.paymentCondition}
                 />
                 <Field
                   label="Advance Cheque Numbers"

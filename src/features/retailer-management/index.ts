@@ -5,7 +5,6 @@ export {
   useRetailersInfinite,
   useRetailer,
   useRetailerDetail,
-  useOutletTypes,
   useCreateRetailer,
   useUpdateRetailer,
   useSetRetailerStatus,
@@ -15,6 +14,8 @@ export {
 } from './api/use-retailers'
 export type {
   Retailer,
+  RetailerOwner,
+  RetailerDistributor,
   RetailerCreateInput,
   RetailerUpdateInput,
   RetailerDetailView,
@@ -24,5 +25,4 @@ export type {
   RetailerOnboardingAction,
   RetailerListParams,
   RetailerSortBy,
-  OutletType,
 } from './types'

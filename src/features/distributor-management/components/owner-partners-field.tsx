@@ -313,12 +313,12 @@ function OwnerPartnersDialog({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">#</TableHead>
-                      <TableHead>Name</TableHead>
+                      <TableHead className="w-24">Actions</TableHead>
+                      <TableHead className="min-w-56">Name</TableHead>
                       <TableHead>Mobile</TableHead>
                       <TableHead>E-mail</TableHead>
                       <TableHead>Birth Date</TableHead>
                       <TableHead>Anniversary</TableHead>
-                      <TableHead className="w-24 text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -329,6 +329,34 @@ function OwnerPartnersDialog({
                       >
                         <TableCell className="tabular-nums text-muted-foreground">
                           {index + 1}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Hint label="Edit">
+                              <button
+                                type="button"
+                                aria-label={`Edit ${owner.name}`}
+                                className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                onClick={() => {
+                                  setEditing(index);
+                                  setDraft(owner);
+                                  setErrors({});
+                                }}
+                              >
+                                <Pencil className="size-4" />
+                              </button>
+                            </Hint>
+                            <Hint label="Remove">
+                              <button
+                                type="button"
+                                aria-label={`Remove ${owner.name}`}
+                                className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => remove(index)}
+                              >
+                                <Trash2 className="size-4" />
+                              </button>
+                            </Hint>
+                          </div>
                         </TableCell>
                         <TableCell className="font-medium">
                           {owner.name}
@@ -356,34 +384,6 @@ function OwnerPartnersDialog({
                             <Heart className="size-3.5 text-muted-foreground" />
                             {formatDate(owner.anniversaryDate) || "—"}
                           </span>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Hint label="Edit">
-                              <button
-                                type="button"
-                                aria-label={`Edit ${owner.name}`}
-                                className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                                onClick={() => {
-                                  setEditing(index);
-                                  setDraft(owner);
-                                  setErrors({});
-                                }}
-                              >
-                                <Pencil className="size-4" />
-                              </button>
-                            </Hint>
-                            <Hint label="Remove">
-                              <button
-                                type="button"
-                                aria-label={`Remove ${owner.name}`}
-                                className="grid size-8 cursor-pointer place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                                onClick={() => remove(index)}
-                              >
-                                <Trash2 className="size-4" />
-                              </button>
-                            </Hint>
-                          </div>
                         </TableCell>
                       </TableRow>
                     ))}

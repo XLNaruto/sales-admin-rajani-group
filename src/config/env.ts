@@ -35,10 +35,7 @@ const envSchema = z.object({
   /** Secret used to derive the key that encrypts persisted client storage. */
   VITE_APP_ENCRYPT_KEY: z.string().default('sales-admin-storage-key'),
 
-  /** Account type this portal authenticates as (account-check + login). */
-  VITE_APP_USER_TYPE: z.string().default('salesInchargeAdmin'),
-
-  // --- Firebase (Phone Auth + Cloud Messaging) -----------------------------
+  // --- Firebase (Cloud Messaging) ------------------------------------------
   // Public web-app config (ships in the client bundle), so defaults are safe.
   // Supplied as a single JSON object via VITE_FIREBASE_CONFIG; override per
   // environment. The VAPID key is a separate var (not part of the app config).
@@ -75,7 +72,7 @@ if (!parsed.success) {
 
 export const env = parsed.data
 
-/** True once the minimum Firebase web config is present (Auth + Messaging). */
+/** True once the minimum Firebase web config is present (Cloud Messaging). */
 export const isFirebaseConfigured =
   Boolean(env.VITE_FIREBASE_CONFIG.apiKey) &&
   Boolean(env.VITE_FIREBASE_CONFIG.authDomain) &&

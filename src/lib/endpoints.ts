@@ -13,8 +13,8 @@ export const endpoints = {
     GET: '/sales-incharge-admin/permissions',
   },
   AUTH: {
-    ACCOUNT_CHECK: '/sales-incharge-admin/auth/account-check',
-    LOGIN: '/sales-incharge-admin/auth/login',
+    /** Username + password sign-in; returns the access/refresh token pair. */
+    PASSWORD_LOGIN: '/sales-incharge-admin/auth/password-login',
     REFRESH_TOKEN: '/sales-incharge-admin/auth/refresh',
     LOGOUT: '/sales-incharge-admin/auth/logout',
   },
@@ -94,9 +94,27 @@ export const endpoints = {
     /** Presign the shop photo upload (same contract as the distributor presigns). */
     SHOP_PHOTO_PRESIGN: '/sales-incharge-admin/retailers/shop-photos/presign',
   },
-  /** Outlet-type master — backs the retailer form's "Outlet Type" select. */
+  /**
+   * Outlet-type master — the Master Management screen, and the master behind
+   * the retailer form's "Outlet Type" select.
+   */
   OUTLET_TYPE: {
     LIST: '/sales-incharge-admin/outlet-types',
+    CREATE: '/sales-incharge-admin/outlet-types',
+    GET: (id: string | number) => `/sales-incharge-admin/outlet-types/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/outlet-types/${id}`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/outlet-types/${id}`,
+  },
+  /**
+   * Payment-condition master — the terms a distributor trades on (e.g.
+   * `Credit 30 Days`). Same shape as the outlet-type master.
+   */
+  PAYMENT_CONDITION: {
+    LIST: '/sales-incharge-admin/payment-conditions',
+    CREATE: '/sales-incharge-admin/payment-conditions',
+    GET: (id: string | number) => `/sales-incharge-admin/payment-conditions/${id}`,
+    UPDATE: (id: string | number) => `/sales-incharge-admin/payment-conditions/${id}`,
+    DELETE: (id: string | number) => `/sales-incharge-admin/payment-conditions/${id}`,
   },
   /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
   BEAT: {

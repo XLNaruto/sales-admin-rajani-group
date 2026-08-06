@@ -22,7 +22,7 @@ const SORT_BY_COLUMN: Record<string, BeatSortBy> = {
  */
 export function useBeatsList() {
   const [filters, setFilters] = useState<BeatFilters>(INITIAL_FILTERS)
-  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 })
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 5 })
   const [sorting, setSorting] = useState<SortingState>([])
 
   // Any filter/sort change resets to the first page.

@@ -914,8 +914,3 @@
   display: none;
 }
 
-/* Firebase Phone Auth reCAPTCHA badge — keep it above the auth footer. */
-.grecaptcha-badge {
-  z-index: 100 !important;
-}
-

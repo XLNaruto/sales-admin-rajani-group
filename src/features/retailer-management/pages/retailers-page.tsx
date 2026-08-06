@@ -252,17 +252,35 @@ export function RetailersPage() {
       },
       {
         id: 'owner',
-        accessorFn: (r) => r.ownerName,
-        header: ({ column }) => <DataTableColumnHeader column={column} title="Owner" />,
+        accessorFn: (r) => r.owners[0]?.name,
+        header: 'Owner',
+        // An outlet can have several owners, so there's no single value for the
+        // endpoint to order on — its `sort_by` enum omits the owner columns.
+        enableSorting: false,
         cell: ({ row }) => {
-          const { ownerName, ownerMobile } = row.original
-          if (!ownerName && !ownerMobile)
-            return <span className="text-muted-foreground">N/A</span>
+          // The first owner stands in for the outlet; the rest are one click
+          // away in "view details", so only their count is shown here.
+          const [first, ...rest] = row.original.owners
+          if (!first) return <span className="text-muted-foreground">N/A</span>
           return (
             <div className="leading-tight">
-              <p className="text-sm text-foreground">{ownerName || 'N/A'}</p>
-              {ownerMobile && (
-                <p className="text-xs text-muted-foreground tabular-nums">{ownerMobile}</p>
+              <p className="flex items-center gap-1.5 text-sm text-foreground">
+                <span className="truncate">{first.name || 'N/A'}</span>
+                {rest.length > 0 && (
+                  <Hint label={rest.map((o) => o.name || 'Unnamed').join(', ')}>
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 cursor-default px-1.5 py-0 text-[10px] font-medium tabular-nums"
+                    >
+                      +{rest.length}
+                    </Badge>
+                  </Hint>
+                )}
+              </p>
+              {first.mobile && (
+                <p className="text-xs text-muted-foreground tabular-nums">
+                  {first.mobile}
+                </p>
               )}
             </div>
           )
@@ -291,15 +309,20 @@ export function RetailersPage() {
         enableSorting: false,
         cell: ({ row }) => {
           // The beat is auto-assigned from the outlet's coordinates, and the
-          // distributor is whoever owns that beat.
-          const { beatName, distributorName } = row.original
-          if (!beatName && !distributorName)
+          // distributors are the firms serving that beat — several when shared.
+          const { beatName, distributors } = row.original
+          if (!beatName && distributors.length === 0)
             return <span className="text-muted-foreground">N/A</span>
+          const names = distributors.map((d) => d.name)
           return (
             <div className="leading-tight">
               <p className="text-sm text-foreground">{beatName || 'N/A'}</p>
-              {distributorName && (
-                <p className="text-xs text-muted-foreground">{distributorName}</p>
+              {names.length > 0 && (
+                <Hint label={names.join(', ')}>
+                  <p className="max-w-40 truncate text-xs text-muted-foreground">
+                    {names.join(', ')}
+                  </p>
+                </Hint>
               )}
             </div>
           )
