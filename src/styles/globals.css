@@ -177,15 +177,29 @@
     font-family: var(--font-heading);
   }
 
-  /* Kill the browser autofill white/yellow background so themed (glassy)
-     inputs keep their look; only recolor the text + caret. */
+  /* Kill the browser autofill white/yellow/lavender background so themed
+     (glassy) inputs keep their look; only recolor the text + caret.
+     The transition alone loses the race when the fill happens on page load or
+     straight from the password manager, so `background-clip: text` clips the
+     injected background to the glyphs — nothing paints over the field. */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus,
-  input:-webkit-autofill:active {
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  textarea:-webkit-autofill:hover,
+  textarea:-webkit-autofill:focus,
+  select:-webkit-autofill,
+  select:-webkit-autofill:hover,
+  select:-webkit-autofill:focus,
+  input:autofill,
+  textarea:autofill,
+  select:autofill {
     -webkit-text-fill-color: var(--color-foreground);
     caret-color: var(--color-foreground);
-    /* Long transition keeps the injected background from ever painting. */
+    -webkit-background-clip: text;
+    background-clip: text;
+    /* Belt-and-braces: also defer the injected background indefinitely. */
     transition: background-color 9999s ease-in-out 0s;
   }
 
@@ -333,6 +347,30 @@
   .animate-auth-mesh,
   .animate-auth-ticker,
   .animate-auth-count {
+    animation: none;
+  }
+}
+
+/* Drafts counter — a soft blink so unfinished work keeps asking to be noticed.
+   Fades rather than hard-toggling, and pushes out a halo on the beat. */
+@keyframes draft-blink {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 55%, transparent);
+  }
+  50% {
+    opacity: 0.6;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+}
+
+.animate-draft-blink {
+  animation: draft-blink 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-draft-blink {
     animation: none;
   }
 }
