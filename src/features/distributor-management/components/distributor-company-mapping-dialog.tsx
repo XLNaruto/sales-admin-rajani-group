@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Layers, Loader2 } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -11,15 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, MultiSelect } from "@/features/beat-creation";
+import { useCompanies } from "@/features/company";
 import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
-import {
-  useProductDivisions,
-  useUpdateDistributorProductDivisions,
-} from "../api/use-distributors";
+import { useUpdateDistributorCompanies } from "../api/use-distributors";
 import type { Distributor } from "../types";
 
-interface DistributorCategoryMappingDialogProps {
-  /** The distributor whose product divisions are being mapped; null closes the dialog. */
+interface DistributorCompanyMappingDialogProps {
+  /** The distributor whose companies are being mapped; null closes the dialog. */
   distributor: Distributor | null;
   onClose: () => void;
 }
@@ -32,45 +30,44 @@ function sameSet(a: string[], b: string[]) {
 }
 
 /**
- * Category mapping (Product Division) modal.
+ * Company mapping modal.
  *
- * Loads the product-division master, pre-selects what the distributor already
- * handles, and PATCHes the complete new set to
- * …/distributors/{id}/product-divisions. The endpoint replaces the whole
- * selection, so clearing every option is a valid save that unmaps the firm.
+ * Lists the companies (tenants) the caller belongs to, pre-selects the ones the
+ * distributor is already attached to, and PATCHes the complete new set to
+ * …/distributors/{id}/companies. The endpoint replaces the whole selection, so
+ * clearing every option is a valid save that detaches the firm.
  */
-export function DistributorCategoryMappingDialog({
+export function DistributorCompanyMappingDialog({
   distributor,
   onClose,
-}: DistributorCategoryMappingDialogProps) {
+}: DistributorCompanyMappingDialogProps) {
   const open = distributor !== null;
-  const productDivisions = useProductDivisions();
-  const update = useUpdateDistributorProductDivisions();
+  const companies = useCompanies();
+  const update = useUpdateDistributorCompanies();
 
   // `MultiSelect` is string-keyed, so ids are carried as strings throughout and
   // converted back to numbers in the API layer.
   const options = useMemo(
     () =>
-      (productDivisions.data?.items ?? []).map((d) => ({
-        value: String(d.id),
-        label: d.name,
+      (companies.data?.companies ?? []).map((c) => ({
+        value: String(c.id),
+        label: c.name,
       })),
-    [productDivisions.data],
+    [companies.data],
   );
 
-  // What the row says is currently mapped. The list endpoint returns the ids;
-  // older rows that only carry names are matched back through the master list.
+  // What the row says is currently attached. The list endpoint returns the ids;
+  // rows that only carry names are matched back through the company list.
   const current = useMemo(() => {
     if (!distributor) return [];
-    if (distributor.productDivisionIds?.length)
-      return distributor.productDivisionIds;
-    const names = new Set(distributor.productDivisionNames ?? []);
+    if (distributor.companyIds?.length) return distributor.companyIds;
+    const names = new Set(distributor.companyNames ?? []);
     return options.filter((o) => names.has(o.label)).map((o) => o.value);
   }, [distributor, options]);
 
   const [selected, setSelected] = useState<string[]>([]);
 
-  // Seed (and re-seed) the selection each time the dialog opens or the master
+  // Seed (and re-seed) the selection each time the dialog opens or the company
   // list resolves.
   useEffect(() => {
     setSelected(current);
@@ -81,26 +78,26 @@ export function DistributorCategoryMappingDialog({
   const save = () => {
     if (!distributor || !canSave) return;
     update.mutate(
-      { id: distributor.id, productDivisionIds: selected },
+      { id: distributor.id, companyIds: selected },
       {
         onSuccess: () => {
           toast.success(
             selected.length
-              ? `Category mapping updated for ${distributor.firmName}`
-              : `Category mapping cleared for ${distributor.firmName}`,
+              ? `Company mapping updated for ${distributor.firmName}`
+              : `Company mapping cleared for ${distributor.firmName}`,
           );
           onClose();
         },
         onError: (error) => {
-          // A 404 means the distributor (or a division) has gone away since the
+          // A 404 means the distributor (or a company) has gone away since the
           // row was listed — worth surfacing the server's reason.
           if (errorStatus(error) === 404 || errorStatus(error) === 400) {
-            toast.error("Couldn't update the category mapping", {
+            toast.error("Couldn't update the company mapping", {
               description: getApiErrorMessage(error),
             });
             return;
           }
-          toast.error("Couldn't update the category mapping.");
+          toast.error("Couldn't update the company mapping.");
         },
       },
     );
@@ -112,14 +109,14 @@ export function DistributorCategoryMappingDialog({
         <DialogHeader>
           <div className="flex items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-              <Layers className="size-5" />
+              <Building2 className="size-5" />
             </span>
-            <DialogTitle>Category Mapping</DialogTitle>
+            <DialogTitle>Company Mapping</DialogTitle>
           </div>
           <DialogDescription>
             {distributor ? (
               <>
-                Map product divisions for{" "}
+                Map companies for{" "}
                 <span className="font-medium text-foreground">
                   {distributor.firmName}
                 </span>
@@ -131,20 +128,18 @@ export function DistributorCategoryMappingDialog({
 
         <div className="mt-5">
           <Field
-            label="Product Division"
+            label="Company"
             optional
-            hint="Saving replaces the current mapping. Clear every division to unmap the firm."
+            hint="Saving replaces the current mapping. Clear every company to detach the firm."
           >
             <MultiSelect
               value={selected}
               onChange={setSelected}
               options={options}
               placeholder={
-                productDivisions.isLoading
-                  ? "Loading…"
-                  : "Select product divisions…"
+                companies.isLoading ? "Loading…" : "Select companies…"
               }
-              searchPlaceholder="Search division"
+              searchPlaceholder="Search company"
             />
           </Field>
         </div>

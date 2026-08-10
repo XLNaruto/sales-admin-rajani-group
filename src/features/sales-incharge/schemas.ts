@@ -57,7 +57,13 @@ export const salesInchargeDetailSchema = z.object({
   email: z.string().nullish(),
   status: salesInchargeStatusSchema.catch('inactive'),
   employee_code: z.string().nullish(),
-  company_id: z.number().nullish(),
+  // A sales incharge can cover several companies, so the API returns an array
+  // of ids. A bare number is still accepted (and normalised) so a record from
+  // an older single-company deployment doesn't fail to parse.
+  company_id: z
+    .union([z.array(z.number()), z.number()])
+    .nullish()
+    .transform((v) => (v == null ? [] : Array.isArray(v) ? v : [v])),
   designation_id: z.number().nullish(),
   designation_name: z.string().nullish(),
   reports_to: z.number().nullish(),

@@ -6,7 +6,7 @@ import { presignResponseSchema, putToStorage, uploadFiles } from '@/lib/upload'
 import {
   distributorDetailSchema,
   distributorListResponseSchema,
-  distributorProductDivisionsResponseSchema,
+  distributorCompaniesResponseSchema,
   type DistributorOwnerRow,
   type DistributorRow,
 } from '../schemas'
@@ -68,8 +68,8 @@ function toDistributor(row: DistributorRow): Distributor {
     code: row.distributor_code ?? '',
     status: row.status as DistributorStatus,
     onboardingStatus: row.onboarding_status,
-    productDivisionIds: row.product_divisions?.map(String) ?? undefined,
-    productDivisionNames: row.product_division_names ?? undefined,
+    companyIds: row.company_id?.map(String) ?? undefined,
+    companyNames: row.company_names ?? undefined,
     // Fields not returned by the list endpoint — filled on the detail screen.
     officeAddress: '',
     stateId: '',
@@ -234,7 +234,9 @@ function buildScalarBody(input: DistributorCreateInput) {
   return {
     distributor_code: str(input.code),
     status: input.status,
-    product_divisions: (input.productDivisions ?? [])
+    // Companies (tenants) the distributor belongs to — several are allowed, and
+    // the array replaces whatever was attached before.
+    company_id: (input.companyIds ?? [])
       .map(Number)
       .filter((n) => Number.isFinite(n) && n > 0),
     firm_name: input.firmName,
@@ -346,7 +348,7 @@ export async function fetchDistributor(id: string): Promise<{
       email: r.email ?? '',
       code: r.distributor_code ?? '',
       status: r.status as DistributorFormValues['status'],
-      productDivisions: (r.product_divisions ?? []).map(String),
+      companyIds: (r.company_id ?? []).map(String),
       officeAddress: r.office_address ?? '',
       godownAddress: r.godown_address ?? '',
       homeAddress: r.home_address ?? '',
@@ -429,6 +431,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       communicationMobile: r.communication_mobile ?? null,
       multipleLogin: r.multiple_login_allowed ?? null,
       email: r.email ?? null,
+      companyNames: r.company_names ?? [],
 
       officeAddress: r.office_address ?? null,
       godownAddress: r.godown_address ?? null,
@@ -452,7 +455,6 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       officeImageUrls: (r.office_image_paths ?? []).map((p) => mediaUrl(p)),
       godownImageUrls: (r.godown_image_paths ?? []).map((p) => mediaUrl(p)),
 
-      productDivisionNames: r.product_division_names ?? [],
       otherAgencies: r.other_agencies_details ?? null,
       similarAgencies: r.similar_category_agencies ?? null,
       assignedProducts: r.assigned_products ?? null,
@@ -516,26 +518,26 @@ export async function deleteDistributor(id: string): Promise<void> {
 
 /** PATCH /sales-incharge-admin/distributors/{id}/status — change the lifecycle status. */
 /**
- * PATCH /sales-incharge-admin/distributors/{id}/product-divisions — category
- * mapping. The body carries the *complete* new set of division ids: it replaces
- * whatever was mapped before, and `[]` clears the mapping entirely. Returns the
+ * PATCH /sales-incharge-admin/distributors/{id}/companies — company mapping.
+ * The body carries the *complete* new set of company ids: it replaces whatever
+ * was attached before, and `[]` clears the mapping entirely. Returns the
  * mapping as the server stored it (ids + resolved names).
  */
-export async function updateDistributorProductDivisions(
+export async function updateDistributorCompanies(
   id: string,
-  productDivisionIds: string[],
+  companyIds: string[],
 ): Promise<{ ids: string[]; names: string[] }> {
   try {
-    const raw = await http.patch<unknown>(endpoints.DISTRIBUTOR.PRODUCT_DIVISIONS(id), {
-      product_divisions: productDivisionIds.map(Number).filter((n) => Number.isFinite(n)),
+    const raw = await http.patch<unknown>(endpoints.DISTRIBUTOR.COMPANIES(id), {
+      company_id: companyIds.map(Number).filter((n) => Number.isFinite(n)),
     })
-    const res = distributorProductDivisionsResponseSchema.parse(raw)
+    const res = distributorCompaniesResponseSchema.parse(raw)
     return {
-      ids: res.product_divisions?.map(String) ?? [],
-      names: res.product_division_names ?? [],
+      ids: res.company_id?.map(String) ?? [],
+      names: res.company_names ?? [],
     }
   } catch (error) {
-    throw asApiError(error, 'Failed to update the category mapping.')
+    throw asApiError(error, 'Failed to update the company mapping.')
   }
 }
 

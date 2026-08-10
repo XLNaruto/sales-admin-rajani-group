@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
+import { encryptParams } from "@/lib/crypto";
+import { useFormDraft } from "@/hooks/use-form-drafts";
 import {
   useCreateDistributor,
   useDistributor,
@@ -12,6 +14,8 @@ import {
 import {
   distributorSchema,
   distributorDefaults,
+  DISTRIBUTOR_DRAFT_KEY,
+  DISTRIBUTOR_FILE_FIELDS,
   type DistributorFormValues,
 } from "../lib/distributor-form";
 import type { GeoLabels } from "@/features/location";
@@ -109,7 +113,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     email: values.email,
     code: values.code ?? "",
     status: values.status,
-    productDivisions: values.productDivisions ?? [],
+    companyIds: values.companyIds ?? [],
     // Location & coverage
     officeAddress: values.officeAddress,
     godownAddress: str(values.godownAddress),
@@ -161,14 +165,27 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
  * newly-picked files with the paths already saved so untouched images survive.
  * Create mode POSTs a fresh record. The page consumes this and only lays out
  * fields.
+ *
+ * Create mode also autosaves to a local draft on every field blur, so an
+ * abandoned onboarding can be resumed from the list screen's Drafts picker
+ * (`draftId`). The draft is dropped once the record is actually created.
  */
-export function useDistributorForm(id?: string) {
+export function useDistributorForm(id?: string, draftId?: string) {
   const navigate = useNavigate();
   const isEdit = !!id;
 
   const createDistributor = useCreateDistributor();
   const updateDistributor = useUpdateDistributor();
   const detail = useDistributor(id);
+
+  const form = useForm<DistributorFormValues>({
+    resolver: zodResolver(distributorSchema),
+    mode: "onTouched",
+    defaultValues: distributorDefaults as DistributorFormValues,
+    // We scroll/focus the first error ourselves (see `scrollToFirstError`) so
+    // custom controls (Combobox/DatePicker/MultiSelect) are handled too.
+    shouldFocusError: false,
+  });
 
   const {
     register,
@@ -178,13 +195,29 @@ export function useDistributorForm(id?: string) {
     setValue,
     reset,
     formState: { errors },
-  } = useForm<DistributorFormValues>({
-    resolver: zodResolver(distributorSchema),
-    mode: "onTouched",
-    defaultValues: distributorDefaults as DistributorFormValues,
-    // We scroll/focus the first error ourselves (see `scrollToFirstError`) so
-    // custom controls (Combobox/DatePicker/MultiSelect) are handled too.
-    shouldFocusError: false,
+  } = form;
+
+  // Local draft autosave — create mode only; an existing record is already
+  // server-backed. A brand-new draft's id is pushed into the URL so a reload
+  // keeps writing to the same one instead of spawning duplicates.
+  const { saveOnBlur, clearDraft, isRestoring } = useFormDraft({
+    form,
+    formKey: DISTRIBUTOR_DRAFT_KEY,
+    draftId,
+    enabled: !isEdit,
+    fileFields: DISTRIBUTOR_FILE_FIELDS,
+    describe: (values) => ({
+      label: values.firmName?.trim() || "Untitled distributor",
+      summary: [values.owners?.[0]?.name, values.owners?.[0]?.mobile, values.email]
+        .filter(Boolean)
+        .join(" · "),
+    }),
+    onCreated: (newDraftId) =>
+      navigate({
+        to: "/distributors/create",
+        search: { data: encryptParams({ draftId: newDraftId }) },
+        replace: true,
+      }),
   });
 
   // Paths already saved on the record — shown as thumbnails and retained on
@@ -226,6 +259,8 @@ export function useDistributorForm(id?: string) {
     (values) => {
       const input = toInput(values);
       const onSuccess = () => {
+        // Only once the record exists — a failed request must keep the draft.
+        clearDraft();
         toast.success(`${values.firmName} ${isEdit ? "updated" : "created"}`);
         navigate({ to: "/distributors" });
       };
@@ -254,6 +289,25 @@ export function useDistributorForm(id?: string) {
 
   const goBack = () => navigate({ to: "/distributors" });
 
+  /** Swap the form over to another saved draft (from the in-page picker). */
+  const openDraft = (nextDraftId: string) =>
+    navigate({
+      to: "/distributors/create",
+      search: { data: encryptParams({ draftId: nextDraftId }) },
+    });
+
+  /**
+   * Abandon the draft in front of us and start clean. The route doesn't remount
+   * on a same-path navigation, so the form is reset by hand; dropping `data`
+   * from the URL is what tells `useFormDraft` to mint a fresh draft id on the
+   * next blur, leaving the old draft untouched in the list.
+   */
+  const startNewDraft = () => {
+    reset(distributorDefaults as DistributorFormValues);
+    setGeoLabels({});
+    navigate({ to: "/distributors/create", search: {} });
+  };
+
   return {
     register,
     control,
@@ -274,5 +328,13 @@ export function useDistributorForm(id?: string) {
     isLoading: isEdit && detail.isLoading,
     isError: isEdit && detail.isError,
     goBack,
+    openDraft,
+    startNewDraft,
+    /** The draft this form is writing to, if any — flagged in the picker. */
+    draftId,
+    /** Blur handler for the `<form>` — snapshots the values into the draft. */
+    saveOnBlur,
+    /** True while a draft is being resumed (`?data=` carried a draft id). */
+    isRestoring,
   };
 }

@@ -2,6 +2,7 @@ import { Controller } from "react-hook-form";
 import { ArrowLeft, Store, MapPin, Briefcase, Landmark } from "lucide-react";
 import { decryptParams } from "@/lib/crypto";
 import { PageHeader } from "@/components/common/page-header";
+import { DraftsButton } from "@/components/common/drafts-button";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,8 @@ import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "@/components/common/file-input";
 import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
-import { useProductDivisions } from "../api/use-distributors";
+import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
+import { useCompanies } from "@/features/company";
 import { usePaymentConditions } from "@/features/master-management";
 import {
   useCitySelect,
@@ -35,16 +37,21 @@ const toId = (v?: string) => (v ? Number(v) : undefined);
 
 interface DistributorCreatePageProps {
   /**
-   * Encrypted distributor id from the `?data=` search param. When present the
-   * page switches to edit mode (GET to seed, PATCH to save); otherwise it's a
-   * fresh create. The same page and form handle both.
+   * Encrypted params from the `?data=` search param. An `id` switches the page
+   * into edit mode (GET to seed, PATCH to save); a `draftId` resumes a locally
+   * saved draft. Neither → a fresh create. The same page and form handle all
+   * three.
    */
   data?: string;
 }
 
 export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
   // Decrypt the params from the URL; missing/malformed → create mode.
-  const id = data ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "") : "";
+  const params = data
+    ? decryptParams<{ id?: string | number; draftId?: string }>(data)
+    : null;
+  const id = params?.id != null ? String(params.id) : "";
+  const draftId = params?.draftId;
 
   const {
     register,
@@ -65,7 +72,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     isLoading,
     isError,
     goBack,
-  } = useDistributorForm(id || undefined);
+    saveOnBlur,
+    isRestoring,
+    openDraft,
+    startNewDraft,
+  } = useDistributorForm(id || undefined, draftId);
 
   // Keep a mobile input to digits only, capped at 10 — mirrors the login page.
   const digitsOnly = (max: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -75,16 +86,19 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
   const title = isEdit ? "Edit Distributor" : "Add Distributor";
   const description = isEdit
     ? "Update the distributor's firm, coverage, business and financial details."
-    : "Create a new distributor record with firm, coverage, business and financial details.";
+    : draftId
+      ? "Carrying on from a saved draft. Changes stay on this device until you submit."
+      : "Create a new distributor record with firm, coverage, business and financial details.";
   const submitLabel = isEdit ? "Update Distributor" : "Save Distributor";
 
   // Cascading geography masters — each level is a scroll-lazy, server-searched
   // dropdown scoped to its parent's id.
-  // Product-division master — small list; fetched whole and searched in-place.
-  const productDivisions = useProductDivisions();
-  const productDivisionOptions = (productDivisions.data?.items ?? []).map((d) => ({
-    value: String(d.id),
-    label: d.name,
+  // Company (tenant) options — the companies the caller belongs to (GET
+  // /me/companies). A distributor can be attached to more than one.
+  const companies = useCompanies();
+  const companyOptions = (companies.data?.companies ?? []).map((c) => ({
+    value: String(c.id),
+    label: c.name,
   }));
 
   // Payment-condition master — same shape as product divisions: a small list
@@ -141,8 +155,9 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     });
   };
 
-  // Edit-mode load / error states before the form is seeded.
-  if (isEdit && (isLoading || isError)) {
+  // Edit-mode load / error states before the form is seeded — and the brief
+  // read while a draft is restored, so fields don't flash empty first.
+  if ((isEdit && (isLoading || isError)) || isRestoring) {
     return (
       <div>
         <PageHeader
@@ -155,9 +170,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           }
         />
         <div className="mt-8 rounded-xl border border-border/50 bg-card p-10 text-center text-sm text-muted-foreground">
-          {isError
-            ? "Couldn't load this distributor. Please go back and try again."
-            : "Loading distributor…"}
+          {isRestoring
+            ? "Restoring your draft…"
+            : isError
+              ? "Couldn't load this distributor. Please go back and try again."
+              : "Loading distributor…"}
         </div>
       </div>
     );
@@ -169,14 +186,32 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
         title={title}
         description={description}
         actions={
-          <Button variant="outline" className="cursor-pointer" onClick={goBack}>
-            <ArrowLeft /> Back to list
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Create/draft mode only — an existing record is server-backed, so
+                there's no draft of it to switch between. */}
+            {!isEdit ? (
+              <DraftsButton
+                formKey={DISTRIBUTOR_DRAFT_KEY}
+                currentId={draftId}
+                onOpen={openDraft}
+                onNew={startNewDraft}
+                newTitle="Start a new blank draft"
+                newDescription="Clears the form — saved drafts are kept."
+              />
+            ) : null}
+            <Button variant="outline" className="cursor-pointer" onClick={goBack}>
+              <ArrowLeft /> Back to list
+            </Button>
+          </div>
         }
       />
 
       <form
         onSubmit={onSubmit}
+        // focusout bubbles, so this one listener snapshots the form into its
+        // local draft whenever any field loses focus — native inputs and the
+        // custom Combobox / DatePicker controls alike.
+        onBlur={saveOnBlur}
         autoComplete="off"
         className="mt-4 rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent"
       >
@@ -282,24 +317,24 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           </Field>
 
           <Field
-            label="Product Divisions"
-            optional
-            error={errors.productDivisions?.message}
+            label="Company"
+            hint="A distributor can be attached to more than one company"
+            error={
+              errors.companyIds?.message ?? errors.companyIds?.root?.message
+            }
           >
             <Controller
               control={control}
-              name="productDivisions"
+              name="companyIds"
               render={({ field }) => (
                 <MultiSelect
                   value={field.value ?? []}
                   onChange={field.onChange}
-                  options={productDivisionOptions}
+                  options={companyOptions}
                   placeholder={
-                    productDivisions.isLoading
-                      ? "Loading…"
-                      : "Select product divisions…"
+                    companies.isLoading ? "Loading…" : "Select companies…"
                   }
-                  searchPlaceholder="Search division"
+                  searchPlaceholder="Search company"
                 />
               )}
             />

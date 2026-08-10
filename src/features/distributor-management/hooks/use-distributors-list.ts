@@ -210,6 +210,13 @@ export function useDistributorsList() {
       to: "/distributors/create",
       search: { data: encryptParams({ id }) },
     });
+  // Resuming a local draft reuses the create page too — same `?data=` token,
+  // carrying a `draftId` instead of a record id.
+  const goToDraft = (draftId: string) =>
+    navigate({
+      to: "/distributors/create",
+      search: { data: encryptParams({ draftId }) },
+    });
 
   return {
     filters,
@@ -246,6 +253,7 @@ export function useDistributorsList() {
     isSettingStatus: setStatus.isPending,
     isSettingOnboarding: setOnboarding.isPending,
     goToCreate,
+    goToDraft,
     goToEdit,
   };
 }

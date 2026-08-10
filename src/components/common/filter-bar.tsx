@@ -7,6 +7,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
+import { popoverZ } from '@/lib/z-layers'
 
 /** A single faceted dropdown filter. */
 export interface FilterFacet {
@@ -210,7 +211,10 @@ export function FilterBar({
                 top: coords.top,
                 width: coords.width,
               }}
-              className="z-50 overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
+              className={cn(
+                'overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg',
+                popoverZ(triggerRef.current),
+              )}
             >
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <p className="text-sm font-semibold">Filters</p>

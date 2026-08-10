@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { encryptParams } from "@/lib/crypto";
+import { useFormDraft } from "@/hooks/use-form-drafts";
 import {
   useCreateSalesIncharge,
   useSalesIncharge,
@@ -11,6 +13,8 @@ import {
 import {
   salesInchargeSchema,
   salesInchargeDefaults,
+  SALES_INCHARGE_DRAFT_KEY,
+  SALES_INCHARGE_FILE_FIELDS,
   type SalesInchargeFormValues,
 } from "../lib/incharge-form";
 import type {
@@ -52,14 +56,24 @@ const toDate = (v?: string) => {
  * uploading any newly-picked photos and preserving untouched images plus the
  * server-managed fields the form doesn't edit. Create mode POSTs a fresh record.
  * The page consumes this and only lays out fields.
+ *
+ * Create mode also autosaves to a local draft on every field blur, so an
+ * abandoned form can be resumed from the list screen's Drafts picker
+ * (`draftId`). The draft is dropped once the record is actually created.
  */
-export function useSalesInchargeForm(id?: string) {
+export function useSalesInchargeForm(id?: string, draftId?: string) {
   const navigate = useNavigate();
   const isEdit = !!id;
 
   const createSalesIncharge = useCreateSalesIncharge();
   const updateSalesIncharge = useUpdateSalesIncharge();
   const detail = useSalesIncharge(id);
+
+  const form = useForm<SalesInchargeFormValues>({
+    resolver: zodResolver(salesInchargeSchema),
+    mode: "onTouched",
+    defaultValues: salesInchargeDefaults as SalesInchargeFormValues,
+  });
 
   const {
     register,
@@ -68,10 +82,27 @@ export function useSalesInchargeForm(id?: string) {
     reset,
     watch,
     formState: { errors },
-  } = useForm<SalesInchargeFormValues>({
-    resolver: zodResolver(salesInchargeSchema),
-    mode: "onTouched",
-    defaultValues: salesInchargeDefaults as SalesInchargeFormValues,
+  } = form;
+
+  // Local draft autosave — create mode only; an existing record is already
+  // server-backed. A brand-new draft's id is pushed into the URL so a reload
+  // keeps writing to the same one instead of spawning duplicates.
+  const { saveOnBlur, clearDraft, isRestoring } = useFormDraft({
+    form,
+    formKey: SALES_INCHARGE_DRAFT_KEY,
+    draftId,
+    enabled: !isEdit,
+    fileFields: SALES_INCHARGE_FILE_FIELDS,
+    describe: (values) => ({
+      label: values.name?.trim() || "Untitled sales incharge",
+      summary: [values.mobile, values.email].filter(Boolean).join(" · "),
+    }),
+    onCreated: (newDraftId) =>
+      navigate({
+        to: "/sales-incharge/create",
+        search: { data: encryptParams({ draftId: newDraftId }) },
+        replace: true,
+      }),
   });
 
   // Date-of-birth drives the lower bound of the anniversary / joining / exit
@@ -105,6 +136,8 @@ export function useSalesInchargeForm(id?: string) {
 
   const onSubmit = handleSubmit((values) => {
     const onSuccess = () => {
+      // Only once the record exists — a failed request must keep the draft.
+      clearDraft();
       toast.success(`${values.name} ${isEdit ? "updated" : "added to the sales team"}`);
       navigate({ to: "/sales-incharge" });
     };
@@ -130,6 +163,24 @@ export function useSalesInchargeForm(id?: string) {
 
   const goBack = () => navigate({ to: "/sales-incharge" });
 
+  /** Swap the form over to another saved draft (from the in-page picker). */
+  const openDraft = (nextDraftId: string) =>
+    navigate({
+      to: "/sales-incharge/create",
+      search: { data: encryptParams({ draftId: nextDraftId }) },
+    });
+
+  /**
+   * Abandon the draft in front of us and start clean. The route doesn't remount
+   * on a same-path navigation, so the form is reset by hand; dropping `data`
+   * from the URL is what tells `useFormDraft` to mint a fresh draft id on the
+   * next blur, leaving the old draft untouched in the list.
+   */
+  const startNewDraft = () => {
+    reset(salesInchargeDefaults as SalesInchargeFormValues);
+    navigate({ to: "/sales-incharge/create", search: {} });
+  };
+
   return {
     register,
     control,
@@ -141,7 +192,17 @@ export function useSalesInchargeForm(id?: string) {
     isPending: createSalesIncharge.isPending || updateSalesIncharge.isPending,
     isLoading: isEdit && detail.isLoading,
     isError: isEdit && detail.isError,
+    /** Why the record wouldn't load — shown under the failure message. */
+    error: detail.error,
     goBack,
+    openDraft,
+    startNewDraft,
+    /** The draft this form is writing to, if any — flagged in the picker. */
+    draftId,
+    /** Blur handler for the `<form>` — snapshots the values into the draft. */
+    saveOnBlur,
+    /** True while a draft is being resumed (`?data=` carried a draft id). */
+    isRestoring,
     currentYear: new Date().getFullYear(),
     maxBirthDate: MAX_BIRTH_DATE,
     /** Today — latest selectable date, so future dates can't be picked. */

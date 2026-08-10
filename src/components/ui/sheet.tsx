@@ -2,6 +2,7 @@ import * as React from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Z } from '@/lib/z-layers'
 import { dismissHints } from '@/lib/hint-bus'
 
 interface SheetProps {
@@ -39,7 +40,11 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
   if (!open) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+    <div
+      className={cn('fixed inset-0 flex justify-end', Z.modal)}
+      role="dialog"
+      aria-modal="true"
+    >
       <div
         className="dialog-overlay absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={() => onOpenChange(false)}

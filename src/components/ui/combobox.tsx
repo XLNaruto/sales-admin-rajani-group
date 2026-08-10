@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, ChevronDown, Loader2, Search, X, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { popoverZ } from '@/lib/z-layers'
 
 /** Rough panel height used to decide whether to open upward. */
 const PANEL_MAX = 300
@@ -306,7 +307,10 @@ export function Combobox({
                 bottom: coords.dropUp ? window.innerHeight - coords.top : undefined,
                 width: coords.width,
               }}
-              className="z-60 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg"
+              className={cn(
+                'overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+                popoverZ(wrapRef.current),
+              )}
             >
               {searchable ? (
                 <div className="relative mb-1">

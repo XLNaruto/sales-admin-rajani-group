@@ -99,14 +99,14 @@ export function Sidebar() {
         aria-hidden={!mobileOpen}
         onClick={closeMobile}
         className={cn(
-          'fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden',
+          'fixed inset-0 z-80 bg-slate-900/50 backdrop-blur-sm transition-opacity duration-300 lg:hidden',
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
 
       <aside
         className={cn(
-          'z-50 flex h-screen flex-col overflow-hidden border-sidebar-border bg-sidebar text-sidebar-foreground lg:border-r',
+          'z-90 flex h-screen flex-col overflow-hidden border-sidebar-border bg-sidebar text-sidebar-foreground lg:border-r',
           'transition-[translate,width] duration-300 ease-in-out will-change-[translate,width]',
           // Mobile/tablet: fixed drawer sliding from the left.
           'fixed inset-y-0 left-0 w-72 shadow-xl',

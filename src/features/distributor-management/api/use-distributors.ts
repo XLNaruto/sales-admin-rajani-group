@@ -14,13 +14,9 @@ import {
   fetchDistributors,
   setDistributorStatus,
   updateDistributor,
+  updateDistributorCompanies,
   updateDistributorOnboarding,
-  updateDistributorProductDivisions,
 } from "./distributor-api";
-import {
-  fetchProductDivisions,
-  type ProductDivisionListParams,
-} from "./product-division-api";
 import type {
   DistributorCreateInput,
   DistributorLifecycleStatus,
@@ -66,22 +62,6 @@ export function useDistributorsInfinite(
     getNextPageParam: (lastPage) =>
       lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     enabled: options.enabled ?? true,
-  });
-}
-
-/**
- * GET /sales-incharge-admin/product-divisions — the product-division master used
- * to populate the distributor form's "Product Divisions" multi-select. Rarely
- * changes, so it's cached for 5 minutes; a large page_size fetches the full
- * (small) list in one go.
- */
-export function useProductDivisions(params: ProductDivisionListParams = {}) {
-  return useQuery({
-    queryKey: queryKeys.distributors.productDivisions(
-      params as Record<string, unknown>,
-    ),
-    queryFn: () => fetchProductDivisions({ pageSize: 100, sortBy: "name", ...params }),
-    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -131,21 +111,15 @@ export function useUpdateDistributor() {
 }
 
 /**
- * PATCH /sales-incharge-admin/distributors/{id}/product-divisions — category
- * mapping. `productDivisionIds` is the complete new set (send `[]` to clear).
- * Every distributor list/detail query is refreshed so the mapped-division
- * columns pick the change up.
+ * PATCH /sales-incharge-admin/distributors/{id}/companies — company mapping.
+ * `companyIds` is the complete new set (send `[]` to clear). Every distributor
+ * list/detail query is refreshed so the company columns pick the change up.
  */
-export function useUpdateDistributorProductDivisions() {
+export function useUpdateDistributorCompanies() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      id,
-      productDivisionIds,
-    }: {
-      id: string;
-      productDivisionIds: string[];
-    }) => updateDistributorProductDivisions(id, productDivisionIds),
+    mutationFn: ({ id, companyIds }: { id: string; companyIds: string[] }) =>
+      updateDistributorCompanies(id, companyIds),
     // `distributors.all` is the prefix of every list/detail key, so one
     // invalidation refreshes the table and both detail views.
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),

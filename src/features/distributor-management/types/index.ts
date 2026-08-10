@@ -32,21 +32,6 @@ export interface DistributorOwner {
   anniversaryDate?: string
 }
 
-/** A product-division master option (id + display name). */
-export interface ProductDivision {
-  id: number
-  name: string
-}
-
-/** Normalised product-division list result: a page of rows + pagination. */
-export interface ProductDivisionListResult {
-  items: ProductDivision[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-
 export interface Distributor {
   id: string
 
@@ -61,10 +46,10 @@ export interface Distributor {
   code: string
   status: DistributorStatus
   onboardingStatus: DistributorOnboardingStatus
-  /** Product-division ids the distributor is mapped to (`product_divisions`). */
-  productDivisionIds?: string[]
-  /** Product-division names resolved by the list endpoint (`product_division_names`). */
-  productDivisionNames?: string[]
+  /** Company (tenant) ids the distributor is attached to (`company_id`). */
+  companyIds?: string[]
+  /** Company names resolved by the list endpoint (`company_names`). */
+  companyNames?: string[]
 
   // --- Location & coverage ---
   officeAddress: string
@@ -132,8 +117,11 @@ export interface DistributorCreateInput {
   email: string
   code?: string
   status: DistributorStatus
-  /** Selected product-division ids (as strings; sent to the API as numbers). */
-  productDivisions?: string[]
+  /**
+   * Selected company (tenant) ids — a distributor can belong to several. Held
+   * as strings by the form; sent to the API as the numeric `company_id` array.
+   */
+  companyIds?: string[]
 
   // --- Location & coverage ---
   officeAddress: string
@@ -225,6 +213,8 @@ export interface DistributorDetailView {
   communicationMobile: string | null
   multipleLogin: boolean | null
   email: string | null
+  /** Names of the companies (tenants) this distributor is attached to. */
+  companyNames: string[]
 
   // --- Location & coverage ---
   officeAddress: string | null
@@ -250,8 +240,6 @@ export interface DistributorDetailView {
   godownImageUrls: string[]
 
   // --- Business details ---
-  /** Product-division names this distributor handles. */
-  productDivisionNames: string[]
   otherAgencies: string | null
   similarAgencies: string | null
   assignedProducts: string | null

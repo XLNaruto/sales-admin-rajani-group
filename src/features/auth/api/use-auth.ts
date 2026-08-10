@@ -2,6 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/auth-store'
 import { useCompanyStore } from '@/stores/company-store'
 import { disconnectSocket } from '@/lib/realtime'
+import { clearAllDrafts } from '@/lib/form-drafts'
 import { logoutRequest, passwordLogin } from './auth-api'
 import type { AuthSession, LoginCredentials } from '../types'
 
@@ -42,6 +43,9 @@ export function useLogout() {
     onSettled: () => {
       logout()
       clearCompany()
+      // Unsubmitted drafts hold PII (names, mobiles, Aadhaar) — don't leave
+      // them on the device for whoever signs in next. Best-effort.
+      void clearAllDrafts()
       // The realtime socket authenticates with the access token we just dropped —
       // tear it down so the next session builds a fresh one with its own token.
       disconnectSocket()

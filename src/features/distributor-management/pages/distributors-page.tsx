@@ -4,8 +4,6 @@ import {
   Building2,
   Check,
   Eye,
-  Layers,
-  // Layers,
   Pencil,
   Plus,
   Trash2,
@@ -15,6 +13,7 @@ import { BadgeOverflowList } from "@/components/common/badge-overflow-list";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { Hint } from "@/components/common/hint";
 import { PageHeader } from "@/components/common/page-header";
+import { DraftsButton } from "@/components/common/drafts-button";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
 import { useCan } from "@/features/permissions";
 import { Badge } from "@/components/ui/badge";
@@ -22,11 +21,12 @@ import { Button } from "@/components/ui/button";
 import { isForbiddenError } from "@/lib/api-error";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
-import { DistributorCategoryMappingDialog } from "../components/distributor-category-mapping-dialog";
+import { DistributorCompanyMappingDialog } from "../components/distributor-company-mapping-dialog";
 import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
 import { DistributorToolbar } from "../components/distributor-toolbar";
 import { useDistributorsList } from "../hooks/use-distributors-list";
 import { labelFor } from "../lib/distributor-reference";
+import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
 import type { Distributor, DistributorOnboardingStatus } from "../types";
 
 /** Badge tint per onboarding-approval state. */
@@ -74,6 +74,7 @@ export function DistributorsPage() {
     isSettingStatus,
     isSettingOnboarding,
     goToCreate,
+    goToDraft,
     goToEdit,
   } = useDistributorsList();
 
@@ -119,13 +120,13 @@ export function DistributorsPage() {
               </Hint>
             )}
             {can("distributor-master:update") && (
-              <Hint label="Category mapping">
+              <Hint label="Company mapping">
                 <button
                   type="button"
                   onClick={() => setMappingRow(row.original)}
                   className="grid size-8 cursor-pointer place-items-center rounded-lg bg-violet-600/10 text-violet-600 transition-colors hover:bg-violet-600/20 dark:text-violet-400"
                 >
-                  <Layers className="size-4" />
+                  <Building2 className="size-4" />
                 </button>
               </Hint>
             )}
@@ -308,20 +309,20 @@ export function DistributorsPage() {
           ),
       },
       {
-        id: "productDivisions",
-        header: "Product Divisions",
+        id: "companies",
+        header: "Companies",
         enableSorting: false,
         meta: { className: "w-64 min-w-64 max-w-64" },
         cell: ({ row }) => {
-          const names = row.original.productDivisionNames ?? [];
+          const names = row.original.companyNames ?? [];
           if (names.length === 0)
             return <span className="text-muted-foreground">N/A</span>;
           return (
             <BadgeOverflowList
               items={names}
               max={2}
-              title={`${row.original.firmName} — Product Divisions`}
-              itemLabel="divisions"
+              title={`${row.original.firmName} — Companies`}
+              itemLabel="companies"
             />
           );
         },
@@ -379,9 +380,18 @@ export function DistributorsPage() {
         description="Onboard and manage distributors — firm, coverage, business and financial details."
         actions={
           can("distributor-master:create") ? (
-            <Button className="cursor-pointer" onClick={goToCreate}>
-              <Plus /> Add Distributor
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Renders only while unsubmitted drafts exist. */}
+              <DraftsButton
+                formKey={DISTRIBUTOR_DRAFT_KEY}
+                onOpen={goToDraft}
+                onNew={goToCreate}
+                newLabel="distributor"
+              />
+              <Button className="cursor-pointer" onClick={goToCreate}>
+                <Plus /> Add Distributor
+              </Button>
+            </div>
           ) : null
         }
       />
@@ -440,7 +450,7 @@ export function DistributorsPage() {
 
       <DistributorDetailDialog id={viewId} onClose={() => setViewId(null)} />
 
-      <DistributorCategoryMappingDialog
+      <DistributorCompanyMappingDialog
         distributor={mappingRow}
         onClose={() => setMappingRow(null)}
       />

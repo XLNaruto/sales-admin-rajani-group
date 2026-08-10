@@ -4,6 +4,7 @@ import { Check, Eye, Pencil, Plus, Route, Store, Trash2, X } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
+import { DraftsButton } from '@/components/common/drafts-button'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { useCan } from '@/features/permissions'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +16,7 @@ import { RetailerBeatDialog } from '../components/retailer-beat-dialog'
 import { RetailerDetailDialog } from '../components/retailer-detail-dialog'
 import { RetailerToolbar } from '../components/retailer-toolbar'
 import { useRetailersList } from '../hooks/use-retailers-list'
+import { RETAILER_DRAFT_KEY } from '../lib/retailer-form'
 import type { Retailer, RetailerOnboardingStatus } from '../types'
 
 /** Badge tint per onboarding-approval state. */
@@ -58,6 +60,7 @@ export function RetailersPage() {
     isSettingStatus,
     isSettingOnboarding,
     goToCreate,
+    goToDraft,
     goToEdit,
   } = useRetailersList()
 
@@ -355,9 +358,18 @@ export function RetailersPage() {
         description="Onboard and manage retail outlets — shop, owner, territory and beat mapping."
         actions={
           can('retailer-master:create') ? (
-            <Button className="cursor-pointer" onClick={goToCreate}>
-              <Plus /> Add Retailer
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Renders only while unsubmitted drafts exist. */}
+              <DraftsButton
+                formKey={RETAILER_DRAFT_KEY}
+                onOpen={goToDraft}
+                onNew={goToCreate}
+                newLabel="retailer"
+              />
+              <Button className="cursor-pointer" onClick={goToCreate}>
+                <Plus /> Add Retailer
+              </Button>
+            </div>
           ) : null
         }
       />

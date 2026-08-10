@@ -51,10 +51,6 @@ export const endpoints = {
   DESIGNATION: {
     LIST: '/sales-incharge-admin/designations',
   },
-  /** Product-division master — the divisions a distributor can be assigned to. */
-  PRODUCT_DIVISION: {
-    LIST: '/sales-incharge-admin/product-divisions',
-  },
   DISTRIBUTOR: {
     LIST: '/sales-incharge-admin/distributors',
     CREATE: '/sales-incharge-admin/distributors',
@@ -63,9 +59,9 @@ export const endpoints = {
     STATUS: (id: string | number) => `/sales-incharge-admin/distributors/${id}/status`,
     ONBOARDING: (id: string | number) =>
       `/sales-incharge-admin/distributors/${id}/onboarding`,
-    /** Category mapping — replaces the distributor's whole product-division set. */
-    PRODUCT_DIVISIONS: (id: string | number) =>
-      `/sales-incharge-admin/distributors/${id}/product-divisions`,
+    /** Company mapping — replaces the distributor's whole company (tenant) set. */
+    COMPANIES: (id: string | number) =>
+      `/sales-incharge-admin/distributors/${id}/companies`,
     DELETE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     OFFICE_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/office-images/presign',
     GODOWN_IMAGES_PRESIGN: '/sales-incharge-admin/distributors/godown-images/presign',

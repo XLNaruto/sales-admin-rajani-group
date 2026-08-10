@@ -1,9 +1,11 @@
 import { Controller } from "react-hook-form";
 import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
 import { decryptParams } from "@/lib/crypto";
+import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
 import { mediaUrl } from "@/lib/media";
 import { useCompanies } from "@/features/company";
 import { PageHeader } from "@/components/common/page-header";
+import { DraftsButton } from "@/components/common/drafts-button";
 import { FormSection } from "@/components/common/form-section";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,15 +16,18 @@ import {
   DatePicker,
   FileDropzoneField,
   AvatarUpload,
+  MultiSelect,
 } from "../components/form-fields";
 import { useDesignationSelect } from "../hooks/use-designation-select";
 import { useSalesInchargeForm } from "../hooks/use-sales-incharge-form";
+import { SALES_INCHARGE_DRAFT_KEY } from "../lib/incharge-form";
 
 interface SalesInchargeCreatePageProps {
   /**
-   * Encrypted sales-incharge id from the `?data=` search param. When present the
-   * page switches to edit mode (GET to seed, PUT to save); otherwise it's a
-   * fresh create. The same page and form handle both.
+   * Encrypted params from the `?data=` search param. An `id` switches the page
+   * into edit mode (GET to seed, PUT to save); a `draftId` resumes a locally
+   * saved draft. Neither → a fresh create. The same page and form handle all
+   * three.
    */
   data?: string;
 }
@@ -31,9 +36,11 @@ export function SalesInchargeCreatePage({
   data,
 }: SalesInchargeCreatePageProps) {
   // Decrypt the params from the URL; missing/malformed → create mode.
-  const id = data
-    ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "")
-    : "";
+  const params = data
+    ? decryptParams<{ id?: string | number; draftId?: string }>(data)
+    : null;
+  const id = params?.id != null ? String(params.id) : "";
+  const draftId = params?.draftId;
 
   const {
     register,
@@ -46,13 +53,18 @@ export function SalesInchargeCreatePage({
     isPending,
     isLoading,
     isError,
+    error,
     goBack,
     currentYear,
     maxBirthDate,
     today,
     birthDate,
     designationName,
-  } = useSalesInchargeForm(id || undefined);
+    saveOnBlur,
+    isRestoring,
+    openDraft,
+    startNewDraft,
+  } = useSalesInchargeForm(id || undefined, draftId);
 
   // Designation options are server-searched + paged (GET …/designations): the
   // search box query is sent to the API, not filtered client-side.
@@ -70,13 +82,16 @@ export function SalesInchargeCreatePage({
   const title = isEdit ? "Edit Sales Incharge" : "Create Sales Incharge";
   const description = isEdit
     ? "Update this sales incharge's personal, employment, bank and identity details."
-    : "Add a new sales incharge to the team.";
+    : draftId
+      ? "Carrying on from a saved draft. Changes stay on this device until you submit."
+      : "Add a new sales incharge to the team.";
   const submitLabel = isEdit
     ? "Update sales incharge"
     : "Create sales incharge";
 
-  // Edit-mode load / error states before the form is seeded.
-  if (isEdit && (isLoading || isError)) {
+  // Edit-mode load / error states before the form is seeded — and the brief
+  // read while a draft is restored, so fields don't flash empty first.
+  if ((isEdit && (isLoading || isError)) || isRestoring) {
     return (
       <div>
         <PageHeader
@@ -93,9 +108,22 @@ export function SalesInchargeCreatePage({
           }
         />
         <div className="mt-8 rounded-xl border border-border/50 bg-card p-10 text-center text-sm text-muted-foreground">
-          {isError
-            ? "Couldn't load this sales incharge. Please go back and try again."
-            : "Loading sales incharge…"}
+          {isRestoring ? (
+            "Restoring your draft…"
+          ) : isError ? (
+            <>
+              <p>Couldn't load this sales incharge. Please go back and try again.</p>
+              {/* The reason, verbatim — a bare "couldn't load" leaves nothing to
+                  act on, whether it's a 404, a permission problem or the API
+                  returning a shape the client rejects. */}
+              <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">
+                {errorStatus(error) ? `${errorStatus(error)} — ` : ""}
+                {getApiErrorMessage(error)}
+              </p>
+            </>
+          ) : (
+            "Loading sales incharge…"
+          )}
         </div>
       </div>
     );
@@ -107,14 +135,36 @@ export function SalesInchargeCreatePage({
         title={title}
         description={description}
         actions={
-          <Button variant="outline" className="cursor-pointer" onClick={goBack}>
-            <ArrowLeft /> Back to list
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Create/draft mode only — an existing record is server-backed, so
+                there's no draft of it to switch between. */}
+            {!isEdit ? (
+              <DraftsButton
+                formKey={SALES_INCHARGE_DRAFT_KEY}
+                currentId={draftId}
+                onOpen={openDraft}
+                onNew={startNewDraft}
+                newTitle="Start a new blank draft"
+                newDescription="Clears the form — saved drafts are kept."
+              />
+            ) : null}
+            <Button
+              variant="outline"
+              className="cursor-pointer"
+              onClick={goBack}
+            >
+              <ArrowLeft /> Back
+            </Button>
+          </div>
         }
       />
 
       <form
         onSubmit={onSubmit}
+        // focusout bubbles, so this one listener snapshots the form into its
+        // local draft whenever any field loses focus — native inputs and the
+        // custom Combobox / DatePicker controls alike.
+        onBlur={saveOnBlur}
         autoComplete="off"
         className="mt-4 rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent"
       >
@@ -150,20 +200,25 @@ export function SalesInchargeCreatePage({
             <Input placeholder="e.g. Ramesh Yadav" {...register("name")} />
           </Field>
 
+          {/* One incharge can cover several companies — the API replaces the
+              whole `company_id` list with whatever is selected here. */}
           <Field
-            label="Employer Company"
-            error={errors.employerCompany?.message}
+            label="Employer Companies"
+            error={errors.employerCompanies?.message}
           >
             <Controller
               control={control}
-              name="employerCompany"
+              name="employerCompanies"
               render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ""}
+                <MultiSelect
+                  value={field.value ?? []}
                   onChange={field.onChange}
                   options={companyOptions}
-                  loading={companies.isLoading}
-                  placeholder="Select employer company"
+                  placeholder={
+                    companies.isLoading
+                      ? "Loading companies…"
+                      : "Select employer companies"
+                  }
                   searchPlaceholder="Search company"
                 />
               )}

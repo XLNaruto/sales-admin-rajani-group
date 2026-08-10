@@ -10,12 +10,20 @@ const reqNum = (msg = 'Enter a valid amount') =>
 
 const phone = (msg = 'Enter a valid 10-digit number') => z.string().regex(/^\d{10}$/, msg)
 
+/** Identifies this form's local drafts (see `lib/form-drafts.ts`). */
+export const SALES_INCHARGE_DRAFT_KEY = 'sales-incharge:create'
+
+/** Fields holding a `File` — persisted outside the encrypted draft payload. */
+export const SALES_INCHARGE_FILE_FIELDS = ['profilePhoto', 'aadharFront', 'aadharBack']
+
 export const salesInchargeSchema = z
   .object({
     name: z.string().min(2, 'Enter the name'),
-    // Holds the selected company (tenant) id as a string; persisted as
-    // `company_id`. Sourced from the `/me/companies` dropdown.
-    employerCompany: z.string().min(1, 'Select the employer company'),
+    // Company (tenant) ids as strings; persisted as the `company_id` array. A
+    // sales incharge can cover more than one. Sourced from `/me/companies`.
+    employerCompanies: z
+      .array(z.string())
+      .min(1, 'Select at least one employer company'),
     address: z.string().min(2, 'Enter the address'),
     dateOfBirth: z.string().min(1, 'Select date of birth'),
     marriageAnniversary: z.string().optional(),
@@ -68,7 +76,7 @@ export type SalesInchargeFormValues = z.infer<typeof salesInchargeSchema>
 
 export const salesInchargeDefaults: Partial<SalesInchargeFormValues> = {
   name: '',
-  employerCompany: '',
+  employerCompanies: [],
   address: '',
   dateOfBirth: '',
   marriageAnniversary: '',

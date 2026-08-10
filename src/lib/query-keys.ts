@@ -45,8 +45,6 @@ export const queryKeys = {
     performance: (id: string) =>
       [...queryKeys.distributors.all, 'performance', id] as const,
     pendingApproval: () => [...queryKeys.distributors.all, 'pending-approval'] as const,
-    productDivisions: (filters?: Record<string, unknown>) =>
-      [...queryKeys.distributors.all, 'product-divisions', filters ?? {}] as const,
   },
   retailers: {
     all: ['retailers'] as const,
@@ -186,5 +184,14 @@ export const queryKeys = {
       [...queryKeys.location.all, 'talukas', filters ?? {}] as const,
     cities: (filters?: Record<string, unknown>) =>
       [...queryKeys.location.all, 'cities', filters ?? {}] as const,
+  },
+  /**
+   * Unsubmitted form drafts (see `lib/form-drafts.ts`). Device-local, not
+   * server state — Query is used purely as the async cache over IndexedDB, so
+   * the header's draft counter re-renders the moment a form saves one.
+   */
+  drafts: {
+    all: ['drafts'] as const,
+    list: (formKey: string) => [...queryKeys.drafts.all, 'list', formKey] as const,
   },
 } as const

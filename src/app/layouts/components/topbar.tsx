@@ -44,7 +44,7 @@ export function Topbar() {
     user?.email
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background/80 px-6 backdrop-blur">
+    <header className="sticky top-0 z-70 flex h-16 items-center justify-between border-b bg-background/80 px-6 backdrop-blur">
       <div className="flex min-w-0 items-center gap-2">
         <Hint label="Open menu">
           <Button

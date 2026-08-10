@@ -2,6 +2,7 @@ import { Controller } from 'react-hook-form'
 import { ArrowLeft, MapPin, Store, Tag } from 'lucide-react'
 import { decryptParams } from '@/lib/crypto'
 import { PageHeader } from '@/components/common/page-header'
+import { DraftsButton } from '@/components/common/drafts-button'
 import { FormSection } from '@/components/common/form-section'
 import { FileInput } from '@/components/common/file-input'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ import {
 } from '@/features/location'
 import { OwnerPartnersField } from '../components/owner-partners-field'
 import { useRetailerForm } from '../hooks/use-retailer-form'
+import { RETAILER_DRAFT_KEY } from '../lib/retailer-form'
 import { useOutletTypeOptions } from '../hooks/use-retailer-selects'
 
 /** Parse a string form id into the numeric id the location API expects. */
@@ -29,16 +31,21 @@ const TEXTAREA_CLASS =
 
 interface RetailerCreatePageProps {
   /**
-   * Encrypted retailer id from the `?data=` search param. When present the page
-   * switches to edit mode (GET to seed, PATCH to save); otherwise it's a fresh
-   * create. The same page and form handle both.
+   * Encrypted params from the `?data=` search param. An `id` switches the page
+   * into edit mode (GET to seed, PATCH to save); a `draftId` resumes a locally
+   * saved draft. Neither → a fresh create. The same page and form handle all
+   * three.
    */
   data?: string
 }
 
 export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
   // Decrypt the params from the URL; missing/malformed → create mode.
-  const id = data ? String(decryptParams<{ id?: string | number }>(data)?.id ?? '') : ''
+  const params = data
+    ? decryptParams<{ id?: string | number; draftId?: string }>(data)
+    : null
+  const id = params?.id != null ? String(params.id) : ''
+  const draftId = params?.draftId
 
   const {
     register,
@@ -58,12 +65,18 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
     isLoading,
     isError,
     goBack,
-  } = useRetailerForm(id || undefined)
+    saveOnBlur,
+    isRestoring,
+    openDraft,
+    startNewDraft,
+  } = useRetailerForm(id || undefined, draftId)
 
   const title = isEdit ? 'Edit Retailer' : 'Add Retailer'
   const description = isEdit
     ? "Update the retailer's shop, owner, address and beat mapping."
-    : 'Onboard a new retail outlet with shop, owner, address and beat mapping.'
+    : draftId
+      ? 'Carrying on from a saved draft. Changes stay on this device until you submit.'
+      : 'Onboard a new retail outlet with shop, owner, address and beat mapping.'
   const submitLabel = isEdit ? 'Update Retailer' : 'Save Retailer'
 
   // Cascading geography masters — each level is a scroll-lazy, server-searched
@@ -115,8 +128,9 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
 
   const outletTypes = useOutletTypeOptions()
 
-  // Edit-mode load / error states before the form is seeded.
-  if (isEdit && (isLoading || isError)) {
+  // Edit-mode load / error states before the form is seeded — and the brief
+  // read while a draft is restored, so fields don't flash empty first.
+  if ((isEdit && (isLoading || isError)) || isRestoring) {
     return (
       <div>
         <PageHeader
@@ -129,9 +143,11 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
           }
         />
         <div className="mt-8 rounded-xl border border-border/50 bg-card p-10 text-center text-sm text-muted-foreground">
-          {isError
-            ? "Couldn't load this retailer. Please go back and try again."
-            : 'Loading retailer…'}
+          {isRestoring
+            ? 'Restoring your draft…'
+            : isError
+              ? "Couldn't load this retailer. Please go back and try again."
+              : 'Loading retailer…'}
         </div>
       </div>
     )
@@ -143,14 +159,32 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
         title={title}
         description={description}
         actions={
-          <Button variant="outline" className="cursor-pointer" onClick={goBack}>
-            <ArrowLeft /> Back to list
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Create/draft mode only — an existing record is server-backed, so
+                there's no draft of it to switch between. */}
+            {!isEdit ? (
+              <DraftsButton
+                formKey={RETAILER_DRAFT_KEY}
+                currentId={draftId}
+                onOpen={openDraft}
+                onNew={startNewDraft}
+                newTitle="Start a new blank draft"
+                newDescription="Clears the form — saved drafts are kept."
+              />
+            ) : null}
+            <Button variant="outline" className="cursor-pointer" onClick={goBack}>
+              <ArrowLeft /> Back to list
+            </Button>
+          </div>
         }
       />
 
       <form
         onSubmit={onSubmit}
+        // focusout bubbles, so this one listener snapshots the form into its
+        // local draft whenever any field loses focus — native inputs and the
+        // custom Combobox / DatePicker controls alike.
+        onBlur={saveOnBlur}
         autoComplete="off"
         className="mt-4 rounded-xl border border-border/50 bg-card shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-transparent"
       >

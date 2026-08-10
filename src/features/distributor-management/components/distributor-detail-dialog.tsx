@@ -204,6 +204,25 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                   label="Multiple Login"
                   value={yesNo(data.multipleLogin)}
                 />
+                <Field
+                  label="Companies"
+                  value={
+                    data.companyNames.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {data.companyNames.map((name) => (
+                          <Badge
+                            key={name}
+                            variant="outline"
+                            className="font-medium"
+                          >
+                            {name}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null
+                  }
+                  wide
+                />
               </dl>
 
               <SectionTitle>
@@ -283,25 +302,6 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
 
               <SectionTitle>Business Details</SectionTitle>
               <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-                <Field
-                  label="Product Divisions"
-                  value={
-                    data.productDivisionNames.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {data.productDivisionNames.map((name) => (
-                          <Badge
-                            key={name}
-                            variant="outline"
-                            className="font-medium"
-                          >
-                            {name}
-                          </Badge>
-                        ))}
-                      </div>
-                    ) : null
-                  }
-                  wide
-                />
                 <Field label="Other Agencies" value={data.otherAgencies} wide />
                 <Field
                   label="Similar Category Agencies"

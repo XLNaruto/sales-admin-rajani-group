@@ -218,8 +218,11 @@ function buildScalarBody(
     email: str(values.email),
     status,
     employee_code: preserved?.employeeCode ?? null,
-    // The employer company (tenant) chosen from the `/me/companies` dropdown.
-    company_id: intId(values.employerCompany),
+    // Every company (tenant) this incharge covers. The API replaces the whole
+    // selection with what's sent, so the full list goes on every save.
+    company_id: values.employerCompanies
+      .map((id) => intId(id))
+      .filter((id): id is number => id != null),
     // The selected designation id from the dropdown (falls back to preserved).
     designation_id: intId(values.designation) ?? preserved?.designationId ?? null,
     reports_to: preserved?.reportsTo ?? null,
@@ -288,8 +291,8 @@ export async function fetchSalesIncharge(id: string): Promise<{
     }
     const values: SalesInchargeFormValues = {
       name: r.display_name,
-      // Seed the employer-company dropdown from the record's company_id.
-      employerCompany: r.company_id != null ? String(r.company_id) : '',
+      // Seed the employer-company multi-select from the record's company ids.
+      employerCompanies: r.company_id.map(String),
       address: r.address ?? '',
       dateOfBirth: r.birth_date ?? '',
       marriageAnniversary: r.marriage_anniversary ?? '',

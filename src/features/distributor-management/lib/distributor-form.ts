@@ -33,6 +33,18 @@ const optEnum = <const T extends readonly [string, ...string[]]>(
 // on submit; the returned storage keys are what get persisted.
 const fileList = () => z.array(z.instanceof(File)).optional()
 
+/** Identifies this form's local drafts (see `lib/form-drafts.ts`). */
+export const DISTRIBUTOR_DRAFT_KEY = 'distributor:create'
+
+/** Fields holding `File`s — persisted outside the encrypted draft payload. */
+export const DISTRIBUTOR_FILE_FIELDS = [
+  'officeImages',
+  'godownImages',
+  'panPhoto',
+  'gstPhoto',
+  'advanceChequePhoto',
+]
+
 /**
  * One owner/partner entry. Mirrors the API's `owners[]` item — the backend only
  * insists on name + mobile, but the onboarding form collects the e-mail and
@@ -78,8 +90,9 @@ export const distributorSchema = z.object({
   status: z.enum(['active', 'inactive', 'suspended'], {
     message: 'Select the distributor status',
   }),
-  // Product-division ids this distributor handles (option values are stringified ids).
-  productDivisions: z.array(z.string()).optional(),
+  // Companies (tenants) this distributor is attached to — several are allowed.
+  // Option values are stringified ids from GET /me/companies; sent as `company_id`.
+  companyIds: z.array(z.string()).min(1, 'Select at least one company'),
 
   // --- Location & coverage ---
   officeAddress: z.string().trim().min(1, 'Enter the office address'),
@@ -149,7 +162,7 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   email: '',
   code: '',
   status: 'active',
-  productDivisions: [],
+  companyIds: [],
   officeAddress: '',
   godownAddress: '',
   homeAddress: '',

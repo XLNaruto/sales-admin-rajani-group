@@ -10,6 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { DraftsButton } from "@/components/common/drafts-button";
 import { Hint } from "@/components/common/hint";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTable, DataTableColumnHeader } from "@/components/data-table";
@@ -21,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
 import { format, parseISO } from "date-fns";
 import { SalesInchargeDetailDialog } from "../components/sales-incharge-detail-dialog";
+import { SALES_INCHARGE_DRAFT_KEY } from "../lib/incharge-form";
 import { SalesmanToolbar } from "../components/salesman-toolbar";
 import { useSalesInchargeList } from "../hooks/use-sales-incharge-list";
 import type { SalesIncharge } from "../types";
@@ -55,6 +57,7 @@ export function SalesInchargePage() {
     isFetchingMore,
     hasActiveFilters,
     goToCreate,
+    goToDraft,
     goToEdit,
     goToBeatAllocation,
     changeStatus,
@@ -270,9 +273,19 @@ export function SalesInchargePage() {
         title="Sales Incharge"
         description="Manage the sales-incharge team and onboard new members."
         actions={
-          <Button className="cursor-pointer" onClick={goToCreate}>
-            <Plus /> Create Sales
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Renders only while unsubmitted drafts exist. */}
+            <DraftsButton
+              formKey={SALES_INCHARGE_DRAFT_KEY}
+              onOpen={goToDraft}
+              onNew={goToCreate}
+              newLabel="sales incharge"
+              title="Saved drafts"
+            />
+            <Button className="cursor-pointer" onClick={goToCreate}>
+              <Plus /> Create Sales
+            </Button>
+          </div>
         }
       />
       <DataTable

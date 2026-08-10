@@ -48,8 +48,9 @@ export const distributorRowSchema = z.object({
   email: z.string().nullish(),
   city_id: z.union([z.number(), z.string()]).nullish(),
   city_name: z.string().nullish(),
-  product_divisions: z.array(z.union([z.number(), z.string()])).nullish(),
-  product_division_names: z.array(z.string()).nullish(),
+  // Companies (tenants) the distributor is attached to, plus their resolved names.
+  company_id: z.array(z.union([z.number(), z.string()])).nullish(),
+  company_names: z.array(z.string()).nullish(),
   market_type: z.string().nullish(),
   market_system: z.string().nullish(),
   status: distributorStatusSchema.catch('pending'),
@@ -140,41 +141,21 @@ export const distributorDetailSchema = z.object({
   bank_account_number: z.string().nullish(),
   bank_ifsc: z.string().nullish(),
   bank_name: z.string().nullish(),
-  // Product-division ids this distributor handles, plus their resolved names.
-  product_divisions: z.array(z.number()).nullish(),
-  product_division_names: z.array(z.string()).nullish(),
+  // Companies (tenants) this distributor is attached to, plus their resolved names.
+  company_id: z.array(z.number()).nullish(),
+  company_names: z.array(z.string()).nullish(),
 })
 
 export type DistributorDetailRow = z.infer<typeof distributorDetailSchema>
 
 /**
- * A single row from GET /sales-incharge-admin/product-divisions — the master
- * that backs the "Product Divisions" multi-select on the distributor form.
- */
-export const productDivisionRowSchema = z.object({
-  id: z.number(),
-  name: z.string(),
-})
-
-/** The product-division list envelope (rows + pagination metadata). */
-export const productDivisionListResponseSchema = z.object({
-  product_divisions: z.array(productDivisionRowSchema),
-  total: z.number().optional(),
-  page: z.number().optional(),
-  page_size: z.number().optional(),
-  total_pages: z.number().optional(),
-})
-
-export type ProductDivisionRow = z.infer<typeof productDivisionRowSchema>
-
-/**
  * The slice of the updated distributor we read back from
- * PATCH /sales-incharge-admin/distributors/{id}/product-divisions. The endpoint
- * echoes the full record; only the new mapping is of interest here, so the rest
- * is ignored rather than re-validated.
+ * PATCH /sales-incharge-admin/distributors/{id}/companies. The endpoint echoes
+ * the full record; only the new mapping is of interest here, so the rest is
+ * ignored rather than re-validated.
  */
-export const distributorProductDivisionsResponseSchema = z.object({
+export const distributorCompaniesResponseSchema = z.object({
   id: z.union([z.number(), z.string()]).transform(String),
-  product_divisions: z.array(z.union([z.number(), z.string()])).nullish(),
-  product_division_names: z.array(z.string()).nullish(),
+  company_id: z.array(z.union([z.number(), z.string()])).nullish(),
+  company_names: z.array(z.string()).nullish(),
 })

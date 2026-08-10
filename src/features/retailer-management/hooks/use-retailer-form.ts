@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { reverseGeocode } from '@/lib/reverse-geocode'
+import { encryptParams } from '@/lib/crypto'
+import { useFormDraft } from '@/hooks/use-form-drafts'
 import {
   useCreateRetailer,
   useRetailer,
@@ -12,6 +14,8 @@ import {
 import {
   retailerSchema,
   retailerDefaults,
+  RETAILER_DRAFT_KEY,
+  RETAILER_FILE_FIELDS,
   type RetailerFormValues,
 } from '../lib/retailer-form'
 import { splitLatLng } from '../lib/retailer-reference'
@@ -79,14 +83,27 @@ function toInput(values: RetailerFormValues): RetailerCreateInput {
  * newly-picked photo with the path already saved so an untouched image
  * survives. Create mode POSTs a fresh record. The page consumes this and only
  * lays out fields.
+ *
+ * Create mode also autosaves to a local draft on every field blur, so an
+ * abandoned onboarding can be resumed from the list screen's Drafts picker
+ * (`draftId`). The draft is dropped once the record is actually created.
  */
-export function useRetailerForm(id?: string) {
+export function useRetailerForm(id?: string, draftId?: string) {
   const navigate = useNavigate()
   const isEdit = !!id
 
   const createRetailer = useCreateRetailer()
   const updateRetailer = useUpdateRetailer()
   const detail = useRetailer(id)
+
+  const form = useForm<RetailerFormValues>({
+    resolver: zodResolver(retailerSchema),
+    mode: 'onTouched',
+    defaultValues: retailerDefaults as RetailerFormValues,
+    // We scroll/focus the first error ourselves (see `scrollToFirstError`) so
+    // custom controls (Combobox/DatePicker) are handled too.
+    shouldFocusError: false,
+  })
 
   const {
     register,
@@ -96,13 +113,29 @@ export function useRetailerForm(id?: string) {
     setValue,
     reset,
     formState: { errors },
-  } = useForm<RetailerFormValues>({
-    resolver: zodResolver(retailerSchema),
-    mode: 'onTouched',
-    defaultValues: retailerDefaults as RetailerFormValues,
-    // We scroll/focus the first error ourselves (see `scrollToFirstError`) so
-    // custom controls (Combobox/DatePicker) are handled too.
-    shouldFocusError: false,
+  } = form
+
+  // Local draft autosave — create mode only; an existing record is already
+  // server-backed. A brand-new draft's id is pushed into the URL so a reload
+  // keeps writing to the same one instead of spawning duplicates.
+  const { saveOnBlur, clearDraft, isRestoring } = useFormDraft({
+    form,
+    formKey: RETAILER_DRAFT_KEY,
+    draftId,
+    enabled: !isEdit,
+    fileFields: RETAILER_FILE_FIELDS,
+    describe: (values) => ({
+      label: values.shopName?.trim() || 'Untitled retailer',
+      summary: [values.owners?.[0]?.name, values.owners?.[0]?.mobile, values.market]
+        .filter(Boolean)
+        .join(' · '),
+    }),
+    onCreated: (newDraftId) =>
+      navigate({
+        to: '/retailers/create',
+        search: { data: encryptParams({ draftId: newDraftId }) },
+        replace: true,
+      }),
   })
 
   // The shop-photo path already saved on the record — a single storage key, held
@@ -161,6 +194,8 @@ export function useRetailerForm(id?: string) {
   const onSubmit = handleSubmit((values) => {
     const input = toInput(values)
     const onSuccess = () => {
+      // Only once the record exists — a failed request must keep the draft.
+      clearDraft()
       toast.success(`${values.shopName} ${isEdit ? 'updated' : 'created'}`)
       navigate({ to: '/retailers' })
     }
@@ -180,6 +215,25 @@ export function useRetailerForm(id?: string) {
   }, scrollToFirstError)
 
   const goBack = () => navigate({ to: '/retailers' })
+
+  /** Swap the form over to another saved draft (from the in-page picker). */
+  const openDraft = (nextDraftId: string) =>
+    navigate({
+      to: '/retailers/create',
+      search: { data: encryptParams({ draftId: nextDraftId }) },
+    })
+
+  /**
+   * Abandon the draft in front of us and start clean. The route doesn't remount
+   * on a same-path navigation, so the form is reset by hand; dropping `data`
+   * from the URL is what tells `useFormDraft` to mint a fresh draft id on the
+   * next blur, leaving the old draft untouched in the list.
+   */
+  const startNewDraft = () => {
+    reset(retailerDefaults as RetailerFormValues)
+    setGeoLabels({})
+    navigate({ to: '/retailers/create', search: {} })
+  }
 
   return {
     register,
@@ -202,5 +256,13 @@ export function useRetailerForm(id?: string) {
     isLoading: isEdit && detail.isLoading,
     isError: isEdit && detail.isError,
     goBack,
+    openDraft,
+    startNewDraft,
+    /** The draft this form is writing to, if any — flagged in the picker. */
+    draftId,
+    /** Blur handler for the `<form>` — snapshots the values into the draft. */
+    saveOnBlur,
+    /** True while a draft is being resumed (`?data=` carried a draft id). */
+    isRestoring,
   }
 }

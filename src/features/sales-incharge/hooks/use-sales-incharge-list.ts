@@ -127,6 +127,13 @@ export function useSalesInchargeList() {
       to: "/sales-incharge/create",
       search: { data: encryptParams({ id }) },
     });
+  // Resuming a local draft reuses the create page too — same `?data=` token,
+  // carrying a `draftId` instead of a record id.
+  const goToDraft = (draftId: string) =>
+    navigate({
+      to: "/sales-incharge/create",
+      search: { data: encryptParams({ draftId }) },
+    });
   // Beat allocation reuses the same encrypted-id token pattern as edit.
   const goToBeatAllocation = (id: number) =>
     navigate({
@@ -183,6 +190,7 @@ export function useSalesInchargeList() {
     isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     hasActiveFilters,
     goToCreate,
+    goToDraft,
     goToEdit,
     goToBeatAllocation,
     changeStatus,

@@ -4,6 +4,12 @@ import { z } from 'zod'
 // on submit; the returned storage keys are what get persisted.
 const fileList = () => z.array(z.instanceof(File)).optional()
 
+/** Identifies this form's local drafts (see `lib/form-drafts.ts`). */
+export const RETAILER_DRAFT_KEY = 'retailer:create'
+
+/** Fields holding `File`s — persisted outside the encrypted draft payload. */
+export const RETAILER_FILE_FIELDS = ['shopPhoto']
+
 /**
  * One owner/partner of an outlet — the shape the API's `owners[]` takes
  * (`name`, `mobile`, `alternate_mobile`, `birth_date`, `marriage_anniversary`).

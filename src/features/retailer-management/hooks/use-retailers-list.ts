@@ -224,6 +224,10 @@ export function useRetailersList() {
   // never exposed in the address bar.
   const goToEdit = (id: string) =>
     navigate({ to: '/retailers/create', search: { data: encryptParams({ id }) } })
+  // Resuming a local draft reuses the create page too — same `?data=` token,
+  // carrying a `draftId` instead of a record id.
+  const goToDraft = (draftId: string) =>
+    navigate({ to: '/retailers/create', search: { data: encryptParams({ draftId }) } })
 
   return {
     filters,
@@ -258,6 +262,7 @@ export function useRetailersList() {
     isSettingStatus: setStatus.isPending,
     isSettingOnboarding: setOnboarding.isPending,
     goToCreate,
+    goToDraft,
     goToEdit,
   }
 }
