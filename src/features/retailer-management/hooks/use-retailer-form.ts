@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useNavigate } from '@tanstack/react-router'
@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { reverseGeocode } from '@/lib/reverse-geocode'
 import { encryptParams } from '@/lib/crypto'
 import { useFormDraft } from '@/hooks/use-form-drafts'
+import { useNearestBeat } from '@/features/beat-creation'
 import {
   useCreateRetailer,
   useRetailer,
@@ -18,7 +19,7 @@ import {
   RETAILER_FILE_FIELDS,
   type RetailerFormValues,
 } from '../lib/retailer-form'
-import { splitLatLng } from '../lib/retailer-reference'
+import { coordKey, splitLatLng } from '../lib/retailer-reference'
 import type { GeoLabels } from '@/features/location'
 import type { RetailerCreateInput } from '../types'
 
@@ -69,6 +70,8 @@ function toInput(values: RetailerFormValues): RetailerCreateInput {
     cityId: values.cityId,
     pincode: str(values.pincode),
 
+    beatId: str(values.beatId),
+
     latitude: str(latitude),
     longitude: str(longitude),
 
@@ -110,6 +113,7 @@ export function useRetailerForm(id?: string, draftId?: string) {
     control,
     handleSubmit,
     watch,
+    getValues,
     setValue,
     reset,
     formState: { errors },
@@ -149,6 +153,19 @@ export function useRetailerForm(id?: string, draftId?: string) {
   // in edit mode, and rewritten by the page when a city back-fills its ancestry.
   const [geoLabels, setGeoLabels] = useState<GeoLabels>({})
 
+  // Same idea for the beat select: its name, so a seeded or auto-resolved beat
+  // reads properly before its own option has been paged in.
+  const [beatLabel, setBeatLabel] = useState('')
+
+  /**
+   * The coordinate whose beat is already settled — seeded from the saved record,
+   * restored from a draft, or auto-applied from a previous lookup. While the pin
+   * sits on it the nearest-beat lookup is skipped entirely (no request) and its
+   * answer is never written, which is what keeps a beat that someone already
+   * decided on from being clobbered. Moving the pin unsettles it.
+   */
+  const settledCoordRef = useRef<string | null>(null)
+
   // Seed the form once the record loads (edit mode only).
   useEffect(() => {
     if (detail.data) {
@@ -156,8 +173,33 @@ export function useRetailerForm(id?: string, draftId?: string) {
       const path = detail.data.existing.shopPhotoPath.trim()
       setExistingPhoto(path ? [path] : [])
       setGeoLabels(detail.data.geoLabels)
+      setBeatLabel(detail.data.beatLabel)
+      // A record that already has a beat is settled where it stands — no lookup
+      // runs for its saved pin. One saved without a beat (captured in the field
+      // before it could be resolved, or resolved to nothing at the time) is left
+      // unsettled, so opening it asks for a suggestion straight away.
+      settledCoordRef.current = detail.data.values.beatId
+        ? coordKey(detail.data.values.geoLocation)
+        : null
     }
   }, [detail.data, reset])
+
+  // A resumed draft settles the same way: a beat the user had already chosen is
+  // left alone, a draft pinned but never resolved asks again on reopen.
+  // `isRestoring` falling back to false is the point the values are in.
+  const wasRestoringRef = useRef(false)
+  useEffect(() => {
+    if (isRestoring) {
+      wasRestoringRef.current = true
+      return
+    }
+    if (wasRestoringRef.current) {
+      wasRestoringRef.current = false
+      settledCoordRef.current = getValues('beatId')
+        ? coordKey(getValues('geoLocation'))
+        : null
+    }
+  }, [isRestoring, getValues])
 
   /** Drop the already-saved photo so the update no longer retains it. */
   const removeExistingPhoto = (index: number) =>
@@ -173,8 +215,9 @@ export function useRetailerForm(id?: string, draftId?: string) {
   // changes, reverse-geocode it and store the label alongside the lat/lng.
   const geoLocation = watch('geoLocation')
   const formattedAddress = watch('formattedAddress')
+  // The picker's one "lat, lng" string, split once for the two lookups below.
+  const { latitude, longitude } = splitLatLng(geoLocation)
   useEffect(() => {
-    const { latitude, longitude } = splitLatLng(geoLocation)
     if (!latitude || !longitude) {
       if (formattedAddress) setValue('formattedAddress', '')
       return
@@ -189,7 +232,36 @@ export function useRetailerForm(id?: string, draftId?: string) {
     // `formattedAddress` is written here, not read as a trigger — including it
     // in the deps would re-run the effect on every resolved lookup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [geoLocation, setValue])
+  }, [latitude, longitude, setValue])
+
+  /* --------------------------- Nearest-beat prefill -------------------------
+   * Pinning the shop resolves the beat it most likely belongs to, and that
+   * answer is written into the (still editable) Beat select.
+   *
+   * The lookup only runs where its answer could actually be used — the pin sits
+   * somewhere the beat isn't settled yet. So a fresh pin asks, and an edit of a
+   * record that already has a beat doesn't ask at all until the pin moves. When
+   * an answer does come back unresolved it leaves the field alone rather than
+   * clearing it: "no beat near here" is no reason to throw away a choice.
+   */
+  const pinnedCoord = latitude && longitude ? `${latitude}, ${longitude}` : ''
+  const beatUnsettled = !!pinnedCoord && settledCoordRef.current !== pinnedCoord
+
+  const nearestBeat = useNearestBeat(latitude || undefined, longitude || undefined, {
+    enabled: beatUnsettled,
+  })
+  const nearest = beatUnsettled ? nearestBeat.data : undefined
+
+  useEffect(() => {
+    // Settle against the coordinate this answer describes — not `geoLocation`,
+    // which may have moved on while the lookup was in flight.
+    if (!pinnedCoord || !nearest || settledCoordRef.current === pinnedCoord) return
+
+    settledCoordRef.current = pinnedCoord
+    if (!nearest.resolved || !nearest.beatId) return
+    setValue('beatId', nearest.beatId, { shouldValidate: true, shouldDirty: true })
+    setBeatLabel(nearest.beatName ?? '')
+  }, [nearest, pinnedCoord, setValue])
 
   const onSubmit = handleSubmit((values) => {
     const input = toInput(values)
@@ -232,6 +304,8 @@ export function useRetailerForm(id?: string, draftId?: string) {
   const startNewDraft = () => {
     reset(retailerDefaults as RetailerFormValues)
     setGeoLabels({})
+    setBeatLabel('')
+    settledCoordRef.current = null
     navigate({ to: '/retailers/create', search: {} })
   }
 
@@ -244,6 +318,24 @@ export function useRetailerForm(id?: string, draftId?: string) {
     removeExistingPhoto,
     geoLabels,
     setGeoLabels,
+    /** Name of the currently-held beat, shown until its option pages in. */
+    beatLabel,
+    setBeatLabel,
+    /**
+     * The live nearest-beat lookup for the pinned coordinate — the page reads it
+     * to explain where the prefilled beat came from, and to say so when nothing
+     * could be resolved.
+     */
+    nearestBeat: {
+      loading: beatUnsettled && nearestBeat.isFetching,
+      /** True once a lookup has run for the current pin and found nothing. */
+      unresolved: !!nearest && !nearest.resolved,
+      /** True when the beat now in the field came from that lookup. */
+      suggested: !!nearest?.resolved,
+      distanceMetres: nearest?.resolved ? nearest.distanceMetres : null,
+      /** True when the pin sits somewhere, i.e. a lookup is meaningful at all. */
+      hasPin: !!pinnedCoord,
+    },
     stateId,
     zoneId,
     districtId,

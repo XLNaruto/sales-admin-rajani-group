@@ -148,11 +148,9 @@ function ownersBody(owners: RetailerOwner[]) {
 
 /**
  * Build the non-file portion of the create/update body — shared by both, since
- * PATCH is a full resubmit of the same shape. Two fields are deliberately
- * absent: `status` (rejected here — PATCH …/status owns it) and `beat_id` (on
- * create the server picks the beat nearest the coordinates, and PATCH leaves it
- * alone — PATCH …/beat moves it). `shop_photo_path` is filled in by the caller
- * once the upload resolves.
+ * PATCH is a full resubmit of the same shape. One field is deliberately absent:
+ * `status`, which is rejected here — PATCH …/status owns it. `shop_photo_path`
+ * is filled in by the caller once the upload resolves.
  */
 function buildScalarBody(input: RetailerCreateInput) {
   return {
@@ -173,6 +171,11 @@ function buildScalarBody(input: RetailerCreateInput) {
     taluka_id: toId(input.talukaId),
     city_id: toId(input.cityId),
     pincode: str(input.pincode),
+
+    // Always present, never omitted: the API writes `beat_id` only when the key
+    // is in the body, so sending an explicit `null` is the one way to detach an
+    // outlet from its beat (and from the distributors that follow it).
+    beat_id: toId(input.beatId) ?? null,
 
     // Stored as two separate string columns, not one "lat, lng" field.
     latitude: str(input.latitude),
@@ -216,7 +219,8 @@ export async function createRetailer(input: RetailerCreateInput): Promise<void> 
  * PATCH /sales-incharge-admin/retailers/{id} — a full resubmit of the create
  * body, so an omitted field clears it. A newly picked photo replaces the stored
  * one; leaving the field untouched resends the saved path so the image
- * survives. Note the beat is re-derived from the submitted coordinates.
+ * survives. The beat is whatever the form holds — seeded from the record and
+ * re-suggested only when the user moves the pin.
  */
 export async function updateRetailer(input: RetailerUpdateInput): Promise<void> {
   try {
@@ -246,6 +250,8 @@ export async function fetchRetailer(id: string): Promise<{
    * the form shows these until the real option loads.
    */
   geoLabels: GeoLabels
+  /** Same idea for the saved beat — its name, shown until its option loads. */
+  beatLabel: string
 }> {
   try {
     const raw = await http.get<unknown>(endpoints.RETAILER.GET(id))
@@ -266,6 +272,7 @@ export async function fetchRetailer(id: string): Promise<{
       talukaId: idStr(r.taluka_id),
       cityId: idStr(r.city_id),
       pincode: r.pincode ?? '',
+      beatId: idStr(r.beat_id),
 
       geoLocation: joinLatLng(r.latitude, r.longitude) ?? '',
       formattedAddress: r.formatted_address ?? '',
@@ -285,6 +292,7 @@ export async function fetchRetailer(id: string): Promise<{
       values,
       existing: { shopPhotoPath: r.shop_photo_path ?? '' },
       geoLabels,
+      beatLabel: r.beat_name ?? '',
     }
   } catch (error) {
     throw asApiError(error, 'Failed to load the retailer.')

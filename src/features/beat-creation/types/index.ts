@@ -21,6 +21,49 @@ export interface Beat {
   distributors: BeatDistributor[]
 }
 
+/** One row from the lightweight beat-options endpoint — id plus display label. */
+export interface BeatOption {
+  id: string
+  name: string
+}
+
+/** Query params accepted by the beat-options endpoint (camelCase). */
+export interface BeatOptionsParams {
+  page?: number
+  pageSize?: number
+  search?: string
+}
+
+/** One page of beat options plus its pagination metadata. */
+export interface BeatOptionsResult {
+  items: BeatOption[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/**
+ * The answer from GET /sales-incharge-admin/beats/nearest. `resolved: false` is
+ * a deliberate outcome, not a failure — no geo-tagged outlet sat inside the
+ * radius, and leaving the outlet unassigned beats routing it into the wrong
+ * salesman's day plan. Callers must treat it as "no suggestion", never guess.
+ */
+export interface NearestBeat {
+  resolved: boolean
+  /** The winning beat, or null when unresolved. */
+  beatId: string | null
+  beatName: string | null
+  /** Distance to the winner's closest voting member (metres), not a centroid. */
+  distanceMetres: number | null
+  /** How many of the considered neighbours chose the winner. */
+  votes: number
+  /** How many neighbouring outlets were considered at all. */
+  considered: number
+  /** Which step of the resolution order produced the answer. */
+  source: 'neighbour_vote' | 'beat_pin' | 'unresolved'
+}
+
 /** Body for creating/updating a beat (everything except the generated id). */
 export interface BeatInput {
   beatName: string

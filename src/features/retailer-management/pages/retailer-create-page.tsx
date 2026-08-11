@@ -20,10 +20,14 @@ import {
 import { OwnerPartnersField } from '../components/owner-partners-field'
 import { useRetailerForm } from '../hooks/use-retailer-form'
 import { RETAILER_DRAFT_KEY } from '../lib/retailer-form'
-import { useOutletTypeOptions } from '../hooks/use-retailer-selects'
+import { useBeatOptions, useOutletTypeOptions } from '../hooks/use-retailer-selects'
 
 /** Parse a string form id into the numeric id the location API expects. */
 const toId = (v?: string) => (v ? Number(v) : undefined)
+
+/** Render the nearest-beat distance the way a field user reads it. */
+const formatDistance = (metres: number) =>
+  metres < 1000 ? `${Math.round(metres)} m` : `${(metres / 1000).toFixed(1)} km`
 
 /** Shared class list for the multi-line address inputs. */
 const TEXTAREA_CLASS =
@@ -56,6 +60,9 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
     removeExistingPhoto,
     geoLabels,
     setGeoLabels,
+    beatLabel,
+    setBeatLabel,
+    nearestBeat,
     stateId,
     zoneId,
     districtId,
@@ -127,6 +134,27 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
   }
 
   const outletTypes = useOutletTypeOptions()
+  const beats = useBeatOptions()
+
+  /**
+   * What to say under the Beat field. The pin drives the suggestion, so the hint
+   * reports on the lookup — whether it ran, what it found, how far away the
+   * winner was — and always that the answer is editable. The last branch is the
+   * settled case: a beat already decided on, which no lookup is run for.
+   */
+  const beatHint = !nearestBeat.hasPin
+    ? 'Pin the shop above to auto-detect its beat, or pick one yourself.'
+    : nearestBeat.loading
+      ? 'Finding the nearest beat…'
+      : nearestBeat.unresolved
+        ? 'No beat found near this location — pick one manually, or leave it unassigned.'
+        : nearestBeat.suggested
+          ? `Auto-detected from the pinned location${
+              nearestBeat.distanceMetres != null
+                ? ` (nearest outlet ~${formatDistance(nearestBeat.distanceMetres)} away)`
+                : ''
+            }. Change it if it’s wrong.`
+          : 'Move the pin to re-detect, or pick another beat.'
 
   // Edit-mode load / error states before the form is seeded — and the brief
   // read while a draft is restored, so fields don't flash empty first.
@@ -391,14 +419,12 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
             <Input inputMode="numeric" placeholder="6-digit pincode" {...register('pincode')} />
           </Field>
 
-          {/* No beat picker: the API assigns the beat nearest the pinned
-              coordinates (within 25 km) and derives the distributor from it.
-              The picker shows the resolved address itself, so no `hint` here —
+          {/* The picker shows the resolved address itself, so no `hint` here —
               `formatted_address` is still captured and sent on submit. */}
           <Field
             label="Geo Location Of Shop"
             optional
-            hint="The nearest beat (and its distributor) is assigned from this location."
+            hint="Pinning the shop suggests the beat it belongs to."
             error={errors.geoLocation?.message}
             className="sm:col-span-2"
           >
@@ -407,6 +433,41 @@ export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
               name="geoLocation"
               render={({ field }) => (
                 <GeoLocationPicker value={field.value ?? ''} onChange={field.onChange} />
+              )}
+            />
+          </Field>
+
+          {/* Prefilled from the nearest-beat lookup whenever the pin moves, and
+              editable either way — the suggestion is a starting point, not a
+              verdict, and a shop on the edge of two corridors gets sorted out
+              here. The outlet's distributors follow from whatever ends up
+              selected; leaving it empty saves the outlet unassigned. */}
+          <Field label="Beat" optional hint={beatHint} error={errors.beatId?.message}>
+            <Controller
+              control={control}
+              name="beatId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ''}
+                  onChange={(v) => {
+                    field.onChange(v)
+                    // Keep the trigger readable when the pick came from a page
+                    // of options that later scrolls out of the loaded set.
+                    setBeatLabel(
+                      beats.options.find((o) => o.value === v)?.label ?? '',
+                    )
+                  }}
+                  // An outlet is allowed to have no beat — clearing it here is
+                  // how it's saved unassigned.
+                  clearable
+                  fallbackLabel={beatLabel}
+                  options={beats.options}
+                  onScrollEnd={beats.onScrollEnd}
+                  loading={beats.loading || nearestBeat.loading}
+                  onSearchChange={beats.onSearchChange}
+                  placeholder={nearestBeat.loading ? 'Detecting…' : 'Select…'}
+                  searchPlaceholder="Search beat"
+                />
               )}
             />
           </Field>

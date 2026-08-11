@@ -25,3 +25,15 @@ export function splitLatLng(value?: string): { latitude: string; longitude: stri
   }
   return { latitude: lat, longitude: lng }
 }
+
+/**
+ * Normalise a picker value into a stable identity for "which point is pinned".
+ * The same coordinate reaches the form spelled several ways — typed by the
+ * picker, re-joined from the API's two stored columns — so the nearest-beat
+ * prefill compares this instead of the raw string. Blank when nothing is
+ * pinned.
+ */
+export function coordKey(value?: string): string {
+  const { latitude, longitude } = splitLatLng(value)
+  return latitude && longitude ? `${latitude}, ${longitude}` : ''
+}

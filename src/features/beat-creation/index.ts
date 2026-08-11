@@ -2,6 +2,8 @@ export { BeatsPage } from './pages/beats-page'
 export {
   useBeats,
   useBeatsInfinite,
+  useBeatOptionsInfinite,
+  useNearestBeat,
   useBeat,
   useCreateBeat,
   useUpdateBeat,
@@ -10,4 +12,4 @@ export {
 // Generic form helpers that also back the distributor onboarding form.
 export { Field, DatePicker, MultiSelect } from './components/form-fields'
 export { gradeLabel, BEAT_GRADES } from './lib/beat-reference'
-export type { Beat, BeatInput, BeatGrade } from './types'
+export type { Beat, BeatInput, BeatGrade, BeatOption, NearestBeat } from './types'

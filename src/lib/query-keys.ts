@@ -110,6 +110,12 @@ export const queryKeys = {
     listInfinite: (filters?: Record<string, unknown>) =>
       [...queryKeys.beats.all, 'list-infinite', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.beats.all, 'detail', id] as const,
+    /** Beat dropdown options (`id` + name only), server-searched and paged. */
+    options: (filters?: Record<string, unknown>) =>
+      [...queryKeys.beats.all, 'options', filters ?? {}] as const,
+    /** The beat nearest a pinned coordinate — keyed on the coordinate itself. */
+    nearest: (latitude: string, longitude: string) =>
+      [...queryKeys.beats.all, 'nearest', latitude, longitude] as const,
   },
   beatAllocation: {
     all: ['beat-allocation'] as const,

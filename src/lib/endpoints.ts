@@ -115,6 +115,19 @@ export const endpoints = {
   /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
   BEAT: {
     LIST: '/sales-incharge-admin/beats',
+    /**
+     * Lightweight `id` + `name` picker for beat dropdowns on other screens.
+     * Gated on `beat:lookup` (a panel baseline) rather than `beat:list`, so
+     * filling a beat select never implies access to the Beat Master screen.
+     */
+    OPTIONS: '/sales-incharge-admin/beats/options',
+    /**
+     * GET `?latitude&longitude` — the beat nearest a coordinate, decided by a
+     * majority vote across the k nearest geo-tagged outlets. Used to prefill the
+     * retailer form's beat once the shop is pinned; an unresolved answer is a
+     * real answer, so the caller must not guess in its place.
+     */
+    NEAREST: '/sales-incharge-admin/beats/nearest',
     CREATE: '/sales-incharge-admin/beats',
     GET: (id: string | number) => `/sales-incharge-admin/beats/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/beats/${id}`,

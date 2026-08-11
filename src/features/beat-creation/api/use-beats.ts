@@ -6,8 +6,16 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
-import { createBeat, deleteBeat, fetchBeat, fetchBeats, updateBeat } from './beat-api'
-import type { BeatInput, BeatListParams } from '../types'
+import {
+  createBeat,
+  deleteBeat,
+  fetchBeat,
+  fetchBeatOptions,
+  fetchBeats,
+  resolveNearestBeat,
+  updateBeat,
+} from './beat-api'
+import type { BeatInput, BeatListParams, BeatOptionsParams } from '../types'
 
 /** GET /sales-incharge-admin/beats — live, server-filtered list. */
 export function useBeats(params: BeatListParams = {}, options: { enabled?: boolean } = {}) {
@@ -36,6 +44,48 @@ export function useBeatsInfinite(
     getNextPageParam: (lastPage) =>
       lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
     enabled: options.enabled ?? true,
+  })
+}
+
+/**
+ * GET /sales-incharge-admin/beats/options — scroll-lazy beat dropdown feed for
+ * forms on other screens. Always infinite: a beat select pages as it's scrolled,
+ * and the master outgrows one page.
+ */
+export function useBeatOptionsInfinite(
+  params: Omit<BeatOptionsParams, 'page'> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.beats.options(params as Record<string, unknown>),
+    queryFn: ({ pageParam }) => fetchBeatOptions({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: options.enabled ?? true,
+  })
+}
+
+/**
+ * GET /sales-incharge-admin/beats/nearest — resolve the beat nearest a pinned
+ * coordinate. Idles until both coordinates are present. The answer only changes
+ * when the pin moves, so it's cached against the coordinate itself and stays
+ * fresh for the length of a form session rather than refetching on every focus.
+ */
+export function useNearestBeat(
+  latitude: string | undefined,
+  longitude: string | undefined,
+  options: { enabled?: boolean } = {},
+) {
+  const hasCoords = !!latitude && !!longitude
+  return useQuery({
+    queryKey: queryKeys.beats.nearest(latitude ?? '', longitude ?? ''),
+    queryFn: () => resolveNearestBeat(latitude as string, longitude as string),
+    enabled: hasCoords && (options.enabled ?? true),
+    staleTime: 5 * 60 * 1000,
+    // A failed lookup just means "no suggestion" — don't hammer the endpoint
+    // while the user drags the pin around.
+    retry: false,
   })
 }
 

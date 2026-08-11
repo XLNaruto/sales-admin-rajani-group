@@ -64,9 +64,8 @@ export interface Retailer {
  * `File`s for the shop photo. On submit the files are presigned + uploaded and
  * replaced with their storage keys before the create request is sent.
  *
- * Deliberately has no `status` (the create/update bodies reject it — use
- * PATCH …/status) and no `beatId` (the beat, and through it the distributor, is
- * derived server-side from the captured coordinates).
+ * Deliberately has no `status` — the create/update bodies reject it; use
+ * PATCH …/status.
  */
 export interface RetailerCreateInput {
   // --- Shop & owner ---
@@ -92,6 +91,14 @@ export interface RetailerCreateInput {
   talukaId: string
   cityId: string
   pincode?: string
+
+  /**
+   * Beat the outlet belongs to — prefilled from the nearest-beat lookup once the
+   * shop is pinned, then editable. Empty means "leave it unassigned": sent as an
+   * explicit `null` so clearing it on an edit actually detaches the outlet (and
+   * with it, its distributors).
+   */
+  beatId?: string
 
   // --- Geo-location, captured as a single "lat, lng" string by the picker ---
   latitude?: string

@@ -72,8 +72,11 @@ export const retailerSchema = z
       .optional()
       .refine((v) => !v || /^\d{6}$/.test(v), 'Enter a valid 6-digit pincode'),
 
-    // No `beatId` either: the server assigns the beat nearest the pinned
-    // coordinates (within 25 km), and the distributor follows from that beat.
+    // The beat the outlet belongs to, and through it the distributors serving
+    // it. Optional: the server no longer picks one, so an outlet with no
+    // resolvable beat is saved unassigned rather than mis-assigned. Prefilled
+    // from GET /beats/nearest once the shop is pinned, then freely changeable.
+    beatId: z.string().optional(),
 
     // Captured by the map picker as "lat, lng"; split into latitude/longitude
     // on submit. `formattedAddress` is derived from it, never typed.
@@ -101,6 +104,7 @@ export const retailerDefaults: Partial<RetailerFormValues> = {
   talukaId: '',
   cityId: '',
   pincode: '',
+  beatId: '',
   geoLocation: '',
   formattedAddress: '',
   outletTypeId: '',

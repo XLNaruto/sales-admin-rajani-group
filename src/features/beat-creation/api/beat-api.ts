@@ -4,10 +4,21 @@ import { asApiError } from '@/lib/api-error'
 import {
   beatDetailSchema,
   beatListResponseSchema,
+  beatOptionsResponseSchema,
+  nearestBeatResponseSchema,
   type BeatRow,
 } from '../schemas'
 import type { BeatFormValues } from '../lib/beat-form'
-import type { Beat, BeatDistributor, BeatInput, BeatListParams, BeatListResult } from '../types'
+import type {
+  Beat,
+  BeatDistributor,
+  BeatInput,
+  BeatListParams,
+  BeatListResult,
+  BeatOptionsParams,
+  BeatOptionsResult,
+  NearestBeat,
+} from '../types'
 
 /**
  * Normalise the row's distributor shape — expanded `distributors` objects,
@@ -130,6 +141,66 @@ export async function fetchBeat(id: string): Promise<BeatEditRecord> {
     }
   } catch (error) {
     throw asApiError(error, 'Failed to load the beat.')
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/beats/options — one page of `id` + name rows for a
+ * beat dropdown on another screen. Separate from `fetchBeats` because this one
+ * only needs `beat:lookup`, so a form can fill its beat select without holding
+ * access to the Beat Master screen.
+ */
+export async function fetchBeatOptions(
+  params: BeatOptionsParams = {},
+): Promise<BeatOptionsResult> {
+  try {
+    const q: Record<string, string | number> = {}
+    if (params.page != null) q.page = params.page
+    if (params.pageSize != null) q.page_size = params.pageSize
+    if (params.search) q.search = params.search
+    const raw = await http.get<unknown>(endpoints.BEAT.OPTIONS, { params: q })
+    const res = beatOptionsResponseSchema.parse(raw)
+    return {
+      items: res.beats,
+      total: res.total ?? res.beats.length,
+      page: res.page ?? 1,
+      pageSize: res.page_size ?? res.beats.length,
+      totalPages: res.total_pages ?? 1,
+    }
+  } catch (error) {
+    throw asApiError(error, 'Failed to load beats.')
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/beats/nearest — the beat nearest a coordinate,
+ * decided by a majority vote across the nearest geo-tagged outlets (not a
+ * centroid: a beat is a corridor, and a corridor's centroid can land in a field).
+ *
+ * An unresolved answer comes back as `resolved: false` with a null beat rather
+ * than an error, and is passed through as-is — the caller offers a suggestion,
+ * it never invents one.
+ */
+export async function resolveNearestBeat(
+  latitude: string | number,
+  longitude: string | number,
+): Promise<NearestBeat> {
+  try {
+    const raw = await http.get<unknown>(endpoints.BEAT.NEAREST, {
+      params: { latitude, longitude },
+    })
+    const r = nearestBeatResponseSchema.parse(raw)
+    return {
+      resolved: r.resolved,
+      beatId: r.beat_id != null ? String(r.beat_id) : null,
+      beatName: r.beat_name ?? null,
+      distanceMetres: r.distance_metres ?? null,
+      votes: r.votes ?? 0,
+      considered: r.considered ?? 0,
+      source: r.source,
+    }
+  } catch (error) {
+    throw asApiError(error, 'Failed to find the nearest beat.')
   }
 }
 
