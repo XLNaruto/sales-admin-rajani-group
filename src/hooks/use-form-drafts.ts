@@ -88,12 +88,24 @@ function hasContent(values: FieldValues): boolean {
   })
 }
 
+/** Idle gap after the last edit before a change-triggered save runs. */
+const SAVE_DEBOUNCE_MS = 700
+
 /**
  * Autosaves a create form as a local draft and restores one on demand.
  *
- * Saves happen on field blur (`saveOnBlur`, wired to the `<form>`) and whenever
- * a file field changes, since picking a photo never fires a blur. The caller
- * clears the draft from its submit `onSuccess` — a failed request must keep it.
+ * Saves happen on field blur (`saveOnBlur`, wired to the `<form>`) AND on a
+ * debounced value change. The change watcher isn't a nicety — blur alone loses
+ * edits made in popover controls. Clicking an option in the MultiSelect /
+ * Combobox moves focus to that option's button on `mousedown`, so the blur it
+ * triggers runs *before* the click updates the value (the save lags one pick
+ * behind), and dismissing the panel unmounts the focused button, which fires no
+ * `focusout` at all. Picking two companies would leave one in the draft. Watching
+ * values closes both holes for every control, files included.
+ *
+ * The caller clears the draft from its submit `onSuccess` — a failed request
+ * must keep it — after which this hook stops saving, so a blur fired on the way
+ * out can't resurrect the draft it just deleted.
  */
 export function useFormDraft<V extends FieldValues>({
   form,
@@ -128,11 +140,19 @@ export function useFormDraft<V extends FieldValues>({
   // Set only when THIS hook minted the draft id (and put it in the URL), so the
   // restore effect below doesn't then reset the form out from under the user.
   const selfCreatedRef = useRef<string | undefined>(undefined)
+  // Latched by `clearDraft`: the record now exists on the server, so nothing
+  // that fires while the page tears down may write a draft again.
+  const stoppedRef = useRef(false)
+  // The debounced change-save: its timer, and whether one is owed (so unmount
+  // can flush it instead of dropping the user's last edit).
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const pendingRef = useRef(false)
 
   // Seed the form from the draft named in the URL.
   useEffect(() => {
     if (!enabled || !draftId || selfCreatedRef.current === draftId) return
     idRef.current = draftId
+    stoppedRef.current = false
     setIsRestoring(true)
 
     let active = true
@@ -164,7 +184,7 @@ export function useFormDraft<V extends FieldValues>({
 
   const save = useCallback(() => {
     const { describe, onCreated, fileFields, enabled } = optionsRef.current
-    if (!enabled) return
+    if (!enabled || stoppedRef.current) return
 
     queueRef.current = queueRef.current.then(async () => {
       const values = form.getValues()
@@ -190,26 +210,57 @@ export function useFormDraft<V extends FieldValues>({
     })
   }, [form, formKey, queryClient])
 
+  /** Cancel an owed change-save — the caller is about to save right now. */
+  const cancelPending = useCallback(() => {
+    clearTimeout(timerRef.current)
+    pendingRef.current = false
+  }, [])
+
   /** Blur handler for the `<form>` — focusout bubbles, so one listener covers
    *  native inputs and the custom Combobox / DatePicker controls alike. */
   const saveOnBlur = useCallback(() => {
     if (isRestoring) return
+    cancelPending()
     save()
-  }, [isRestoring, save])
+  }, [cancelPending, isRestoring, save])
 
-  // File pickers change the value without a blur — watch them explicitly.
+  // Values are the reliable trigger; blur is only the eager one. Debounced so a
+  // burst of keystrokes (or of multi-select toggles) collapses into one write.
   useEffect(() => {
-    if (!enabled || fileFields.length === 0) return
+    if (!enabled) return
     const subscription = form.watch((_values, { name }) => {
-      if (name && optionsRef.current.fileFields.includes(name)) save()
+      // A nameless emission is a `reset` — restoring a draft, not editing one.
+      if (!name || stoppedRef.current) return
+      pendingRef.current = true
+      clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        pendingRef.current = false
+        save()
+      }, SAVE_DEBOUNCE_MS)
     })
-    return () => subscription.unsubscribe()
-    // `fileFields` is read through the ref; only its emptiness matters here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, fileFields.length, form, save])
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timerRef.current)
+    }
+  }, [enabled, form, save])
+
+  // Navigating away mid-debounce must not lose the last edit — flush it. Safe
+  // after unmount: the write is a detached promise, not React state.
+  useEffect(
+    () => () => {
+      if (!pendingRef.current) return
+      pendingRef.current = false
+      save()
+    },
+    [save],
+  )
 
   /** Drop the draft — call from the submit `onSuccess`, never on failure. */
   const clearDraft = useCallback(() => {
+    // Latch first: the unmount flush that follows the post-submit navigate must
+    // not re-create the draft under a fresh id.
+    stoppedRef.current = true
+    cancelPending()
     const id = idRef.current
     if (!id) return
     idRef.current = undefined
@@ -218,7 +269,7 @@ export function useFormDraft<V extends FieldValues>({
       .then(() =>
         queryClient.invalidateQueries({ queryKey: queryKeys.drafts.list(formKey) }),
       )
-  }, [formKey, queryClient])
+  }, [cancelPending, formKey, queryClient])
 
   return { saveOnBlur, clearDraft, isRestoring }
 }
