@@ -12,6 +12,15 @@ export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
 export type MarketSystem = 'ready_stock' | 'booking'
+/** Weekday a distributor is served on its delivery route (the API's enum). */
+export type DeliveryRouteDay =
+  | 'sunday'
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
 /**
  * The payment terms a distributor trades on: the id of a row in the
  * payment-condition master (`@/features/master-management`). Not an enum — the
@@ -63,7 +72,10 @@ export interface Distributor {
   /** City display name resolved by the list endpoint (`city_name`). */
   cityName?: string
   pincode?: string
-  deliveryRoute?: string
+  /** Id of a row in the route master (`delivery_route_id`). */
+  deliveryRouteId?: number
+  /** Weekday served on that route. */
+  deliveryRouteDay?: DeliveryRouteDay
   agencyTalukaIds?: string[]
   marketType?: DistributorMarketType
   villageIds?: string[]
@@ -133,7 +145,10 @@ export interface DistributorCreateInput {
   talukaId: string
   cityId: string
   pincode?: string
-  deliveryRoute?: string
+  /** Id of a row in the route master; sent as `delivery_route_id`. */
+  deliveryRouteId?: number
+  /** Weekday served on that route; sent as `delivery_route_day`. */
+  deliveryRouteDay?: DeliveryRouteDay
   agencyTalukaIds?: string[]
   marketType?: DistributorMarketType
   villageIds?: string[]
@@ -229,7 +244,10 @@ export interface DistributorDetailView {
   talukaId: string | null
   talukaName: string | null
   pincode: string | null
+  deliveryRouteId: number | null
+  /** Route display name resolved by the API (`delivery_route_name`). */
   deliveryRoute: string | null
+  deliveryRouteDay: string | null
   marketType: string | null
   marketSystem: string | null
   weeklyOff: string | null

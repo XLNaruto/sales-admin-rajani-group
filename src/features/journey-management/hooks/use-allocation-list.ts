@@ -131,6 +131,10 @@ export function useAllocationList() {
             const noBeats = count('no_beats')
             const existing = count('skipped_existing')
             const written = result.created + count('replaced')
+            // Dates the run wrote onto the calendars itself. Worth saying: those
+            // days are already sitting on each sales incharge's month, and they
+            // are the admin's, not his to move.
+            const pinned = result.results.reduce((sum, r) => sum + r.daysPinned, 0)
 
             const notes = [
               existing ? `${existing} already had one` : '',
@@ -147,6 +151,10 @@ export function useAllocationList() {
             toastsuccessmsg(
               written
                 ? `${written} draft${written === 1 ? '' : 's'} written${
+                    pinned
+                      ? `, with ${pinned} dated activity day${pinned === 1 ? '' : 's'} pinned onto their calendars`
+                      : ''
+                  }${
                     notes.length ? ` — ${notes.join('; ')}` : ''
                   }. Publish each one to release it to the sales incharge.`
                 : notes.length

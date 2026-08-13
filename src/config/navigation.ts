@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
+  // BarChart3,
   LayoutDashboard,
   UserCog,
   Building2,
@@ -74,7 +75,16 @@ export const navGroups: NavGroup[] = [
         to: '/retailers',
         icon: Store,
         permission: 'retailer-master:list',
+        // `/retailers/analytics` is its own item below, so the list link must
+        // not stay highlighted while the analytics screen is open.
+        exact: true,
       },
+      // {
+      //   label: 'Retailer Analytics',
+      //   to: '/retailers/analytics',
+      //   icon: BarChart3,
+      //   permission: 'retailer-master:list',
+      // },
     ],
   },
   {

@@ -112,6 +112,8 @@ export const generateSchema = z.object({
         journey_plan_id: optionalId,
         days_allocated: int,
         cities_allocated: int,
+        /** Dated activity days written straight onto this sales incharge's calendar. */
+        days_pinned: int,
         message: z.string().nullish(),
       }),
     )

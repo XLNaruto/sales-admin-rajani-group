@@ -137,7 +137,7 @@ export function AllocationEditor({
         <h2 className="font-heading text-sm font-semibold text-foreground">
           The allocation
         </h2>
-        <Hint label="Activity days plus city days, against the calendar dates in the month. Publish is refused unless they are equal.">
+        <Hint label="Activity days plus beat visit days, against the calendar dates in the month. Publish is refused unless they are equal.">
           <span
             className={cn(
               'cursor-default rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
@@ -186,7 +186,7 @@ export function AllocationEditor({
         {/* Activities first: they are the company's fixed days, and what is left
             over is what there is to spread across the cities. */}
         <BucketPanel
-          title="Activity days"
+          title="Activity Days"
           icon={CalendarClock}
           blurb="Fixed days — meetings, weekly offs, training. Field selling is never allocatable: which day he sells is his."
           emptyCopy="No activity days. Every date will have to be a city day."
@@ -205,9 +205,9 @@ export function AllocationEditor({
         />
 
         <BucketPanel
-          title="City days"
+          title="Beat Visit Days"
           icon={MapPin}
-          blurb="Only cities his allocated beats sit in. He chooses which beats inside each city, and on which dates."
+          blurb="Days per city, covering the beats allocated to him there. He chooses which beats inside each city, and on which dates."
           emptyCopy="No cities allocated — he has nowhere to work, and publish will be refused."
           rows={cityBuckets}
           nameOf={(id) => nameOfCity.get(id) ?? `City ${id}`}
@@ -309,9 +309,11 @@ function BucketPanel({
   return (
     <div className="min-w-0 p-4">
       <div className="flex items-center gap-2">
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground">
+        <Icon className="size-5 shrink-0 text-primary" />
+        <h3 className="font-heading text-base font-semibold tracking-tight text-foreground">
+          {title}
+        </h3>
+        <span className="rounded-full bg-primary/12 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-primary">
           {subtotal} {subtotal === 1 ? 'day' : 'days'}
         </span>
       </div>

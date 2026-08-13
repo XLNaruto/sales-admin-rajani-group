@@ -512,10 +512,15 @@ export async function generatePlans(input: GenerateInput): Promise<GenerateResul
         : {}),
       ...(input.activityAllocations?.length
         ? {
-            activity_allocations: input.activityAllocations.map((bucket) => ({
-              activity_id: bucket.activityId,
-              days_count: bucket.daysCount,
-            })),
+            // Each bucket is EITHER a count the sales incharge dates himself OR the
+            // exact dates the office fixed — the endpoint derives a dated bucket's
+            // day-count from `dates.length`, so sending both would be the same
+            // number said twice and a mismatch waiting to happen.
+            activity_allocations: input.activityAllocations.map((bucket) =>
+              bucket.dates?.length
+                ? { activity_id: bucket.activityId, dates: bucket.dates }
+                : { activity_id: bucket.activityId, days_count: bucket.daysCount },
+            ),
           }
         : {}),
       ...(input.replaceExisting != null
@@ -531,6 +536,7 @@ export async function generatePlans(input: GenerateInput): Promise<GenerateResul
         journeyPlanId: row.journey_plan_id,
         daysAllocated: row.days_allocated,
         citiesAllocated: row.cities_allocated,
+        daysPinned: row.days_pinned,
         message: row.message ?? null,
       })),
       created: res.created,

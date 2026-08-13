@@ -107,7 +107,22 @@ export const distributorSchema = z.object({
     .string()
     .optional()
     .refine((v) => !v || /^\d{6}$/.test(v), 'Enter a valid 6-digit pincode'),
-  deliveryRoute: z.string().optional(),
+  // Id of a row in the route master (GET /routes), stringified like every other
+  // select value; sent as `delivery_route_id`.
+  deliveryRouteId: z.string().optional(),
+  // Weekday the distributor is served on that route (the API's enum).
+  deliveryRouteDay: optEnum(
+    [
+      'sunday',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+    ],
+    'Choose a delivery day from the list',
+  ),
   agencyTalukaIds: z.array(z.string()).optional(),
   marketType: optEnum(
     ['local', 'rural', 'local_rural', 'counter_sales'],
@@ -172,7 +187,8 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   talukaId: '',
   cityId: '',
   pincode: '',
-  deliveryRoute: '',
+  deliveryRouteId: '',
+  deliveryRouteDay: '',
   agencyTalukaIds: [],
   villageIds: [],
   retailersLocal: '',

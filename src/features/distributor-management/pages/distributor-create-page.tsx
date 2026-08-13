@@ -14,7 +14,10 @@ import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
 import { useCompanies } from "@/features/company";
-import { usePaymentConditions } from "@/features/master-management";
+import {
+  useRoutes,
+  usePaymentConditions,
+} from "@/features/master-management";
 import {
   useCitySelect,
   useDistrictSelect,
@@ -23,13 +26,12 @@ import {
   useZoneSelect,
 } from "@/features/location";
 import {
+  DELIVERY_DAYS,
   FIRM_TYPES,
   MARKET_SYSTEMS,
   MARKET_TYPES,
   WEEKLY_OFF_DAYS,
   YES_NO,
-  toOptions,
-  villagesByCity,
 } from "../lib/distributor-reference";
 
 /** Parse a string form id into the numeric id the location API expects. */
@@ -65,7 +67,7 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     stateId,
     zoneId,
     districtId,
-    cityId,
+    talukaId,
     onSubmit,
     isEdit,
     isPending,
@@ -110,6 +112,15 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     label: c.name,
   }));
 
+  // Route master (GET /routes) — same deal: the form holds the picked row's id,
+  // stored by the distributor API as `delivery_route_id`. Routes are labelled
+  // by name and code, which is how the warehouse team refers to them.
+  const routes = useRoutes();
+  const deliveryRouteOptions = (routes.data?.items ?? []).map((r) => ({
+    value: String(r.id),
+    label: r.code ? `${r.name} (${r.code})` : r.name,
+  }));
+
   const stateSelect = useStateSelect();
   const zoneSelect = useZoneSelect(toId(stateId));
   const districtSelect = useDistrictSelect(toId(zoneId));
@@ -120,6 +131,10 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
   // ancestry fills in. `alwaysEnabled` is required because the query otherwise
   // idles while `taluka_id` is absent.
   const citySelect = useCitySelect(undefined, { alwaysEnabled: true });
+  // "List Of Villages" comes off the same cities master — villages are rows of
+  // it. Scoped to the chosen taluka when there is one, every city otherwise, so
+  // the field is usable before the territory above it is filled in.
+  const villageSelect = useCitySelect(toId(talukaId), { alwaysEnabled: true });
 
   /**
    * Picking a city sets state → zone → district → taluka from the same row the
@@ -538,13 +553,44 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           </Field>
 
           <Field
-            label="Delivery Route (Delivery Day)"
+            label="Delivery Route"
             optional
-            error={errors.deliveryRoute?.message}
+            error={errors.deliveryRouteId?.message}
           >
-            <Input
-              placeholder="Delivery Route (Delivery Day)"
-              {...register("deliveryRoute")}
+            <Controller
+              control={control}
+              name="deliveryRouteId"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={deliveryRouteOptions}
+                  placeholder={
+                    routes.isLoading ? "Loading…" : "Select…"
+                  }
+                  searchPlaceholder="Search delivery route"
+                />
+              )}
+            />
+          </Field>
+
+          <Field
+            label="Delivery Day"
+            optional
+            error={errors.deliveryRouteDay?.message}
+          >
+            <Controller
+              control={control}
+              name="deliveryRouteDay"
+              render={({ field }) => (
+                <Combobox
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  options={DELIVERY_DAYS}
+                  placeholder="Select…"
+                  searchable={false}
+                />
+              )}
             />
           </Field>
 
@@ -602,10 +648,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                 <MultiSelect
                   value={field.value ?? []}
                   onChange={field.onChange}
-                  options={toOptions(villagesByCity(cityId))}
-                  placeholder={
-                    cityId ? "Select villages…" : "Select a city first"
-                  }
+                  options={villageSelect.options}
+                  onScrollEnd={villageSelect.onScrollEnd}
+                  loading={villageSelect.loading}
+                  onSearchChange={villageSelect.onSearchChange}
+                  placeholder="Select villages…"
                   searchPlaceholder="Search village"
                 />
               )}

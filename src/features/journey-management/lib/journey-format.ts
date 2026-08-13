@@ -76,6 +76,19 @@ export function dayLabel(date: string): string {
   }
 }
 
+/**
+ * A `yyyy-MM-dd` date as "Tue 4" — the label for a chip in a list of dates that
+ * are all in one known month, where the month and the year would be noise on
+ * every one of them.
+ */
+export function shortDayLabel(date: string): string {
+  try {
+    return format(parseISO(date), 'EEE d')
+  } catch {
+    return date
+  }
+}
+
 /** A `yyyy-MM` month as "July 2026". */
 export function monthLabel(month: string): string {
   try {

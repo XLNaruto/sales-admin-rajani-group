@@ -502,13 +502,20 @@ export type GenerateOutcome =
  * How many days of the month an activity must take, **for every sales incharge in the run**
  * — "one monthly meeting, four weekly offs" is a company fact.
  *
- * Dateless on purpose: the office fixes the *amount*, and which date it lands on
- * is the sales incharge's to decide a month later.
+ * Dateless by default: the office fixes the *amount*, and which date it lands on
+ * is usually the sales incharge's to decide a month later. `dates` is the
+ * exception — the bucket the office dates itself, such as a meeting on the 12th.
  */
 export interface ActivityQuota {
   activityId: number
   /** Days in the period, at least 1 and never more than the month is long. */
   daysCount: number
+  /**
+   * The exact dates the office fixed, as `yyyy-MM-dd`, or omitted to let the sales
+   * incharge date the bucket himself. When present it holds exactly `daysCount`
+   * dates — the count is derived from it, never entered beside it.
+   */
+  dates?: string[]
 }
 
 /**
@@ -538,6 +545,11 @@ export interface GenerateResult {
     journeyPlanId: string | null
     daysAllocated: number
     citiesAllocated: number
+    /**
+     * Dated activity days written straight onto this sales incharge's calendar by
+     * the run. Zero when every bucket was a plain count.
+     */
+    daysPinned: number
     /** Why it failed or was skipped, when the server says. */
     message: string | null
   }[]

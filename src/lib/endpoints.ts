@@ -112,6 +112,14 @@ export const endpoints = {
     UPDATE: (id: string | number) => `/sales-incharge-admin/payment-conditions/${id}`,
     DELETE: (id: string | number) => `/sales-incharge-admin/payment-conditions/${id}`,
   },
+  /**
+   * Route master — the named delivery routes a warehouse serves, behind the
+   * distributor form's "Delivery Route" select. Read-only (the API exposes no
+   * writes).
+   */
+  ROUTE: {
+    LIST: '/sales-incharge-admin/routes',
+  },
   /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
   BEAT: {
     LIST: '/sales-incharge-admin/beats',

@@ -275,6 +275,10 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="Taluka" value={data.talukaName} />
                 <Field label="Pincode" value={data.pincode} />
                 <Field label="Delivery Route" value={data.deliveryRoute} />
+                <Field
+                  label="Delivery Day"
+                  value={data.deliveryRouteDay ? labelFor(data.deliveryRouteDay) : null}
+                />
                 <Field label="Weekly Off" value={data.weeklyOff} />
                 <Field
                   label="Market Type"

@@ -27,6 +27,7 @@ import type {
   DistributorStatus,
   DistributorUpdateInput,
   FirmType,
+  DeliveryRouteDay,
   MarketSystem,
 } from '../types'
 
@@ -254,7 +255,8 @@ function buildScalarBody(input: DistributorCreateInput) {
     taluka_id: toId(input.talukaId),
     city_id: toId(input.cityId),
     pincode: str(input.pincode),
-    delivery_route: str(input.deliveryRoute),
+    delivery_route_id: input.deliveryRouteId,
+    delivery_route_day: str(input.deliveryRouteDay),
     taluka_of_agency_ids: (input.agencyTalukaIds ?? [])
       .map(toId)
       .filter((n): n is number | string => n != null),
@@ -358,7 +360,8 @@ export async function fetchDistributor(id: string): Promise<{
       talukaId: idStr(r.taluka_id),
       cityId: idStr(r.city_id),
       pincode: r.pincode ?? '',
-      deliveryRoute: r.delivery_route ?? '',
+      deliveryRouteId: idStr(r.delivery_route_id),
+      deliveryRouteDay: (r.delivery_route_day ?? '') as DeliveryRouteDay | '',
       agencyTalukaIds: (r.taluka_of_agency_ids ?? []).map(String),
       marketType: (r.market_type ?? undefined) as DistributorMarketType | undefined,
       villageIds: (r.village_ids ?? []).map(String),
@@ -445,7 +448,9 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       talukaId: idStr(r.taluka_id),
       talukaName: r.taluka_name ?? null,
       pincode: r.pincode ?? null,
-      deliveryRoute: r.delivery_route ?? null,
+      deliveryRouteId: r.delivery_route_id ?? null,
+      deliveryRoute: r.delivery_route_name ?? null,
+      deliveryRouteDay: r.delivery_route_day ?? null,
       marketType: r.market_type ?? null,
       marketSystem: r.market_system ?? null,
       weeklyOff: r.weekly_off ?? null,

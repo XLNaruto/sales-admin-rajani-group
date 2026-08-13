@@ -49,16 +49,6 @@ export const CITIES: (RefNode & { talukaId: string })[] = [
   { id: 'ct-nagpur', talukaId: 'tl-nagpur', name: 'Nagpur City' },
 ]
 
-export const VILLAGES: (RefNode & { cityId: string })[] = [
-  { id: 'vl-kotharia', cityId: 'ct-rajkot', name: 'Kotharia' },
-  { id: 'vl-mavdi', cityId: 'ct-rajkot', name: 'Mavdi' },
-  { id: 'vl-vasavad', cityId: 'ct-gondal', name: 'Vasavad' },
-  { id: 'vl-dhrol', cityId: 'ct-jamnagar', name: 'Dhrol' },
-  { id: 'vl-waghodia', cityId: 'ct-vadodara', name: 'Waghodia' },
-  { id: 'vl-wagholi', cityId: 'ct-pune', name: 'Wagholi' },
-  { id: 'vl-hingna', cityId: 'ct-nagpur', name: 'Hingna' },
-]
-
 /* ---------------------------- Enums ------------------------------- */
 
 export const FIRM_TYPES: ComboboxOption[] = [
@@ -94,6 +84,17 @@ export const DISTRIBUTOR_STATUSES: ComboboxOption[] = [
   { value: 'suspended', label: 'Suspended' },
 ]
 
+/** Sunday → Saturday, the days a delivery route can run on. */
+export const DELIVERY_DAYS: ComboboxOption[] = [
+  { value: 'sunday', label: 'Sunday' },
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+  { value: 'saturday', label: 'Saturday' },
+]
+
 export const WEEKLY_OFF_DAYS: ComboboxOption[] = [
   { value: 'none', label: 'None' },
   { value: 'monday', label: 'Monday' },
@@ -112,7 +113,6 @@ export const districtsByZone = (zoneId: string) => DISTRICTS.filter((d) => d.zon
 export const talukasByDistrict = (districtId: string) =>
   TALUKAS.filter((t) => t.districtId === districtId)
 export const citiesByTaluka = (talukaId: string) => CITIES.filter((c) => c.talukaId === talukaId)
-export const villagesByCity = (cityId: string) => VILLAGES.filter((v) => v.cityId === cityId)
 
 /* ------------------------- Name lookups --------------------------- */
 
@@ -141,6 +141,15 @@ const LABELS: Record<string, string> = {
   advance: 'Advance',
   yes: 'Yes',
   no: 'No',
+  // Weekdays — the delivery-day and weekly-off enums.
+  sunday: 'Sunday',
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  none: 'None',
 }
 
 export const labelFor = (value?: string) => (value ? (LABELS[value] ?? value) : '—')

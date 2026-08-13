@@ -55,6 +55,41 @@ export const queryKeys = {
     detail: (id: string) => [...queryKeys.retailers.all, 'detail', id] as const,
     detailView: (id: string) => [...queryKeys.retailers.all, 'detail-view', id] as const,
   },
+  /**
+   * Retailer Analytics — read-only reports. Each key carries the whole filter
+   * set, so changing a facet is a new cache entry rather than a refetch of the
+   * same one.
+   */
+  retailerAnalytics: {
+    all: ['retailer-analytics'] as const,
+    summary: (filters: Record<string, unknown>) =>
+      [...queryKeys.retailerAnalytics.all, 'summary', filters] as const,
+    /** Zone / district / city / beat / product-wise sales. */
+    dimensionSales: (dimension: string, filters: Record<string, unknown>) =>
+      [...queryKeys.retailerAnalytics.all, 'dimension-sales', dimension, filters] as const,
+    /** Counts per lifecycle tag (New Call, Dormant, …). */
+    tagSummary: (filters: Record<string, unknown>) =>
+      [...queryKeys.retailerAnalytics.all, 'tag-summary', filters] as const,
+    /** Retailers behind one tag card. */
+    tagged: (tag: string, filters: Record<string, unknown>) =>
+      [...queryKeys.retailerAnalytics.all, 'tagged', tag, filters] as const,
+    /** Beat-wise / city-wise groups of the retailer list. */
+    listGroups: (dimension: string, filters: Record<string, unknown>) =>
+      [...queryKeys.retailerAnalytics.all, 'list-groups', dimension, filters] as const,
+    /** Retailers inside one beat/city group. */
+    groupRetailers: (
+      dimension: string,
+      groupId: string,
+      filters: Record<string, unknown>,
+    ) =>
+      [
+        ...queryKeys.retailerAnalytics.all,
+        'group-retailers',
+        dimension,
+        groupId,
+        filters,
+      ] as const,
+  },
   /** Master Management — the small reference masters (outlet types, …). */
   masters: {
     all: ['masters'] as const,
@@ -75,6 +110,9 @@ export const queryKeys = {
     /** GET /payment-conditions/{id} — a single payment condition. */
     paymentCondition: (id: number) =>
       [...queryKeys.masters.all, 'payment-condition', id] as const,
+    /** GET /routes — the route master (dropdown source). */
+    routes: (filters?: Record<string, unknown>) =>
+      [...queryKeys.masters.all, 'routes', filters ?? {}] as const,
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,
