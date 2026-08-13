@@ -1,53 +1,11 @@
 import type { ComboboxOption } from '@/components/ui/combobox'
 
 /* ------------------------------------------------------------------ *
- * Mock reference data. In a real build these come from their own API  *
- * hooks; here they're static so the cascading selects have something  *
- * to drive. Each level references its parent's id.                    *
+ * The distributor form's static option lists — the enums the API      *
+ * documents, which have no master behind them. Everything with a      *
+ * master (geography, routes, payment conditions) is fetched: see      *
+ * `@/features/location` and `@/features/master-management`.           *
  * ------------------------------------------------------------------ */
-
-export interface RefNode {
-  id: string
-  name: string
-}
-
-export const STATES: RefNode[] = [
-  { id: 'st-gj', name: 'Gujarat' },
-  { id: 'st-mh', name: 'Maharashtra' },
-]
-
-export const ZONES: (RefNode & { stateId: string })[] = [
-  { id: 'zn-gj-s', stateId: 'st-gj', name: 'Saurashtra' },
-  { id: 'zn-gj-c', stateId: 'st-gj', name: 'Central Gujarat' },
-  { id: 'zn-mh-w', stateId: 'st-mh', name: 'West Maharashtra' },
-  { id: 'zn-mh-v', stateId: 'st-mh', name: 'Vidarbha' },
-]
-
-export const DISTRICTS: (RefNode & { zoneId: string })[] = [
-  { id: 'dt-rajkot', zoneId: 'zn-gj-s', name: 'Rajkot' },
-  { id: 'dt-jamnagar', zoneId: 'zn-gj-s', name: 'Jamnagar' },
-  { id: 'dt-vadodara', zoneId: 'zn-gj-c', name: 'Vadodara' },
-  { id: 'dt-pune', zoneId: 'zn-mh-w', name: 'Pune' },
-  { id: 'dt-nagpur', zoneId: 'zn-mh-v', name: 'Nagpur' },
-]
-
-export const TALUKAS: (RefNode & { districtId: string })[] = [
-  { id: 'tl-rajkot', districtId: 'dt-rajkot', name: 'Rajkot' },
-  { id: 'tl-gondal', districtId: 'dt-rajkot', name: 'Gondal' },
-  { id: 'tl-jamnagar', districtId: 'dt-jamnagar', name: 'Jamnagar' },
-  { id: 'tl-vadodara', districtId: 'dt-vadodara', name: 'Vadodara' },
-  { id: 'tl-haveli', districtId: 'dt-pune', name: 'Haveli' },
-  { id: 'tl-nagpur', districtId: 'dt-nagpur', name: 'Nagpur Rural' },
-]
-
-export const CITIES: (RefNode & { talukaId: string })[] = [
-  { id: 'ct-rajkot', talukaId: 'tl-rajkot', name: 'Rajkot City' },
-  { id: 'ct-gondal', talukaId: 'tl-gondal', name: 'Gondal' },
-  { id: 'ct-jamnagar', talukaId: 'tl-jamnagar', name: 'Jamnagar City' },
-  { id: 'ct-vadodara', talukaId: 'tl-vadodara', name: 'Vadodara City' },
-  { id: 'ct-pune', talukaId: 'tl-haveli', name: 'Pune City' },
-  { id: 'ct-nagpur', talukaId: 'tl-nagpur', name: 'Nagpur City' },
-]
 
 /* ---------------------------- Enums ------------------------------- */
 
@@ -106,26 +64,6 @@ export const WEEKLY_OFF_DAYS: ComboboxOption[] = [
   { value: 'sunday', label: 'Sunday' },
 ]
 
-/* ---------------------- Cascade filter helpers -------------------- */
-
-export const zonesByState = (stateId: string) => ZONES.filter((z) => z.stateId === stateId)
-export const districtsByZone = (zoneId: string) => DISTRICTS.filter((d) => d.zoneId === zoneId)
-export const talukasByDistrict = (districtId: string) =>
-  TALUKAS.filter((t) => t.districtId === districtId)
-export const citiesByTaluka = (talukaId: string) => CITIES.filter((c) => c.talukaId === talukaId)
-
-/* ------------------------- Name lookups --------------------------- */
-
-const nameMap = (rows: RefNode[]) => new Map(rows.map((r) => [r.id, r.name]))
-
-const STATE_NAMES = nameMap(STATES)
-const CITY_NAMES = nameMap(CITIES)
-const TALUKA_NAMES = nameMap(TALUKAS)
-
-export const stateName = (id: string) => STATE_NAMES.get(id) ?? id
-export const cityName = (id: string) => CITY_NAMES.get(id) ?? id
-export const talukaName = (id: string) => TALUKA_NAMES.get(id) ?? id
-
 const LABELS: Record<string, string> = {
   proprietorship: 'Proprietorship',
   partnership: 'Partnership',
@@ -153,10 +91,6 @@ const LABELS: Record<string, string> = {
 }
 
 export const labelFor = (value?: string) => (value ? (LABELS[value] ?? value) : '—')
-
-/** Convert a list of reference nodes into combobox options. */
-export const toOptions = (rows: RefNode[]): ComboboxOption[] =>
-  rows.map((r) => ({ value: r.id, label: r.name }))
 
 /**
  * Split the picker's "lat, lng" string into the two columns the API stores

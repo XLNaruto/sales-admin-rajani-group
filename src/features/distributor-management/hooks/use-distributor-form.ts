@@ -129,8 +129,16 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     agencyTalukaIds: values.agencyTalukaIds ?? [],
     marketType: optValue(values.marketType),
     villageIds: values.villageIds ?? [],
-    retailersLocal: num(values.retailersLocal),
-    retailersRural: num(values.retailersRural),
+    // Each count is only shown for the market types it applies to; omit the
+    // other so a record seeded with a stale count doesn't re-save it.
+    retailersLocal:
+      values.marketType === 'local' || values.marketType === 'local_rural'
+        ? num(values.retailersLocal)
+        : undefined,
+    retailersRural:
+      values.marketType === 'rural' || values.marketType === 'local_rural'
+        ? num(values.retailersRural)
+        : undefined,
     marketSystem: optValue(values.marketSystem),
     weeklyOff: str(values.weeklyOff),
     geoLocation: str(values.geoLocation),
@@ -142,7 +150,11 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     assignedProducts: str(values.assignedProducts),
     productTargets: str(values.productTargets),
     deliveryVehicle: optValue(values.deliveryVehicle),
-    deliveryVehicleDetail: str(values.deliveryVehicleDetail),
+    // The detail field is only shown (and only meaningful) when there is a
+    // vehicle — drop it otherwise, so a record seeded with "no" plus an old
+    // detail doesn't silently save the stale text.
+    deliveryVehicleDetail:
+      values.deliveryVehicle === "yes" ? str(values.deliveryVehicleDetail) : undefined,
     godownSize: num(values.godownSize),
     yearOfEst: str(values.yearOfEst),
     // Legal & financial

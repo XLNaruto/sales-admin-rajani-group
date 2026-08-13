@@ -1,4 +1,4 @@
-import { Controller } from "react-hook-form";
+import { Controller, useWatch } from "react-hook-form";
 import { ArrowLeft, Store, MapPin, Briefcase, Landmark } from "lucide-react";
 import { decryptParams } from "@/lib/crypto";
 import { PageHeader } from "@/components/common/page-header";
@@ -135,6 +135,18 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
   // it. Scoped to the chosen taluka when there is one, every city otherwise, so
   // the field is usable before the territory above it is filled in.
   const villageSelect = useCitySelect(toId(talukaId), { alwaysEnabled: true });
+
+  // Drives the conditional "Delivery Vehicle Detail" field below.
+  const deliveryVehicle = useWatch({ control, name: "deliveryVehicle" });
+
+  // The market type decides which retailer-count fields apply: Local asks for
+  // the local count, Rural the rural one, "Local & Rural" both, Counter Sales
+  // neither.
+  const marketType = useWatch({ control, name: "marketType" });
+  const showLocalRetailers =
+    marketType === "local" || marketType === "local_rural";
+  const showRuralRetailers =
+    marketType === "rural" || marketType === "local_rural";
 
   /**
    * Picking a city sets state → zone → district → taluka from the same row the
@@ -627,7 +639,15 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
               render={({ field }) => (
                 <Combobox
                   value={field.value ?? ""}
-                  onChange={field.onChange}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    // Drop the counts the new market type doesn't ask for, so
+                    // a hidden field can't be submitted unseen.
+                    if (v !== "local" && v !== "local_rural")
+                      setValue("retailersLocal", "");
+                    if (v !== "rural" && v !== "local_rural")
+                      setValue("retailersRural", "");
+                  }}
                   options={MARKET_TYPES}
                   placeholder="Select…"
                   searchable={false}
@@ -659,29 +679,36 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
-          <Field
-            label="Retailers In Local Market"
-            optional
-            error={errors.retailersLocal?.message}
-          >
-            <Input
-              inputMode="numeric"
-              placeholder="e.g. 120"
-              {...register("retailersLocal")}
-            />
-          </Field>
+          {/* Each retailer count only applies to the markets the chosen market
+              type actually covers — "Local & Rural" asks for both, Counter
+              Sales for neither. */}
+          {showLocalRetailers && (
+            <Field
+              label="Retailers In Local Market"
+              optional
+              error={errors.retailersLocal?.message}
+            >
+              <Input
+                inputMode="numeric"
+                placeholder="e.g. 120"
+                {...register("retailersLocal")}
+              />
+            </Field>
+          )}
 
-          <Field
-            label="Retailers In Rural Market"
-            optional
-            error={errors.retailersRural?.message}
-          >
-            <Input
-              inputMode="numeric"
-              placeholder="e.g. 45"
-              {...register("retailersRural")}
-            />
-          </Field>
+          {showRuralRetailers && (
+            <Field
+              label="Retailers In Rural Market"
+              optional
+              error={errors.retailersRural?.message}
+            >
+              <Input
+                inputMode="numeric"
+                placeholder="e.g. 45"
+                {...register("retailersRural")}
+              />
+            </Field>
+          )}
 
           <Field
             label="Market System"
@@ -849,7 +876,12 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
               render={({ field }) => (
                 <Combobox
                   value={field.value ?? ""}
-                  onChange={field.onChange}
+                  onChange={(v) => {
+                    field.onChange(v);
+                    // No vehicle → the detail field goes away; drop whatever
+                    // was typed into it so it can't be submitted unseen.
+                    if (v !== "yes") setValue("deliveryVehicleDetail", "");
+                  }}
                   options={YES_NO}
                   placeholder="Select…"
                   searchable={false}
@@ -858,16 +890,19 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
-          <Field
-            label="Delivery Vehicle Detail"
-            optional
-            error={errors.deliveryVehicleDetail?.message}
-          >
-            <Input
-              placeholder="Delivery Vehicle Detail"
-              {...register("deliveryVehicleDetail")}
-            />
-          </Field>
+          {/* Only meaningful when there is a vehicle to describe. */}
+          {deliveryVehicle === "yes" && (
+            <Field
+              label="Delivery Vehicle Detail"
+              optional
+              error={errors.deliveryVehicleDetail?.message}
+            >
+              <Input
+                placeholder="Delivery Vehicle Detail"
+                {...register("deliveryVehicleDetail")}
+              />
+            </Field>
+          )}
 
           <Field
             label="Godown Size (Sqft)"
