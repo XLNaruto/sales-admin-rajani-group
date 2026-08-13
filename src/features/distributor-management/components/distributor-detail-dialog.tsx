@@ -98,6 +98,8 @@ function ImageGrid({ label, urls }: { label: string; urls: string[] }) {
             <img
               src={url}
               alt={label}
+              loading="lazy"
+              decoding="async"
               className="max-h-40 w-auto max-w-64 object-contain"
             />
           </a>
@@ -147,7 +149,7 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
           </button>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6">
           {isLoading ? (
             <div className="space-y-3">
               <Skeleton className="h-16 w-full" />

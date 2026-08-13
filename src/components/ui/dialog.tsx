@@ -42,8 +42,12 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
       role="dialog"
       aria-modal="true"
     >
+      {/* No `backdrop-filter` here on purpose: a blurred overlay makes the
+          compositor re-blur the whole viewport on every frame that the panel
+          above it scrolls, which shows up as scroll jank on real data. A
+          slightly deeper tint reads the same and costs nothing. */}
       <div
-        className="dialog-overlay absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        className="dialog-overlay absolute inset-0 bg-slate-900/60"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />

@@ -46,7 +46,9 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
       aria-modal="true"
     >
       <div
-        className="dialog-overlay absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
+        // No `backdrop-filter` — see the note in `dialog.tsx`; it re-blurs the
+        // viewport every frame the scrolling panel paints.
+        className="dialog-overlay absolute inset-0 bg-slate-900/60"
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />

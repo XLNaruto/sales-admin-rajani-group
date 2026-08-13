@@ -114,7 +114,7 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
           </Hint>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-6">
         {isLoading ? (
           <div className="space-y-3">
             <Skeleton className="h-16 w-full" />
@@ -221,6 +221,8 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
                     <img
                       src={data.aadharFrontUrl}
                       alt="Aadhar front"
+                      loading="lazy"
+                      decoding="async"
                       className="h-28 w-full rounded-lg border border-border object-cover"
                     />
                   </a>
@@ -238,6 +240,8 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
                     <img
                       src={data.aadharBackUrl}
                       alt="Aadhar back"
+                      loading="lazy"
+                      decoding="async"
                       className="h-28 w-full rounded-lg border border-border object-cover"
                     />
                   </a>
