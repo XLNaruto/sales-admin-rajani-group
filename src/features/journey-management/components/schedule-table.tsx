@@ -61,6 +61,8 @@ export function ScheduleTable({
   cityOptions,
   /** The draft calendar by date; absent means the date carries no row. */
   draft,
+  /** Beat id → name, for beats added in this edit and not yet on a saved day. */
+  beatNames,
   onSetActivity,
   onSetCity,
   onClearDay,
@@ -77,6 +79,7 @@ export function ScheduleTable({
   activities: ActivityDef[]
   cityOptions: ComboboxOption[]
   draft: Map<string, ScheduleDraftDay>
+  beatNames: Map<string, string>
   onSetActivity: (date: string, activityId: number) => void
   onSetCity: (date: string, cityId: string | null) => void
   onClearDay: (date: string) => void
@@ -276,6 +279,7 @@ export function ScheduleTable({
                   <BeatCell
                     day={day}
                     row={row}
+                    beatNames={beatNames}
                     takesBeats={takesBeats}
                     canEdit={canEdit}
                     onEdit={() => onEditBeats(entry.date)}
@@ -355,12 +359,15 @@ function LabelChip({ day }: { day: MonthStripDay }) {
 function BeatCell({
   day,
   row,
+  beatNames,
   takesBeats,
   canEdit,
   onEdit,
 }: {
   day: PlanDay | undefined
   row: ScheduleDraftDay | undefined
+  /** The beat master, for chips the saved day cannot name. */
+  beatNames: Map<string, string>
   takesBeats: boolean
   canEdit: boolean
   onEdit: () => void
@@ -406,12 +413,14 @@ function BeatCell({
                   ? `${index + 1}. ${saved.beatName} — ${saved.stopCount} outlets${
                       saved.locked ? ' (worked)' : ''
                     }`
-                  : `${index + 1}. Added in this edit`
+                  : `${index + 1}. ${beatNames.get(beatId) ?? 'Beat'} — added in this edit`
               }
             >
               <span className="inline-flex h-5 max-w-48 cursor-default items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 text-[11px] font-medium text-primary">
                 <Store className="size-2.5 shrink-0" />
-                <span className="truncate">{saved?.beatName ?? `Beat ${beatId}`}</span>
+                <span className="truncate">
+                {saved?.beatName ?? beatNames.get(beatId) ?? `Beat ${beatId}`}
+              </span>
               </span>
             </Hint>
           )

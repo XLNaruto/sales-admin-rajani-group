@@ -576,21 +576,26 @@ export function useJourneyPlan(data?: string) {
     )
   }, [beatDate, schedule, beatPool.data])
 
+  /**
+   * Beat id → name, for the schedule's chips.
+   *
+   * The saved day names its own beats, but a beat just added in the dialog is not
+   * on it yet — and after a fresh page load the plan is the only source for beats
+   * the pool no longer carries. Both go in, the pool last, since it is the master.
+   */
+  const beatNames = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const day of plan?.days ?? []) {
+      for (const beat of day.beats) map.set(beat.beatId, beat.beatName)
+    }
+    for (const beat of beatPool.data ?? []) map.set(beat.id, beat.name)
+    return map
+  }, [plan?.days, beatPool.data])
+
   /** Dates that survive the correction pass whatever is sent. */
   const lockedDates = useMemo(
     () => new Set((plan?.days ?? []).filter(isLocked).map((day) => day.date)),
     [plan],
-  )
-
-  const activityScheduledById = useMemo(
-    () =>
-      new Map(
-        (plan?.activityAllocations ?? []).map((bucket) => [
-          bucket.activityId,
-          bucket.daysScheduled,
-        ]),
-      ),
-    [plan?.activityAllocations],
   )
 
   return {
@@ -647,7 +652,6 @@ export function useJourneyPlan(data?: string) {
     cityBuckets,
     setActivityBuckets,
     setCityBuckets,
-    activityScheduledById,
     draftAllocatedDays,
     allocationDirty,
     allocationEditable,
@@ -657,6 +661,7 @@ export function useJourneyPlan(data?: string) {
 
     /* the schedule */
     schedule,
+    beatNames,
     activities: activities.data ?? [],
     cityOptions,
     setDayActivity,

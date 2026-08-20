@@ -121,7 +121,6 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     cityBuckets,
     setActivityBuckets,
     setCityBuckets,
-    activityScheduledById,
     allocationDirty,
     allocationEditable,
     discardAllocation,
@@ -129,6 +128,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     isSavingAllocation,
 
     schedule,
+    beatNames,
     activities,
     cityOptions,
     setDayActivity,
@@ -397,7 +397,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           onChangeActivities={setActivityBuckets}
           onChangeCities={setCityBuckets}
           savedCities={plan.cityAllocations}
-          savedActivityScheduled={activityScheduledById}
+          savedActivities={plan.activityAllocations}
           readOnly={!allocationEditable}
           busy={busy}
           lockedReason={
@@ -416,6 +416,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           activities={activities}
           cityOptions={cityOptions}
           draft={schedule}
+          beatNames={beatNames}
           onSetActivity={setDayActivity}
           onSetCity={setDayCity}
           onClearDay={clearDay}
@@ -574,6 +575,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           )?.label ?? null
         }
         pool={beatsForOpenDate}
+        beatNames={beatNames}
         value={beatDate ? (schedule.get(beatDate)?.beatIds ?? []) : []}
         onSave={(beatIds) => {
           if (beatDate) setDayBeats(beatDate, beatIds)

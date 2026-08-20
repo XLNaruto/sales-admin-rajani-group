@@ -38,6 +38,8 @@ export function DayBeatDialog({
   date,
   cityName,
   pool,
+  /** Beat id → name across the whole plan, to name an off-city beat. */
+  beatNames,
   value,
   onSave,
   readOnly = false,
@@ -49,6 +51,7 @@ export function DayBeatDialog({
   cityName: string | null
   /** The sales incharge's beats **already narrowed to the day's city** by the caller. */
   pool: AllocatedBeat[]
+  beatNames: Map<string, string>
   /** Beat ids currently on the day, in their intended order. */
   value: string[]
   onSave: (beatIds: string[]) => void
@@ -139,7 +142,7 @@ export function DayBeatDialog({
                       {/* A beat not in the pool is one that has left the day's city
                           since it was scheduled — `beat_outside_city`. It must stay
                           visible and removable, not vanish. */}
-                      {beat?.name ?? `Beat ${beatId}`}
+                      {beat?.name ?? beatNames.get(beatId) ?? `Beat ${beatId}`}
                       {!beat ? (
                         <Hint label="This beat no longer sits in the day's city — the beat master has drifted. Remove it, or fix the master.">
                           <span className="ml-1.5 inline-flex cursor-default items-center gap-0.5 rounded-full bg-warning/15 px-1.5 align-middle text-[10px] font-semibold text-warning">

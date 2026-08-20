@@ -13,7 +13,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 import { dayLabel } from '../lib/journey-format'
 import { DayCountInput } from './day-count-input'
-import type { AllocationOptions, CityAllocation } from '../types'
+import type { ActivityAllocation, AllocationOptions, CityAllocation } from '../types'
 
 /** A bucket in the draft: which thing, and how many days of the month it takes. */
 export interface BucketDraft {
@@ -52,8 +52,8 @@ export function AllocationEditor({
   onChangeCities,
   /** The saved city buckets, for `days_scheduled`, provenance and beat counts. */
   savedCities,
-  /** Saved activity buckets, keyed by activity id, for `days_scheduled`. */
-  savedActivityScheduled,
+  /** The saved activity buckets, for `days_scheduled` and the names. */
+  savedActivities,
   readOnly = false,
   busy = false,
   /** Why the allocation is locked, when it is — an approved plan refuses the PATCH. */
@@ -65,7 +65,7 @@ export function AllocationEditor({
   onChangeActivities: (next: BucketDraft[]) => void
   onChangeCities: (next: BucketDraft[]) => void
   savedCities: CityAllocation[]
-  savedActivityScheduled: Map<number, number>
+  savedActivities: ActivityAllocation[]
   readOnly?: boolean
   busy?: boolean
   lockedReason?: string
@@ -84,6 +84,11 @@ export function AllocationEditor({
   const savedCityById = useMemo(
     () => new Map(savedCities.map((city) => [city.cityId, city])),
     [savedCities],
+  )
+
+  const savedActivityById = useMemo(
+    () => new Map(savedActivities.map((activity) => [String(activity.activityId), activity])),
+    [savedActivities],
   )
 
   const activityOptions = useMemo<ComboboxOption[]>(() => {
@@ -115,21 +120,35 @@ export function AllocationEditor({
       }))
   }, [options?.cities, cityBuckets])
 
+  /**
+   * Names for the rows on screen.
+   *
+   * The plan's own buckets seed the map, because `allocation-options` is not
+   * fetched at all once the allocation is frozen — an approved month would
+   * otherwise render every row as its raw id. The pickers still win where both
+   * carry a name: they are the live master, the plan's copy is a snapshot.
+   */
   const nameOfActivity = useMemo(() => {
     const map = new Map<string, string>()
+    for (const activity of savedActivities) {
+      if (activity.activityName) map.set(String(activity.activityId), activity.activityName)
+    }
     for (const activity of options?.activities ?? []) {
       map.set(String(activity.activityId), activity.name)
     }
     return map
-  }, [options?.activities])
+  }, [savedActivities, options?.activities])
 
   const nameOfCity = useMemo(() => {
     const map = new Map<string, string>()
+    for (const city of savedCities) {
+      if (city.cityName) map.set(city.cityId, city.cityName)
+    }
     for (const city of options?.cities ?? []) {
-      map.set(city.cityId, city.cityName ?? `City ${city.cityId}`)
+      if (city.cityName) map.set(city.cityId, city.cityName)
     }
     return map
-  }, [options?.cities])
+  }, [savedCities, options?.cities])
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
@@ -192,7 +211,7 @@ export function AllocationEditor({
           emptyCopy="No activity days. Every date will have to be a city day."
           rows={activityBuckets}
           nameOf={(id) => nameOfActivity.get(id) ?? `Activity ${id}`}
-          scheduledOf={(id) => savedActivityScheduled.get(Number(id))}
+          scheduledOf={(id) => savedActivityById.get(id)?.daysScheduled}
           addOptions={activityOptions}
           addPlaceholder="Add an activity"
           exhaustedHint="Every allocatable activity already has a count."
@@ -324,7 +343,11 @@ function BucketPanel({
           {emptyCopy}
         </p>
       ) : (
-        <ul className="mt-3 space-y-2">
+        // Capped rather than grown: a month can hold a dozen city buckets, and the
+        // two panels sit side by side — an uncapped list pushes the calendar below
+        // off the screen and leaves the shorter panel with a wall of white beside
+        // it. `pr-1` keeps the scrollbar off the counts.
+        <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1">
           {rows.map((row) => {
             const scheduled = scheduledOf(row.id)
             const meta = metaOf?.(row.id)
