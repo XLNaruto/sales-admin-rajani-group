@@ -32,6 +32,7 @@ import { decryptParams, encryptParams } from '@/lib/crypto'
 import { toastsuccessmsg } from '@/lib/toast'
 import { toastApiError } from '@/lib/api-toast'
 import { useCan } from '@/features/permissions'
+import { useCitySelect } from '@/features/location'
 import {
   useActivities,
   useAllocatedBeats,
@@ -227,10 +228,25 @@ export function useJourneyPlan(data?: string) {
     enabled: scheduleEditable && can('activity:list'),
   })
 
-  /** The beat pool for the correction pass, each beat with the city it sits in. */
+  /** The beat pool for the correction pass, each beat with the distributors it serves. */
   const beatPool = useAllocatedBeats(inchargeId ?? plan?.inchargeId, {
     enabled: scheduleEditable && can('beat:list'),
   })
+
+  /**
+   * The city master, lazily paged and server-searched — the picker behind a
+   * distributor-search bucket, and behind a search entry on the calendar.
+   *
+   * **The whole master, not the plan's own cities.** `allocation-options.cities`
+   * suggests the ones his distributors already sit in, and that is exactly the
+   * wrong list for this activity: a search is sending him somewhere he has
+   * nobody YET. It also comes back empty wherever the distributor master carries
+   * no city, which left the field unusable. The save accepts any real city.
+   *
+   * One instance shared by both editors: only one dropdown is open at a time, so
+   * a second would just be a second copy of the same paged query.
+   */
+  const citySelect = useCitySelect(undefined, { alwaysEnabled: true })
 
   const saveAllocation = useSaveAllocation()
   const saveSchedule = useSaveSchedule()
@@ -669,16 +685,40 @@ export function useJourneyPlan(data?: string) {
     [plan?.distributorAllocations],
   )
 
-  /** Cities a beatless entry may name — the plan's own, so the copy can name them. */
-  const cityOptions = useMemo(() => {
+  /**
+   * Every city id this plan already names, with the name the SERVER gave it.
+   *
+   * The picker below is paged and search-filtered, so a city already on the plan
+   * is very often absent from the loaded page — and a Combobox whose value
+   * matches no option renders an empty trigger. These are merged in as options so
+   * a saved city always reads as its name.
+   */
+  const knownCityNames = useMemo(() => {
     const map = new Map<string, string>()
     for (const bucket of plan?.activityAllocations ?? []) {
-      if (bucket.cityId) {
-        map.set(bucket.cityId, bucket.cityName ?? `City ${bucket.cityId}`)
+      if (bucket.cityId) map.set(bucket.cityId, bucket.cityName ?? `City ${bucket.cityId}`)
+    }
+    for (const day of plan?.days ?? []) {
+      for (const entry of day.activities) {
+        if (entry.cityId) map.set(entry.cityId, entry.cityName ?? `City ${entry.cityId}`)
       }
     }
-    return [...map].map(([value, label]) => ({ value, label }))
-  }, [plan?.activityAllocations])
+    return map
+  }, [plan?.activityAllocations, plan?.days])
+
+  /** The city picker, ready to spread onto a `<Combobox>`. */
+  const city = useMemo(() => {
+    const loaded = new Set(citySelect.options.map((option) => option.value))
+    return {
+      ...citySelect,
+      options: [
+        ...citySelect.options,
+        ...[...knownCityNames]
+          .filter(([id]) => !loaded.has(id))
+          .map(([value, label]) => ({ value, label })),
+      ],
+    }
+  }, [citySelect, knownCityNames])
 
   /**
    * The beat pool for the open entry, narrowed to **the beats serving its
@@ -814,7 +854,8 @@ export function useJourneyPlan(data?: string) {
     distributorNames,
     activities: activities.data ?? [],
     distributorOptions,
-    cityOptions,
+    /** The city picker — shared by both editors, and only offered on a search. */
+    city,
     setEntryActivity,
     setEntryDistributor,
     setEntryCity,

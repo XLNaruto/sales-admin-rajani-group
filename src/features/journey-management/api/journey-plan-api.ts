@@ -512,11 +512,13 @@ export async function fetchPlanReps(periodMonth: string): Promise<PlanRepOption[
 }
 
 /**
- * GET /journey-plans/allocation-options — the allocatable activities, the
- * distributors the sales incharge's beats reach, and the cities those sit in.
+ * GET /journey-plans/allocation-options — the allocatable activities and the
+ * distributors the sales incharge's beats reach.
  *
- * **This is the whitelist the allocation Save enforces**, not a convenience:
- * anything absent from it is refused with a 400. It needs no plan to exist.
+ * **These two are the whitelist the allocation Save enforces**, not a
+ * convenience: anything absent from them is refused with a 400. It needs no plan
+ * to exist. The response's third list, `cities`, is dropped here — see
+ * `AllocationOptions` for why the city pickers read the master instead.
  */
 export async function fetchAllocationOptions(
   inchargeId: string,
@@ -546,10 +548,6 @@ export async function fetchAllocationOptions(
         cityName: distributor.city_name ?? null,
         beatCount: distributor.beat_count,
         outletCount: distributor.outlet_count,
-      })),
-      cities: (res.cities ?? []).map((city) => ({
-        cityId: city.city_id,
-        cityName: city.city_name ?? null,
       })),
     }
   } catch (error) {

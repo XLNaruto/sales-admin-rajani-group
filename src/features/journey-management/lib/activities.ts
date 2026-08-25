@@ -27,6 +27,33 @@ const BEATLESS_CODES = new Set([
 ])
 
 /**
+ * Activities whose work needs a WHERE but has no distributor to name it, so an
+ * allocation or an entry may carry a city.
+ *
+ * The API accepts a city on ANY activity bucket, but only one of them means
+ * anything by it: a **distributor search** is "go and find someone in Rajkot",
+ * where the city is the entire instruction. A weekly off or a meeting has no
+ * such reading, and offering the picker on those rows invited an admin to fill
+ * in a field nothing would ever act on.
+ *
+ * Code-driven rather than a flag on the master, because the master has no column
+ * for this and inventing one would be a migration for a single seeded row. If a
+ * tenant ever adds a second search-like activity, add its code here.
+ */
+const CITY_SCOPED_CODES = new Set(['distributor_search'])
+
+/**
+ * Does work under this activity take a city?
+ *
+ * Answered from the code alone: the three booleans on the master do not cover
+ * it, and the code is the only thing every call site reliably has — the month
+ * strip carries a code and no master row at all.
+ */
+export function takesCity(code: ActivityCode | null | undefined): boolean {
+  return CITY_SCOPED_CODES.has(code ?? '')
+}
+
+/**
  * Is this a working code that legitimately carries no beats (a meeting, a depot
  * visit)? Code-only, for the places that have a code but no master row — the
  * rhythm strip, whose days carry no `activityId`.

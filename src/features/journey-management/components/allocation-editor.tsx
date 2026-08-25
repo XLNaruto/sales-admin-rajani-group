@@ -4,12 +4,21 @@ import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
+import { takesCity } from '../lib/activities'
 import { DayCountInput } from './day-count-input'
 import type {
   ActivityAllocation,
   AllocationOptions,
   DistributorAllocation,
 } from '../types'
+
+/** The lazily-paged city master, as the caller hands it over. */
+export interface CitySelect {
+  options: ComboboxOption[]
+  loading: boolean
+  onScrollEnd: () => void
+  onSearchChange: (query: string) => void
+}
 
 /** Days a bucket list promises, whatever it is a list of. */
 function sum(rows: BucketDraft[]): number {
@@ -38,14 +47,24 @@ function sum(rows: BucketDraft[]): number {
  * doubling dates up. It is worth saying, because it is rarely intended, so it
  * gets a warning — but nothing stops it, and no ceiling prevents typing it.
  *
+ * ── Only a SEARCH takes a city ─────────────────────────────────────────────
+ * The API accepts a city on any activity bucket, but only a distributor search
+ * means anything by it: "go and find someone in Rajkot", where the city is the
+ * whole instruction. A weekly off or a meeting has no such reading, so those
+ * rows carry no picker at all rather than an optional field nothing would act
+ * on. And the picker is the **whole city master**, not the cities his
+ * distributors already sit in — a search is by definition somewhere he has
+ * nobody yet.
+ *
  * Two rules are still enforced by construction rather than by a validator,
  * because a control that can't take a wrong answer beats an error message:
  *
  * - **One row per (activity, city), one per distributor.** A pair another row
  *   already holds is dropped from this row's options.
- * - **Only what `allocation-options` offers.** That endpoint is the whitelist the
- *   Save enforces — anything absent from it comes back a 400 — so the pickers are
- *   built from it and from nothing else.
+ * - **Only the activities and distributors `allocation-options` offers.** Those
+ *   two lists are the whitelist the Save enforces — anything absent comes back a
+ *   400 — so the pickers are built from them and from nothing else. The city is
+ *   deliberately not policed that way, at either end.
  */
 export function AllocationEditor({
   options,
@@ -53,6 +72,8 @@ export function AllocationEditor({
   distributorBuckets,
   onChangeActivities,
   onChangeDistributors,
+  /** The city master, for the search rows. */
+  city,
   /** The saved distributor buckets, for `days_scheduled` and the beat counts. */
   savedDistributors,
   /** The saved activity buckets, for `days_scheduled` and the names. */
@@ -67,6 +88,7 @@ export function AllocationEditor({
   distributorBuckets: BucketDraft[]
   onChangeActivities: (next: BucketDraft[]) => void
   onChangeDistributors: (next: BucketDraft[]) => void
+  city: CitySelect
   savedDistributors: DistributorAllocation[]
   savedActivities: ActivityAllocation[]
   readOnly?: boolean
@@ -82,28 +104,35 @@ export function AllocationEditor({
   const unallocated = Math.max(0, totalDays - allocated)
   const over = allocated > totalDays
 
+  /**
+   * City names for the read-only rows.
+   *
+   * The plan's own buckets are the source, because `allocation-options` is not
+   * fetched at all once the allocation is frozen and the master picker is paged —
+   * an approved month would otherwise render every city as a raw id.
+   */
   const cityNameById = useMemo(() => {
     const map = new Map<string, string>()
-    // The plan's own buckets seed it, because `allocation-options` is not fetched
-    // at all once the allocation is frozen — an approved month would otherwise
-    // render every city as a raw id.
     for (const bucket of savedActivities) {
       if (bucket.cityId && bucket.cityName) map.set(bucket.cityId, bucket.cityName)
     }
-    for (const city of options?.cities ?? []) {
-      if (city.cityName) map.set(city.cityId, city.cityName)
+    return map
+  }, [savedActivities])
+
+  /**
+   * Which activities take a city — read off the CODE, which comes from the
+   * pickers for a live plan and from the saved buckets for a frozen one.
+   */
+  const codeOfActivity = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const bucket of savedActivities) {
+      if (bucket.activityCode) map.set(String(bucket.activityId), bucket.activityCode)
+    }
+    for (const activity of options?.activities ?? []) {
+      map.set(String(activity.activityId), activity.code)
     }
     return map
-  }, [savedActivities, options?.cities])
-
-  const cityOptions = useMemo<ComboboxOption[]>(
-    () =>
-      (options?.cities ?? []).map((city) => ({
-        label: city.cityName ?? `City ${city.cityId}`,
-        value: city.cityId,
-      })),
-    [options?.cities],
-  )
+  }, [savedActivities, options?.activities])
 
   const savedDistributorById = useMemo(
     () => new Map(savedDistributors.map((row) => [row.distributorId, row])),
@@ -238,20 +267,29 @@ export function AllocationEditor({
           rows={activityBuckets}
           nameOf={(row) => nameOfActivity.get(row.id) ?? `Activity ${row.id}`}
           savedOf={(row) => savedActivityByKey.get(bucketKey(row))?.daysScheduled}
-          // Only the activity side takes a city, and only ever as the optional
-          // WHERE on work that has no distributor to name.
-          cityOf={(row) => ({
-            value: row.cityId ?? null,
-            name: row.cityId ? (cityNameById.get(row.cityId) ?? `City ${row.cityId}`) : null,
-            options: cityOptions.filter(
-              (option) =>
-                // A pair another row already holds would be refused on save.
-                option.value === row.cityId ||
-                !activityBuckets.some(
-                  (other) => other.id === row.id && other.cityId === option.value,
-                ),
-            ),
-          })}
+          // Only a SEARCH takes a city — every other activity row returns
+          // undefined and renders no picker at all.
+          cityOf={(row) =>
+            takesCity(codeOfActivity.get(row.id))
+              ? {
+                  value: row.cityId ?? null,
+                  name: row.cityId
+                    ? (cityNameById.get(row.cityId) ?? `City ${row.cityId}`)
+                    : null,
+                  select: {
+                    ...city,
+                    options: city.options.filter(
+                      (option) =>
+                        // A pair another row already holds would be refused on save.
+                        option.value === row.cityId ||
+                        !activityBuckets.some(
+                          (other) => other.id === row.id && other.cityId === option.value,
+                        ),
+                    ),
+                  },
+                }
+              : undefined
+          }
           addOptions={addableActivities}
           addPlaceholder="Add an activity"
           exhaustedHint="Every allocatable activity already has a count. Give one a city to add it a second time."
@@ -302,11 +340,11 @@ interface RowMeta {
   city?: string | null
 }
 
-/** The optional city on an activity row: its value, its name, and what it may become. */
+/** The optional city on a search row: its value, its name, and the master picker. */
 interface RowCity {
   value: string | null
   name: string | null
-  options: ComboboxOption[]
+  select: CitySelect
 }
 
 /**
@@ -343,7 +381,8 @@ function BucketPanel({
   /** Days the sales incharge has already dated against this bucket, if any. */
   savedOf: (row: BucketDraft) => number | undefined
   metaOf?: (row: BucketDraft) => RowMeta
-  cityOf?: (row: BucketDraft) => RowCity
+  /** `undefined` for a row whose activity has no use for a city. */
+  cityOf?: (row: BucketDraft) => RowCity | undefined
   addOptions: ComboboxOption[]
   addPlaceholder: string
   exhaustedHint: string
@@ -402,7 +441,7 @@ function BucketPanel({
           {rows.map((row) => {
             const scheduled = savedOf(row)
             const meta = metaOf?.(row)
-            const city = cityOf?.(row)
+            const rowCity = cityOf?.(row)
             // A count below what the sales incharge has already dated is what
             // `schedule_mismatch` reports. It no longer blocks anything, but it is
             // still the kind of thing to notice before saving rather than after.
@@ -425,19 +464,27 @@ function BucketPanel({
                     ) : null}
                   </p>
 
-                  {city ? (
+                  {rowCity ? (
                     <div className="mt-1">
                       {readOnly ? (
                         <span className="text-[11px] text-muted-foreground">
-                          {city.name ?? 'Anywhere'}
+                          {rowCity.name ?? 'Anywhere'}
                         </span>
                       ) : (
+                        // The whole city master, paged and server-searched — a
+                        // search is by definition somewhere he has no
+                        // distributor yet, so his existing cities are the wrong
+                        // list to narrow to.
                         <Combobox
-                          value={city.value ?? ''}
+                          value={rowCity.value ?? ''}
                           onChange={(cityId) => patch(row, { cityId: cityId || null })}
-                          options={city.options}
+                          options={rowCity.select.options}
+                          loading={rowCity.select.loading}
+                          onScrollEnd={rowCity.select.onScrollEnd}
+                          onSearchChange={rowCity.select.onSearchChange}
+                          searchable
                           placeholder="Anywhere"
-                          searchable={city.options.length > 8}
+                          searchPlaceholder="Search cities…"
                           disabled={busy}
                           className="h-8 w-full min-w-0 text-xs"
                         />

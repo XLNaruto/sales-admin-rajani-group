@@ -136,7 +136,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     distributorNames,
     activities,
     distributorOptions,
-    cityOptions,
+    city,
     setEntryActivity,
     setEntryDistributor,
     setEntryCity,
@@ -399,13 +399,13 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
               totalDays: plan.progress.totalDays,
               activities: [],
               distributors: [],
-              cities: [],
             }
           }
           activityBuckets={activityBuckets}
           distributorBuckets={distributorBuckets}
           onChangeActivities={setActivityBuckets}
           onChangeDistributors={setDistributorBuckets}
+          city={city}
           savedDistributors={plan.distributorAllocations}
           savedActivities={plan.activityAllocations}
           readOnly={!allocationEditable}
@@ -425,7 +425,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           status={status}
           activities={activities}
           distributorOptions={distributorOptions}
-          cityOptions={cityOptions}
+          city={city}
           draft={schedule}
           beatNames={beatNames}
           distributorNames={distributorNames}

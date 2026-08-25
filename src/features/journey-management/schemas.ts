@@ -234,11 +234,11 @@ export const journeyPlanDetailSchema = z.object({
 })
 
 /**
- * GET /journey-plans/allocation-options — the pickers, and the whitelist the
+ * GET /journey-plans/allocation-options — the two pickers, and the whitelist the
  * allocation Save enforces.
  *
- * `distributors` is the field axis; `cities` exists only for the optional city on
- * an activity bucket, and is never an axis of its own.
+ * `distributors` is the field axis. The optional city on an activity bucket is
+ * NOT whitelisted and is not sourced from here — see `AllocationOptions`.
  */
 export const allocationOptionsSchema = z.object({
   sales_incharge_id: optionalId,
@@ -265,9 +265,9 @@ export const allocationOptionsSchema = z.object({
       }),
     )
     .nullish(),
-  cities: z
-    .array(z.object({ city_id: id, city_name: z.string().nullish() }))
-    .nullish(),
+  // `cities` also comes back — the rep's existing cities, as a suggestion. Not
+  // parsed, because nothing reads it: the city pickers use the full master. See
+  // the note on `AllocationOptions`.
 })
 
 /** POST /:id/publish and /:id/approve — the same receipt from both ends. */

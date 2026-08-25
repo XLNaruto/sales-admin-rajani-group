@@ -368,13 +368,17 @@ export interface AllocationOptions {
     beatCount: number
     outletCount: number
   }[]
-  /**
-   * For the **optional city on an activity bucket** only — "two days of
-   * distributor search, in Rajkot". Sourced from the cities the reachable
-   * distributors sit in. Never an axis for a field bucket.
-   */
-  cities: { cityId: string; cityName: string | null }[]
 }
+
+/**
+ * The API also returns a `cities` suggestion list here — the cities the rep's
+ * reachable distributors already sit in. It is deliberately **not** modelled:
+ * the only thing that takes a city is a distributor search, and a search is by
+ * definition somewhere he has no distributor YET, so that list is the wrong one
+ * to narrow the picker to. It is also empty wherever the distributor master
+ * carries no city. The screens use the full city master instead
+ * (`useCitySelect`), which the save accepts.
+ */
 
 /**
  * The allocation Save body. Each field is a **full replacement** of what it

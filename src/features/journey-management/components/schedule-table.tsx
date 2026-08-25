@@ -4,10 +4,12 @@ import { Lock, PencilLine, Store, TriangleAlert, User, Users, X } from 'lucide-r
 import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
+import { takesCity } from '../lib/activities'
 import { DAY_LABEL_COLOR, DAY_LABEL_HINT, DAY_LABEL_TEXT } from '../lib/day-label'
 import { isLocked } from '../lib/plan-flags'
 import { unscheduledIsAProblem } from '../lib/plan-status'
 import { ActivitySelect } from './activity-select'
+import type { CitySelect } from './allocation-editor'
 import type {
   ActivityDef,
   MonthStripDay,
@@ -83,8 +85,8 @@ export function ScheduleTable({
   activities,
   /** Distributors the plan allocates — what a field entry is normally assigned to. */
   distributorOptions,
-  /** Cities a beatless entry may name. */
-  cityOptions,
+  /** The city master — offered on a distributor-search entry and nowhere else. */
+  city,
   /** The draft calendar by date; absent means the date carries no work. */
   draft,
   /** Beat id → name, for beats added in this edit and not yet on a saved entry. */
@@ -108,7 +110,7 @@ export function ScheduleTable({
   status: PlanStatus
   activities: ActivityDef[]
   distributorOptions: ComboboxOption[]
-  cityOptions: ComboboxOption[]
+  city: CitySelect
   draft: Map<string, ScheduleDraftDay>
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
@@ -227,7 +229,7 @@ export function ScheduleTable({
               activities={activities}
               activityById={activityById}
               distributorOptions={distributorOptions}
-              cityOptions={cityOptions}
+              city={city}
               beatNames={beatNames}
               distributorNames={distributorNames}
               blanksMatter={blanksMatter}
@@ -272,7 +274,7 @@ function DayRows({
   activities,
   activityById,
   distributorOptions,
-  cityOptions,
+  city,
   beatNames,
   distributorNames,
   blanksMatter,
@@ -292,7 +294,7 @@ function DayRows({
   activities: ActivityDef[]
   activityById: Map<number, ActivityDef>
   distributorOptions: ComboboxOption[]
-  cityOptions: ComboboxOption[]
+  city: CitySelect
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
   blanksMatter: boolean
@@ -424,10 +426,14 @@ function DayRows({
                 entry={entry}
                 saved={saved}
                 takesBeats={takesBeats}
+                // Only a distributor search names a city; every other beatless
+                // activity has no use for one. Falls back to the saved entry's
+                // own code while the master is still loading.
+                takesCity={takesCity(activity?.code ?? saved?.activityCode)}
                 isPlaceholder={isPlaceholder}
                 canEdit={canEdit}
                 distributorOptions={distributorOptions}
-                cityOptions={cityOptions}
+                city={city}
                 distributorNames={distributorNames}
                 onSetDistributor={onSetDistributor}
                 onSetCity={onSetCity}
@@ -543,15 +549,16 @@ function LabelChip({ day }: { day: MonthStripDay }) {
 }
 
 /**
- * WHERE the work happens — and the two halves are genuinely different questions,
- * decided by the activity:
+ * WHERE the work happens — three different answers, decided by the activity:
  *
  * - **A field entry names a DISTRIBUTOR.** That is the bucket it spends, and it is
  *   what the beat picker is filtered by. Its city is DERIVED from the beats
  *   server-side, so it is shown and never offered as a control: a city picker here
  *   would let the admin contradict the beats he just chose.
- * - **A beatless entry may name a CITY.** Optional, and the only thing that makes
- *   "distributor search, in Rajkot" expressible.
+ * - **A distributor search names a CITY**, from the whole master — the search is
+ *   for somewhere he has nobody yet, so his existing cities are the wrong list.
+ * - **Everything else names nothing.** A weekly off or a meeting has no place to
+ *   be, and an optional field nothing acts on is worse than no field.
  */
 function WhereCell({
   date,
@@ -559,10 +566,11 @@ function WhereCell({
   entry,
   saved,
   takesBeats,
+  takesCity: showCity,
   isPlaceholder,
   canEdit,
   distributorOptions,
-  cityOptions,
+  city,
   distributorNames,
   onSetDistributor,
   onSetCity,
@@ -572,10 +580,11 @@ function WhereCell({
   entry: ScheduleDraftEntry
   saved: PlanDayEntry | undefined
   takesBeats: boolean
+  takesCity: boolean
   isPlaceholder: boolean
   canEdit: boolean
   distributorOptions: ComboboxOption[]
-  cityOptions: ComboboxOption[]
+  city: CitySelect
   distributorNames: Map<string, string>
   onSetDistributor: (date: string, index: number, distributorId: string | null) => void
   onSetCity: (date: string, index: number, cityId: string | null) => void
@@ -627,15 +636,29 @@ function WhereCell({
     )
   }
 
+  if (!showCity) {
+    return (
+      <Hint label="This activity happens wherever he is — it names no distributor and no city.">
+        <span className="block cursor-default py-1.5 text-xs text-muted-foreground">
+          not applicable
+        </span>
+      </Hint>
+    )
+  }
+
   return (
     <div className="min-w-0 py-0.5">
       {canEdit ? (
         <Combobox
           value={entry.cityId ?? ''}
           onChange={(cityId) => onSetCity(date, index, cityId || null)}
-          options={cityOptions}
+          options={city.options}
+          loading={city.loading}
+          onScrollEnd={city.onScrollEnd}
+          onSearchChange={city.onSearchChange}
+          searchable
           placeholder="Anywhere"
-          searchable={cityOptions.length > 8}
+          searchPlaceholder="Search cities…"
           className="w-full min-w-0"
         />
       ) : (
