@@ -7,11 +7,10 @@
  * admin who dislikes a schedule corrects it and approves.
  *
  * Every predicate here is about what the *server* will accept, so a control that
- * consults them can never offer a write that comes back a 409. The two
- * *sufficiency* checks — is the allocation complete, does the schedule consume
- * every bucket — are the server's own `canPublish` / `canApprove` booleans and are
- * deliberately NOT recomputed here: approve is checked bucket by bucket, and the
- * totals can balance while the buckets do not.
+ * consults them can never offer a write that comes back a 409. Whether a
+ * transition will *succeed* is the server's own `canPublish` / `canApprove`
+ * boolean and is deliberately NOT recomputed here — publish wants one bucket on a
+ * draft, approve wants nothing beyond `submitted`, and neither reads the counts.
  */
 import type { PlanStatus } from '../types'
 
@@ -46,11 +45,11 @@ export const PLAN_STATUS_LABEL: Record<PlanStatus, string> = {
  */
 export const PLAN_STATUS_HINT: Record<PlanStatus, string> = {
   draft:
-    'Your allocation, not yet released — the sales incharge cannot see this month at all. Publish it to hand it over.',
+    'Your allocation, not yet released — the sales incharge cannot see this month at all. Allocate the work you care about and publish; he fills the rest of the month himself.',
   published:
-    'Released. The sales incharge is dating every allocated day and picking his beats. You can still change the counts.',
+    'Released. The sales incharge is turning your counts into dates, picking a distributor and its beats per piece of work. You can still change the counts.',
   submitted:
-    'He has dated the whole month and handed it back. He is read-only from here — correct the calendar yourself if it needs it.',
+    'He has handed the month back. He is read-only from here — correct the calendar yourself if it needs it.',
   approved:
     'Signed off and live. You can still correct the calendar; the sales incharge never writes again.',
 }
@@ -108,11 +107,13 @@ export function isApprovable(status: PlanStatus): boolean {
 }
 
 /**
- * Whether an `unscheduled` date is a problem — which cannot be read off the strip.
+ * Whether an `unscheduled` date is worth pointing at — which cannot be read off
+ * the strip.
  *
  * On a draft nothing is scheduled yet by definition, and a freshly published month
- * is the sales incharge's to fill in. Only from submission onward does a blank date mean the
- * month is incomplete.
+ * is the sales incharge's to fill in. Only from submission onward is a blank date
+ * a gap — and even then it is a question for the admin, not a refusal: a month
+ * with a few undated days still submits and still approves.
  */
 export function unscheduledIsAProblem(status: PlanStatus): boolean {
   return status === 'submitted' || status === 'approved'

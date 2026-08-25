@@ -3,10 +3,25 @@
  *
  * A *journey plan* is a **negotiation between the sales admin and one sales incharge, for
  * one month**. The admin allocates **counts** — "one meeting day, four weekly
- * offs, twenty days in Rajkot" — and never a date or a beat. The sales incharge dates every
- * allocated day and picks the beats, then hands it back. The admin signs off, and
- * may still correct the calendar afterwards because a live month has to be
- * fixable.
+ * offs, six days on Halvad Traders" — and never a date or a beat. The sales
+ * incharge turns those counts into dates, picking the distributor and its beats
+ * per piece of work, then hands the month back. The admin signs off, and may
+ * still correct the calendar afterwards because a live month has to be fixable.
+ *
+ * Three things about this model are easy to get wrong:
+ *
+ * - **Field time is allocated per DISTRIBUTOR, not per city.** "Six days on
+ *   Distributor A" is the unit. A city survives only as the optional *where* on
+ *   an activity bucket — "two days of distributor search, in Rajkot" — and on a
+ *   field entry it is DERIVED from the beats rather than chosen.
+ * - **The allocation is PARTIAL.** The admin allocates the work he cares about
+ *   and the sales incharge fills the rest of the month himself. Nothing refuses
+ *   on the counts: publish needs one bucket, approve re-checks nothing, and an
+ *   over-allocation is a flag rather than an error.
+ * - **A date carries SEVERAL entries.** Retailing in the morning, a distributor
+ *   visit in the afternoon. Each entry spends one day from its own bucket, so a
+ *   doubled-up date spends two and `daysAllocated` may legitimately exceed the
+ *   length of the month.
  *
  * Four states, one direction only, with no reject and no send-back:
  * `draft → published → submitted → approved`.
@@ -28,8 +43,11 @@
  */
 export type PlanStatus = 'draft' | 'published' | 'submitted' | 'approved'
 
-/** How the plan's allocation came about. */
-export type PlanSource = 'solver' | 'manual' | 'import'
+/**
+ * How the plan's allocation came about. There is no `solver` any more — it went
+ * with the city model it served, and the admin picks the distributors by hand.
+ */
+export type PlanSource = 'manual' | 'import'
 
 /**
  * Machine code of an activity. Not a closed union — the activity master is
@@ -107,35 +125,43 @@ export interface MonthStripDay {
   /** Day of month, 1-based — derived from `date`, never from a local `Date`. */
   day: number
   label: DayLabel
-  activityCode: ActivityCode | null
-  /** The city the date sits in, when its activity takes beats. */
-  cityId: string | null
+  /**
+   * Every activity on the date, in entry order. **Empty** on a date with no day
+   * row, and **more than one** when the sales incharge doubled the date up.
+   */
+  activityCodes: ActivityCode[]
+  /** Which distributor buckets the date spends. Empty on beatless-only dates. */
+  distributorIds: string[]
+  /** Cities the date touches, in entry order. */
+  cityIds: string[]
   origin: DayOrigin | null
-  /** Beats on the day — 0 on every unscheduled date and on beatless activities. */
+  /** DISTINCT beats across every entry on the date — 0 on an unscheduled date. */
   beatCount: number
 }
 
 /* ─────────────────────────────── the flags ────────────────────────────────── */
 
 /**
- * The eight warnings the server raises, computed and never stored. Two of them
- * **mirror a refusal** and so genuinely gate a transition:
- * `allocation_incomplete` blocks publish, and `schedule_unallocated` /
- * `schedule_mismatch` block approve. The rest are advisory.
+ * The eight warnings the server raises, computed and never stored.
+ *
+ * **Every one of them is advisory.** Nothing refuses on the counts any more, so
+ * none of these stops a transition — see `PlanFlag.blocking`, which the server
+ * sends as `false` throughout and which is the only thing to read on the
+ * question. A partial allocation is the normal state, not a defect.
  */
 export type PlanFlagCode =
-  /** Nothing allocated — publish will fail too. */
-  | 'no_cities_allocated'
-  /** The counts do not account for the whole month. **Blocks publish.** */
-  | 'allocation_incomplete'
-  /** A scheduled date falls outside every bucket. **Blocks approve.** */
-  | 'schedule_unallocated'
-  /** A bucket's scheduled days do not match its count. **Blocks approve.** */
+  /** Nothing allocated for field work — the sales incharge has no distributor. */
+  | 'no_distributors_allocated'
+  /** The counts promise more work than the month holds. Reachable, but worth saying. */
+  | 'allocation_over_month'
+  /** A bucket's scheduled entries do not match its count. */
   | 'schedule_mismatch'
-  /** The sales incharge no longer holds beats in an allocated city. */
-  | 'city_without_beats'
-  /** A scheduled beat does not sit in its day's city — the beat master drifted. */
-  | 'beat_outside_city'
+  /** A scheduled entry falls outside every bucket — the sales incharge's own work. */
+  | 'schedule_unallocated'
+  /** An allocated distributor has no beat the sales incharge holds. */
+  | 'distributor_without_beats'
+  /** A scheduled beat no longer serves its entry's distributor. */
+  | 'beat_outside_distributor'
   /** A scheduled activity is not admin-allocatable (field selling never is). */
   | 'activity_not_allocatable'
   /** Published, and the sales incharge has not started dating the month. */
@@ -144,8 +170,16 @@ export type PlanFlagCode =
 /** One warning, most severe first as the server sends them. */
 export interface PlanFlag {
   code: string
+  /**
+   * Would this stop the plan's next transition? **Always `false` today** — the
+   * field is the server's, kept so a future gate has somewhere to say otherwise.
+   * Never derive it from `code`.
+   */
+  blocking: boolean
   /** `yyyy-MM-dd` when the flag points at a date. */
   date: string | null
+  distributorId: string | null
+  distributorName: string | null
   cityId: string | null
   cityName: string | null
   activityId: number | null
@@ -162,10 +196,10 @@ export type FlagSeverity = 'high' | 'medium' | 'low'
 /**
  * What kind of problem a flag is — rendered as the row's chip.
  *
- * `blocking` is reserved for the three flags that mirror a server refusal, so a
- * flag that merely wants attention never reads as one that stops the month.
+ * There is no `blocking` category any more: nothing here stops a transition, and
+ * a chip that said so would be a lie about what the server does.
  */
-export type IssueCategory = 'blocking' | 'allocation' | 'schedule' | 'master-data'
+export type IssueCategory = 'allocation' | 'schedule' | 'master-data'
 
 /** A server flag prepared for display. The numbers are the server's. */
 export interface PlanIssue {
@@ -175,8 +209,6 @@ export interface PlanIssue {
   label: string
   /** Day of month the flag points at, when it is date-specific. */
   day?: number
-  /** Which transition this flag refuses, when it mirrors one. */
-  blocks?: 'publish' | 'approve'
 }
 
 /* ─────────────────────────── the list (a month) ───────────────────────────── */
@@ -199,17 +231,26 @@ export interface JourneyPlan {
    */
   headquarter: string | null
   status: PlanStatus
-  /** What the admin promised. */
+  /** What the admin promised, across both bucket kinds. */
   daysAllocated: number
-  /** Dates the sales incharge has actually put against it. */
+  /** DISTINCT dates the sales incharge has put against it. */
   daysScheduled: number
+  /**
+   * Pieces of work across the month — the figure that reconciles with the
+   * buckets, since a doubled-up date spends two allocated days.
+   */
+  entriesScheduled: number
   /** Scheduled dates a visit has landed on. */
   daysWorked: number
-  /** `scheduled / allocated`. **0 when allocated is 0**, not 100. */
+  /**
+   * `scheduled / allocated`. **0 when allocated is 0**, not 100 — and routinely
+   * **over 100**, because the admin allocates part of the month and the sales
+   * incharge fills the rest.
+   */
   schedulingPercentage: number
   /** `worked / scheduled`. **0 when scheduled is 0**, not 100. */
   completionPercentage: number
-  citiesAllocated: number
+  distributorsAllocated: number
   workingDays: number
   flags: PlanFlag[]
   /** One entry per calendar date. */
@@ -248,34 +289,49 @@ export interface QueueResult {
 /* ─────────────────── the allocation (counts, not dates) ───────────────────── */
 
 /**
- * One activity bucket: "four weekly offs".
+ * One activity bucket: "four weekly offs", or "two days of distributor search,
+ * in Rajkot".
  *
  * Only activities flagged `is_admin_allocatable` may appear — field selling never
- * does, because which day the sales incharge sells is his to decide.
+ * does, because that is allocated by DISTRIBUTOR instead.
+ *
+ * **`cityId` is part of the bucket's identity**, not a decoration: the same
+ * activity in two cities is two buckets, and matching a bucket on `activityId`
+ * alone will silently merge them.
  */
 export interface ActivityAllocation {
   activityId: number
   activityCode: ActivityCode | null
   activityName: string | null
-  /** Days the admin promised to this activity. */
+  /** Where this work is to happen. Null on everything but a search-style activity. */
+  cityId: string | null
+  cityName: string | null
+  /** Days the admin promised to this bucket. */
   daysCount: number
-  /** Dates the sales incharge has actually put against it. */
+  /** Entries the sales incharge has actually put against it. */
   daysScheduled: number
 }
 
 /**
- * One city bucket: "twenty days in Rajkot".
+ * One distributor bucket: "six days on Halvad Traders". **The field allocation.**
  *
- * Only cities the sales incharge's **allocated beats** actually sit in can appear.
+ * Only distributors reachable from the beats currently allocated to the sales
+ * incharge can appear — the admin cannot promise days on a distributor the man
+ * has no beat for. No beats here by design: he picks those under the distributor.
  */
-export interface CityAllocation {
-  cityId: string
+export interface DistributorAllocation {
+  distributorId: string
+  distributorName: string | null
+  /** The distributor's own city, for display only. */
+  cityId: string | null
   cityName: string | null
   daysCount: number
   daysScheduled: number
-  /** `solver` — proposed at generate. `manual` — the admin's own. */
-  source: 'solver' | 'manual'
-  /** **0 when the sales incharge no longer holds beats here** — the `city_without_beats` flag. */
+  /**
+   * Beats serving this distributor that the sales incharge currently holds —
+   * what he has to choose from. **0 is the `distributor_without_beats` flag**:
+   * the allocation was right when it was made and the beat master moved.
+   */
   beatCount: number
   outletCount: number
 }
@@ -288,7 +344,10 @@ export interface CityAllocation {
  */
 export interface AllocationOptions {
   inchargeId: string
-  /** What the counts must add up to. */
+  /**
+   * Calendar days in the period. **Context, not a limit** — the admin may
+   * allocate fewer, and the sales incharge fills the rest of the month himself.
+   */
   totalDays: number
   /** The activity master, filtered to admin-allocatable and active. */
   activities: {
@@ -297,18 +356,24 @@ export interface AllocationOptions {
     name: string
     isWorkingDay: boolean
   }[]
-  /** Derived from the beats **currently** allocated to the sales incharge. */
-  cities: {
-    cityId: string
+  /**
+   * The field-allocation axis, derived from the beats **currently** allocated to
+   * the sales incharge (`beat_allocations` → `beat_distributors`).
+   */
+  distributors: {
+    distributorId: string
+    distributorName: string | null
+    cityId: string | null
     cityName: string | null
     beatCount: number
     outletCount: number
-    /**
-     * **`null` = never worked**, which the solver weighs heaviest. Do not render
-     * it as "long ago".
-     */
-    lastWorkedDate: string | null
   }[]
+  /**
+   * For the **optional city on an activity bucket** only — "two days of
+   * distributor search, in Rajkot". Sourced from the cities the reachable
+   * distributors sit in. Never an axis for a field bucket.
+   */
+  cities: { cityId: string; cityName: string | null }[]
 }
 
 /**
@@ -320,13 +385,25 @@ export interface AllocationOptions {
  * the sales incharge's work. Refused (409) once the plan is `approved`.
  */
 export interface SaveAllocationInput {
-  activityAllocations?: { activityId: number; daysCount: number }[]
-  cityAllocations?: { cityId: string; daysCount: number }[]
+  /** `cityId` is part of the bucket's key — omit it for "anywhere". */
+  activityAllocations?: {
+    activityId: number
+    cityId?: string | null
+    daysCount: number
+  }[]
+  distributorAllocations?: { distributorId: string; daysCount: number }[]
+}
+
+/** `POST /journey-plans` — opens one empty draft for a sales incharge's month. */
+export interface CreatePlanInput {
+  inchargeId: string
+  /** `yyyy-MM`. */
+  periodMonth: string
 }
 
 /* ───────────────────────── the schedule (dates) ───────────────────────────── */
 
-/** A beat the day carries, in the intended order. */
+/** A beat the ENTRY carries, in the intended order. */
 export interface PlanDayBeat {
   /** Id of the day-beat row. */
   id: string
@@ -341,9 +418,43 @@ export interface PlanDayBeat {
 }
 
 /**
- * One dated day of the schedule. **`days` is empty on a `draft` and on a freshly
- * `published` plan** — draw the calendar from `monthStrip` and use this for the
- * detail of the dates that exist.
+ * ONE piece of work on a date — the unit a day row used to be.
+ *
+ * A date may carry several: retailing for Distributor A in the morning, a
+ * distributor visit in the afternoon. Each spends one day from its own bucket.
+ */
+export interface PlanDayEntry {
+  id: string
+  /** The order the sales incharge intends to take the day's work in. */
+  sequence: number
+  activityId: number
+  activityCode: ActivityCode
+  activityName: string
+  /**
+   * Whose allocation this entry spends. **Always set** on an activity that
+   * requires a beat, **always null** on one that does not.
+   */
+  distributorId: string | null
+  distributorName: string | null
+  /** DERIVED from the beats on a field entry; the admin's instruction otherwise. */
+  cityId: string | null
+  cityName: string | null
+  beats: PlanDayBeat[]
+  jointWorkingInchargeId: string | null
+  jointWorkingInchargeName: string | null
+  /** Free-text note (holiday name, leave reason, venue). */
+  reason: string | null
+}
+
+/**
+ * One dated day of the schedule — a DATE and everything on it.
+ *
+ * **`days` is empty on a `draft` and on a freshly `published` plan** — draw the
+ * calendar from `monthStrip` and use this for the detail of the dates that exist.
+ *
+ * The date-level facts stay here on purpose: `locked`, the origin and the day's
+ * sequence are properties of the date, so "is the 10th locked?" has exactly one
+ * answer however many entries it carries.
  */
 export interface PlanDay {
   id: string
@@ -351,44 +462,49 @@ export interface PlanDay {
   date: string
   /** Day of month, 1-based — sliced off `date`, never read off a local `Date`. */
   day: number
-  activityId: number
-  activityCode: ActivityCode
-  activityName: string
-  cityId: string | null
-  cityName: string | null
   /** `admin` marks a correction the admin made after submission. */
   origin: DayOrigin
   /** When the row was written. */
   selectedAt: string | null
-  beats: PlanDayBeat[]
-  jointWorkingInchargeId: string | null
-  jointWorkingInchargeName: string | null
-  /** Free-text note carried with the day (holiday name, leave reason, venue). */
-  reason: string | null
+  /** Everything on the date, in intended order. **Never empty.** */
+  activities: PlanDayEntry[]
   /** A visit landed on it — **it survives whatever the correction pass sends**. */
   locked: boolean
   lockedAt: string | null
 }
 
 /**
- * One day of the correction pass, as the save body carries it.
+ * One piece of work, as the save body carries it.
  *
- * Per-day rules, enforced server-side and mirrored by the editor:
- * - An activity with `requiresBeat` needs a `cityId` **and** at least one beat.
- * - An activity without it must have **neither**.
- * - Every beat must be allocated to the sales incharge **and** sit in that day's city. (A
- *   beat whose own city is unknown is allowed — that is a gap in the beat master,
- *   not a scheduling error.)
- * - **No limit on beats per day**, and `beatIds` order is the intended order.
+ * The shape is decided by the activity master's `requiresBeat`:
+ * - `true` — `distributorId` is REQUIRED and at least one beat. `cityId` is
+ *   ignored: the server derives it from the beats, because a beat's city comes
+ *   from its primary distributor and that is the only honest answer.
+ * - `false` — no distributor and no beats. `cityId` is OPTIONAL, and is what
+ *   makes "distributor search, in Rajkot" expressible.
+ *
+ * Every beat must be allocated to the sales incharge **and serve
+ * `distributorId`**. That replaced the old beat-sits-in-the-day's-city rule — and
+ * it is stricter: a beat mapped to no distributor at all can no longer be
+ * scheduled, because there is no bucket to charge the day to.
  */
-export interface ScheduleDayInput {
-  /** `yyyy-MM-dd`, inside the period. */
-  date: string
+export interface ScheduleEntryInput {
   activityId: number
+  distributorId?: string | null
   cityId?: string | null
   beatIds?: string[]
   jointWorkingInchargeId?: string | null
   reason?: string | null
+}
+
+/**
+ * One scheduled DATE of the correction pass. A date with no entries is not sent
+ * at all — an empty list is refused.
+ */
+export interface ScheduleDayInput {
+  /** `yyyy-MM-dd`, inside the period. */
+  date: string
+  entries: ScheduleEntryInput[]
 }
 
 /**
@@ -421,20 +537,24 @@ export interface SaveScheduleInput {
  */
 export interface PlanProgress {
   daysAllocated: number
+  /** DISTINCT dates. */
   daysScheduled: number
+  /** Pieces of work across every date — what reconciles with the buckets. */
+  entriesScheduled: number
   daysWorked: number
-  /** `scheduled / allocated`. **0 when the denominator is 0**, not 100. */
+  /** `scheduled / allocated`. **0 when the denominator is 0**, and often over 100. */
   schedulingPercentage: number
   /** `worked / scheduled`. **0 when the denominator is 0**, not 100. */
   completionPercentage: number
-  citiesAllocated: number
+  distributorsAllocated: number
   beatsScheduled: number
   workingDays: number
   totalDays: number
   /**
-   * `daysAllocated - totalDays`. **0 means ready to publish**; publish is refused
-   * otherwise, because a month published two days short is one the sales incharge can never
-   * complete.
+   * `daysAllocated - totalDays`. **Negative is the ordinary case** — the admin
+   * allocated part of the month and the sales incharge owns the rest. Positive
+   * means more work promised than the month holds, which raises
+   * `allocation_over_month` but refuses nothing. Publish does not read it.
    */
   allocationVariance: number
 }
@@ -455,11 +575,15 @@ export interface JourneyPlanDetail {
   publishedAt: string | null
   submittedAt: string | null
   approvedAt: string | null
-  /** THE ALLOCATION: day-counts per activity and per city. */
+  /** THE ALLOCATION: day-counts per activity and per distributor. */
   activityAllocations: ActivityAllocation[]
-  cityAllocations: CityAllocation[]
+  distributorAllocations: DistributorAllocation[]
   progress: PlanProgress
-  /** The server's own verdicts — never re-derived from the flags. */
+  /**
+   * The server's own verdicts — never re-derived from the flags.
+   * `canPublish` is "a draft with at least one bucket on it"; `canApprove` is
+   * "submitted", and the counts are not re-checked at either end.
+   */
   canPublish: boolean
   canApprove: boolean
   flags: PlanFlag[]
@@ -474,7 +598,9 @@ export interface TransitionResult {
   journeyPlanId: string
   status: PlanStatus
   daysAllocated: number
+  /** DISTINCT dates. */
   daysScheduled: number
+  entriesScheduled: number
 }
 
 /** One entry of the sales incharge switcher — it already carries the plan id and status. */
@@ -486,90 +612,27 @@ export interface PlanRepOption {
   status: PlanStatus
 }
 
-/* ───────────────────────────── generate a month ───────────────────────────── */
-
-/** What happened to one sales incharge in a generation run. */
-export type GenerateOutcome =
-  | 'created'
-  | 'replaced'
-  | 'skipped_existing'
-  /** The plan has left `draft` — regenerating would discard the sales incharge's schedule. */
-  | 'skipped_in_progress'
-  | 'no_beats'
-  | 'failed'
-
 /**
- * How many days of the month an activity must take, **for every sales incharge in the run**
- * — "one monthly meeting, four weekly offs" is a company fact.
+ * A beat allocated to the incharge — the pool an entry's beats are chosen from.
  *
- * Dateless by default: the office fixes the *amount*, and which date it lands on
- * is usually the sales incharge's to decide a month later. `dates` is the
- * exception — the bucket the office dates itself, such as a meeting on the 12th.
- */
-export interface ActivityQuota {
-  activityId: number
-  /** Days in the period, at least 1 and never more than the month is long. */
-  daysCount: number
-  /**
-   * The exact dates the office fixed, as `yyyy-MM-dd`, or omitted to let the sales
-   * incharge date the bucket himself. When present it holds exactly `daysCount`
-   * dates — the count is derived from it, never entered beside it.
-   */
-  dates?: string[]
-}
-
-/**
- * What a run asks for. The solver then splits each sales incharge's remaining days across
- * his own cities, weighted by how much work each holds and by how long it has
- * gone untouched. **Every plan lands as a `draft`.**
- */
-export interface GenerateInput {
-  periodMonth: string
-  /** Omit for every sales incharge in the caller's scope. */
-  inchargeIds?: string[]
-  /** Applies to EVERY sales incharge in the run. */
-  activityAllocations?: ActivityQuota[]
-  /** Generation skips a sales incharge who already has a plan unless this is set. */
-  replaceExisting?: boolean
-  seed?: string
-}
-
-/**
- * Per sales incharge outcomes plus the run's totals. **One sales incharge's failure does not fail the
- * run** — render the list, never treat a non-zero `failed` as a whole-run error.
- */
-export interface GenerateResult {
-  results: {
-    inchargeId: string
-    outcome: GenerateOutcome
-    journeyPlanId: string | null
-    daysAllocated: number
-    citiesAllocated: number
-    /**
-     * Dated activity days written straight onto this sales incharge's calendar by
-     * the run. Zero when every bucket was a plain count.
-     */
-    daysPinned: number
-    /** Why it failed or was skipped, when the server says. */
-    message: string | null
-  }[]
-  created: number
-  skipped: number
-  failed: number
-}
-
-/**
- * A beat allocated to the incharge — the pool a day's beats are chosen from.
+ * **`distributorIds` is the load-bearing field now.** A beat may only go on an
+ * entry whose distributor it serves, so the picker filters on this rather than on
+ * the city. A beat serving several distributors appears under each — it is
+ * genuinely workable on any of their days.
  *
- * `cityId` is what makes the correction pass checkable client-side: a beat may
- * only go on a day whose city it sits in. **`null` is allowed** — that is a gap
- * in the beat master (its primary distributor has no city), not a scheduling
- * error, and such a beat is silently absent from the city pickers.
+ * A beat with an **empty** `distributorIds` cannot be scheduled at all: there is
+ * no bucket to charge the day to. That is a gap in the beat master, and the only
+ * fix is there.
+ *
+ * `cityId` survives for display — it is derived from the primary distributor, and
+ * `null` is legitimate.
  */
 export interface AllocatedBeat {
   id: string
   name: string
   cityId: string | null
+  /** Distributors this beat serves, primary first. */
+  distributorIds: string[]
   /** Outlets on the beat, when the list carries them. */
   outlets: number | null
 }
@@ -577,7 +640,7 @@ export interface AllocatedBeat {
 /* ────────────────── live day (one incharge's month, actual) ───────────────── */
 
 /**
- * Did he work — a different question from *at what*, which `activityName`
+ * Did he work — a different question from *at what*, which `activityNames`
  * answers.
  */
 export type RepDayStatus =
@@ -587,10 +650,10 @@ export type RepDayStatus =
  * The numbers a field day is judged on, as the SFA reports them. Displayed, not
  * recomputed — these get compared against FieldAssist's figures on day one.
  *
- * `TC = in_turn + ovt + to`; `OVC` sits OUTSIDE that sum; `PC ⊂ TC`. **`SC` now
- * counts the stops snapshotted for the day's beat** — the calls he set out to
- * make. It previously counted admin-assigned beats only, and nothing assigns
- * beats to dates any more, so that rule would zero it every day.
+ * `TC = in_turn + ovt + to`; `OVC` sits OUTSIDE that sum; `PC ⊂ TC`. **`SC`
+ * counts the stops snapshotted across EVERY entry on the date** — the calls he
+ * set out to make. A date carrying retailing for two distributors counts both
+ * beats' snapshots; they are one day's work.
  */
 export interface DayCounters {
   sc: number
@@ -609,11 +672,20 @@ export interface RepDaySummary {
   date: string
   /** Day of month, 1-based — sliced off `date`. */
   day: number
+  /**
+   * Did he work. A leave/holiday/weekly-off code names the day only when it is
+   * the ONLY thing on it — a date carrying leave AND a meeting reads as worked.
+   */
   status: RepDayStatus
-  activityCode: ActivityCode | null
-  activityName: string | null
-  beatId: string | null
-  beatName: string | null
+  /** Every activity on the date, in entry order. */
+  activityCodes: ActivityCode[]
+  /** The card's badges — reported ALONGSIDE `status`, never folded into it. */
+  activityNames: string[]
+  distributorIds: string[]
+  distributorNames: string[]
+  /** DISTINCT beats across every entry on the date. */
+  beatIds: string[]
+  beatNames: string[]
   counters: DayCounters
   /** Metres travelled, chronologically. */
   distanceMetres: number
@@ -759,17 +831,16 @@ export interface LiveDayDetail {
   status: RepDayStatus
   counters: DayCounters
   /**
-   * The beats he worked, **in the order he took them**. Replaces the old
-   * `assignedBeat` / `selectedBeat` pair: nothing assigns beats to dates now, so
-   * every beat here is the sales incharge's own choice.
+   * The beats he worked **across every entry on the date**, in the order he took
+   * them. Replaces the old `assignedBeat` / `selectedBeat` pair: nothing assigns
+   * beats to dates now, so every beat here is the sales incharge's own choice.
    */
   beats: { id: string; name: string }[]
   /**
-   * Do those beats still sit in the day's **allocated city**?
+   * Were all the beats he worked on the month's list?
    *
-   * The scheduler refuses an out-of-city beat, so `false` means the **beat master
-   * has drifted** since approval — his outlet list is for a town he is not in.
-   * **`true` on a day with no beats at all** — a meeting has no city to be off.
+   * `false` is the **deviation** signal — he worked something nobody allocated.
+   * **`true` on a day with no beats at all**, so a meeting never reads as off-plan.
    */
   onAllocation: boolean
   /** Chronological distance — differs from `route.distanceMetres` by backtracking. */

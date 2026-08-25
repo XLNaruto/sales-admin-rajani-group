@@ -1,11 +1,9 @@
-import { Ban, CheckCircle2 } from 'lucide-react'
-import { Hint } from '@/components/common/hint'
+import { CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { IssueCategory, PlanIssue } from '../types'
 
 /** Category chip colour — the chip is a label, so tone follows the category. */
 const CATEGORY_STYLE: Record<IssueCategory, string> = {
-  blocking: 'bg-destructive/12 text-destructive',
   allocation: 'bg-warning/15 text-warning',
   schedule: 'bg-info/12 text-info',
   'master-data': 'bg-muted text-muted-foreground',
@@ -13,7 +11,6 @@ const CATEGORY_STYLE: Record<IssueCategory, string> = {
 
 /** Shortened for the chip — "master-data" is too wide beside a sentence. */
 const CATEGORY_LABEL: Record<IssueCategory, string> = {
-  blocking: 'blocking',
   allocation: 'allocation',
   schedule: 'schedule',
   'master-data': 'masters',
@@ -22,11 +19,12 @@ const CATEGORY_LABEL: Record<IssueCategory, string> = {
 /**
  * The warnings the server put on this plan, worst first.
  *
- * Unlike the old allocation model, **some of these genuinely gate the month**:
- * `allocation_incomplete` is exactly why publish refuses, and the two schedule
- * flags are exactly why approve refuses. Those carry the `blocking` chip and a
- * slash marker, and the header counts them separately — an admin needs to know
- * which rows he must clear and which merely want a look.
+ * **None of them gates the month.** Publish wants one bucket on a draft and
+ * approve wants nothing beyond `submitted`, so everything here is something to
+ * read and judge — a variance against the allocation, a beat master that has
+ * drifted, days the sales incharge filled in himself. The header says so out loud,
+ * because the previous model DID block on three of these and an admin who
+ * remembers that will otherwise go looking for the gate.
  *
  * Rows that point at a date are clickable and scroll the schedule table to it.
  */
@@ -53,28 +51,17 @@ export function PlanIssueList({
     )
   }
 
-  const blocking = issues.filter((issue) => issue.blocks).length
-
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-3">
         <h2 className="font-heading text-sm font-semibold text-foreground">
           Worth a look
         </h2>
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
-            blocking > 0
-              ? 'bg-destructive/12 text-destructive'
-              : 'bg-warning/15 text-warning',
-          )}
-        >
+        <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning">
           {issues.length}
         </span>
         <span className="text-xs text-muted-foreground">
-          {blocking > 0
-            ? `${blocking} of these must be cleared before the month can move on`
-            : 'advisory only — none of these stops the month'}
+          advisory only — none of these stops the month
         </span>
       </div>
       {/* Capped so a badly flagged month can't push the editors off-screen — the
@@ -112,14 +99,6 @@ export function PlanIssueList({
                   {CATEGORY_LABEL[issue.category]}
                 </span>
                 <span className="min-w-0 flex-1 text-foreground">{issue.label}</span>
-                {issue.blocks ? (
-                  <Hint label={`This is why ${issue.blocks} is refused.`}>
-                    <span className="mt-0.5 inline-flex shrink-0 cursor-default items-center gap-1 text-[11px] font-medium text-destructive">
-                      <Ban className="size-3" />
-                      {issue.blocks}
-                    </span>
-                  </Hint>
-                ) : null}
               </div>
             </li>
           )

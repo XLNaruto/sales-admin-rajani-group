@@ -154,7 +154,12 @@ function DayTooltip({ day, label }: { day: MonthStripDay; label?: string }) {
         {day.origin === 'admin' ? ' · corrected' : ''}
       </span>
       <span className="mt-0.5 block max-w-56 text-[11px] font-normal opacity-70">
-        {day.activityCode ? activityLabel(day.activityCode) : DAY_LABEL_HINT[day.label]}
+        {/* Every activity on the date, not just the first — a date carrying
+            retailing and a distributor visit is two pieces of work, and naming
+            only one of them is how a doubled-up day reads as a plain one. */}
+        {day.activityCodes.length > 0
+          ? day.activityCodes.map(activityLabel).join(' · ')
+          : DAY_LABEL_HINT[day.label]}
         {day.beatCount > 0
           ? ` · ${day.beatCount} ${day.beatCount === 1 ? 'beat' : 'beats'}`
           : ''}
@@ -181,9 +186,10 @@ const DayPillar = memo(function DayPillar({
   onHover: (day: MonthStripDay) => void
 }) {
   const color = DAY_LABEL_COLOR[day.label]
-  // A day splits into one segment per beat. Days with no beats — every unscheduled
-  // and holiday date, and a working day whose activity takes none — stay solid.
-  const segments = Math.max(1, day.beatCount)
+  // A day splits into one segment per beat, or per piece of work where it carries
+  // no beats — so a date holding a meeting AND a training still reads as two.
+  // Dates with neither stay solid.
+  const segments = Math.max(1, day.beatCount, day.activityCodes.length)
   const corrected = day.origin === 'admin'
 
   return (

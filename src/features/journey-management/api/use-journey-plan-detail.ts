@@ -41,11 +41,11 @@ export function useJourneyPlanReps(periodMonth: string) {
 
 /**
  * GET /journey-plans/allocation-options — the allocatable activities and the
- * cities the sales incharge's beats sit in.
+ * distributors the sales incharge's beats reach.
  *
  * Keyed by (sales incharge, period) and **not** by plan id, because it needs no plan to
  * exist: the admin opens it to build the month. Short stale time on purpose — the
- * cities follow the sales incharge's beat allocation, which another screen can change.
+ * distributors follow the sales incharge's beat allocation, which another screen can change.
  */
 export function useAllocationOptions(
   inchargeId: string | undefined,
@@ -71,10 +71,11 @@ export function useActivities(options: { enabled?: boolean } = {}) {
 }
 
 /**
- * GET /sales-incharges/{id}/beats — every beat the sales incharge holds, each with its city.
+ * GET /sales-incharges/{id}/beats — every beat the sales incharge holds, each
+ * with the distributors it serves.
  *
- * The correction pass filters this by the day's city, because a beat may only go
- * on a day whose city it sits in.
+ * The correction pass filters this by the entry's distributor, because a beat may
+ * only go on an entry whose distributor it serves.
  */
 export function useAllocatedBeats(
   inchargeId: string | undefined,
@@ -103,7 +104,7 @@ export function useSaveAllocation() {
     mutationFn: (vars: { planId: string } & SaveAllocationInput) =>
       saveAllocation(vars.planId, {
         activityAllocations: vars.activityAllocations,
-        cityAllocations: vars.cityAllocations,
+        distributorAllocations: vars.distributorAllocations,
       }),
     onSuccess: (plan) => {
       qc.setQueryData(queryKeys.journey.plan(plan.id), plan)
@@ -158,9 +159,9 @@ export function usePublishJourneyPlan() {
 /**
  * POST /journey-plans/{id}/approve — `submitted` → `approved`.
  *
- * Refused (400) unless the schedule consumes every bucket exactly. Nothing goes
- * backwards afterwards: the admin may still correct the calendar, and that does
- * not reopen the cycle.
+ * The counts are not re-checked — a variance is a flag, not a refusal. Nothing
+ * goes backwards afterwards: the admin may still correct the calendar, and that
+ * does not reopen the cycle.
  */
 export function useApproveJourneyPlan() {
   const qc = useQueryClient()

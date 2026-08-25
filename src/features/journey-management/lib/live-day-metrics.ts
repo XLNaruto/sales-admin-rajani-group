@@ -67,10 +67,26 @@ export function activityTone(day: RepDaySummary): 'default' | 'secondary' | 'war
   return day.status === 'worked' ? 'default' : 'warning'
 }
 
-/** What to show as the day's activity, falling back to its status. */
+/**
+ * What to show as the day's activity, falling back to its status.
+ *
+ * A date may carry SEVERAL — retailing in the morning, a distributor visit in the
+ * afternoon — so this answers with the first and `activityBadges` gives the rest.
+ * Falling back to the status is for a day with no plan row at all.
+ */
 export function activityLabel(day: RepDaySummary): string {
-  if (day.activityName) return day.activityName
-  return STATUS_LABEL[day.status] ?? '—'
+  return day.activityNames[0] ?? STATUS_LABEL[day.status] ?? '—'
+}
+
+/**
+ * Every activity on the date, in entry order — the card's badges.
+ *
+ * Reported alongside `status`, never folded into it: status answers "did he
+ * work", these answer "at what", and a date holding a leave AND a meeting is a
+ * worked day with two badges rather than a leave.
+ */
+export function activityBadges(day: RepDaySummary): string[] {
+  return day.activityNames.length > 0 ? day.activityNames : [activityLabel(day)]
 }
 
 export const STATUS_LABEL: Record<string, string> = {

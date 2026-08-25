@@ -120,11 +120,15 @@ export async function fetchLiveMonth(params: {
       days: res.rep_day_summaries.map((day) => ({
         date: day.date,
         day: dayOfMonth(day.date),
+        // "Did he work" — a different question from "at what", which the
+        // activity arrays answer. A date carrying leave AND a meeting is worked.
         status: toStatus(day.status),
-        activityCode: day.activity_code ?? null,
-        activityName: day.activity_name ?? null,
-        beatId: day.beat_id,
-        beatName: day.beat_name ?? null,
+        activityCodes: day.activity_codes,
+        activityNames: day.activity_names,
+        distributorIds: day.distributor_ids,
+        distributorNames: day.distributor_names,
+        beatIds: day.beat_ids,
+        beatNames: day.beat_names,
         counters: toCounters(day.counters),
         distanceMetres: day.distance_metres,
         mockSuspectedCount: day.mock_suspected_count,
@@ -197,8 +201,9 @@ function toDetail(r: LiveDetailRow): LiveDayDetail {
     date: r.date,
     status: toStatus(r.status),
     counters: toCounters(r.counters),
-    // The beats he took, in his own order. There is no assigned/selected pair any
-    // more: nothing assigns beats to dates, so every one of these is his choice.
+    // The beats he took across every entry on the date, in his own order. There
+    // is no assigned/selected pair any more: nothing assigns beats to dates, so
+    // every one of these is his choice.
     beats: (r.beats ?? []).map((beat) => ({
       id: beat.id,
       name: beat.name ?? `Beat ${beat.id}`,

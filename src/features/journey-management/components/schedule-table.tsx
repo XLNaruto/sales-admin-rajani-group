@@ -4,7 +4,6 @@ import { Lock, PencilLine, Store, TriangleAlert, User, Users, X } from 'lucide-r
 import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
-import { requiresBeat } from '../lib/activities'
 import { DAY_LABEL_COLOR, DAY_LABEL_HINT, DAY_LABEL_TEXT } from '../lib/day-label'
 import { isLocked } from '../lib/plan-flags'
 import { unscheduledIsAProblem } from '../lib/plan-status'
@@ -13,23 +12,47 @@ import type {
   ActivityDef,
   MonthStripDay,
   PlanDay,
+  PlanDayEntry,
   PlanStatus,
 } from '../types'
 
-/** DOM id for a date's row, so a warning row can scroll to it. */
+/** DOM id for a date's first row, so a warning row can scroll to it. */
 function dayRowId(day: number): string {
   return `plan-day-${day}`
 }
 
-/** One date of the draft calendar — what the correction pass will send. */
-export interface ScheduleDraftDay {
+/**
+ * ONE piece of work on a date, as the draft carries it.
+ *
+ * Only entries the admin has actually answered live in the draft — the trailing
+ * blank picker each editable date shows is `EMPTY_ENTRY`, a render-only constant,
+ * so an untouched date never counts as an unsaved edit.
+ */
+export interface ScheduleDraftEntry {
   activityId: number
+  /** Required once the activity takes beats; null on a beatless one. */
+  distributorId: string | null
+  /** Only meaningful on a beatless entry — derived from the beats otherwise. */
   cityId: string | null
   beatIds: string[]
 }
 
+/** One date of the draft calendar — everything on it, in intended order. */
+export interface ScheduleDraftDay {
+  entries: ScheduleDraftEntry[]
+}
+
+/** A blank picker row, so a date with nothing on it still offers one. */
+const EMPTY_ENTRY: ScheduleDraftEntry = {
+  activityId: 0,
+  distributorId: null,
+  cityId: null,
+  beatIds: [],
+}
+
 /**
- * The month, one row per calendar date.
+ * The month, one row per **piece of work** — so a date carrying two activities is
+ * two rows, with its date and state cells spanning them.
  *
  * Drawn from **`month_strip`**, never from `days`: `days` is **empty on a draft and
  * on a freshly published plan**, so a month with no rows is the correct state
@@ -46,10 +69,11 @@ export interface ScheduleDraftDay {
  *
  * Within an editable month, a **locked** date (a visit landed on it) is still
  * read-only: the server skips it whatever is sent, so offering a control would
- * promise a change that gets dropped.
+ * promise a change that gets dropped. Locking is a property of the DATE, not of an
+ * entry — every piece of work on a locked date is history together.
  *
  * A hand-rolled table rather than the shared `<DataTable>`: a month is a fixed
- * 28–31 rows that must all be visible at once, so pagination and sorting would
+ * 28–31 dates that must all be visible at once, so pagination and sorting would
  * both be wrong here.
  */
 export function ScheduleTable({
@@ -57,14 +81,20 @@ export function ScheduleTable({
   days,
   status,
   activities,
-  /** Cities the plan allocates — the only ones a date may be moved to. */
+  /** Distributors the plan allocates — what a field entry is normally assigned to. */
+  distributorOptions,
+  /** Cities a beatless entry may name. */
   cityOptions,
-  /** The draft calendar by date; absent means the date carries no row. */
+  /** The draft calendar by date; absent means the date carries no work. */
   draft,
-  /** Beat id → name, for beats added in this edit and not yet on a saved day. */
+  /** Beat id → name, for beats added in this edit and not yet on a saved entry. */
   beatNames,
+  /** Distributor id → name, for read-only rows. */
+  distributorNames,
   onSetActivity,
+  onSetDistributor,
   onSetCity,
+  onRemoveEntry,
   onClearDay,
   onEditBeats,
   /** Day of month to scroll to and highlight (set by clicking a warning). */
@@ -77,13 +107,17 @@ export function ScheduleTable({
   days: PlanDay[]
   status: PlanStatus
   activities: ActivityDef[]
+  distributorOptions: ComboboxOption[]
   cityOptions: ComboboxOption[]
   draft: Map<string, ScheduleDraftDay>
   beatNames: Map<string, string>
-  onSetActivity: (date: string, activityId: number) => void
-  onSetCity: (date: string, cityId: string | null) => void
+  distributorNames: Map<string, string>
+  onSetActivity: (date: string, index: number, activityId: number) => void
+  onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetCity: (date: string, index: number, cityId: string | null) => void
+  onRemoveEntry: (date: string, index: number) => void
   onClearDay: (date: string) => void
-  onEditBeats: (date: string) => void
+  onEditBeats: (target: { date: string; index: number }) => void
   focusedDay: number | null
   editable?: boolean
   busy?: boolean
@@ -100,10 +134,6 @@ export function ScheduleTable({
     () => new Map(activities.map((activity) => [activity.id, activity])),
     [activities],
   )
-  const cityNameById = useMemo(
-    () => new Map(cityOptions.map((option) => [option.value, option.label])),
-    [cityOptions],
-  )
 
   /**
    * `unscheduled` only means something is missing once the month has been handed
@@ -113,6 +143,11 @@ export function ScheduleTable({
   const blanksMatter = unscheduledIsAProblem(status)
   const unscheduled = strip.filter((day) => day.label === 'unscheduled').length
   const missed = strip.filter((day) => day.label === 'missed').length
+  /** Pieces of work across the month — the figure the buckets reconcile with. */
+  const entryCount = [...draft.values()].reduce(
+    (total, day) => total + day.entries.filter((entry) => entry.activityId > 0).length,
+    0,
+  )
 
   return (
     // `overflow-clip`, not `overflow-hidden`: both clip the rounded corners, but
@@ -124,9 +159,19 @@ export function ScheduleTable({
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
           {strip.length - unscheduled} / {strip.length} dated
         </span>
+        {/* Distinct from the date count, and it has to be: a date carrying two
+            activities spends two allocated days, so this is the number the
+            allocation above is measured against. */}
+        {entryCount > 0 ? (
+          <Hint label="Pieces of work across the month. A date carrying two activities counts twice — each spends a day from its own bucket.">
+            <span className="cursor-default rounded-full bg-primary/12 px-2 py-0.5 text-xs font-semibold tabular-nums text-primary">
+              {entryCount} {entryCount === 1 ? 'activity' : 'activities'}
+            </span>
+          </Hint>
+        ) : null}
         {blanksMatter && unscheduled > 0 ? (
-          <Hint label="Dates with no row at all. From submission onward the month is meant to be fully dated, so these are gaps.">
-            <span className="cursor-default rounded-full bg-destructive/12 px-2 py-0.5 text-xs font-semibold tabular-nums text-destructive">
+          <Hint label="Dates with nothing on them at all. Worth a look once the month has been handed back — but a month with a few is still publishable and still approvable.">
+            <span className="cursor-default rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold tabular-nums text-warning">
               {unscheduled} blank
             </span>
           </Hint>
@@ -167,142 +212,36 @@ export function ScheduleTable({
             <Th className="w-20">Date</Th>
             <Th className="w-36">State</Th>
             <Th className="w-56">Activity</Th>
-            <Th className="w-44">City</Th>
+            <Th className="w-48">Distributor / City</Th>
             <Th>Beats</Th>
             <Th className="w-px" />
           </tr>
         </thead>
         <tbody>
-          {strip.map((entry) => {
-            const day = dayByDate.get(entry.date)
-            const row = draft.get(entry.date)
-            // A locked date survives the correction pass whatever is sent, so it is
-            // read-only even in an editable month.
-            const locked = day ? isLocked(day) : false
-            const canEdit = editable && !locked && !busy
-
-            const activity = row ? activityById.get(row.activityId) : undefined
-            /**
-             * Does this date take a city and beats?
-             *
-             * The master's `requires_beat` is the answer, but it may still be in
-             * flight — so it falls back through the day's own activity code
-             * (`requiresBeat` knows the seeded beatless codes) and finally to
-             * `true`. Defaulting to `true` is the safer error: it shows the pickers
-             * on a day that may not need them, rather than hiding the beats of a day
-             * that does and quietly reading as "not applicable".
-             */
-            const takesBeats = activity
-              ? activity.requiresBeat
-              : row && day
-                ? requiresBeat(activities, day)
-                : Boolean(row)
-
-            return (
-              <tr
-                key={entry.date}
-                id={dayRowId(entry.day)}
-                className={cn(
-                  'border-b border-border/40 align-top transition-colors last:border-b-0 hover:bg-accent/40',
-                  entry.label === 'holiday' && 'bg-muted/30',
-                  entry.label === 'missed' && 'bg-warning/5',
-                  blanksMatter && entry.label === 'unscheduled' && 'bg-destructive/5',
-                  locked && 'text-muted-foreground',
-                  focusedDay === entry.day && 'ring-1 ring-inset ring-primary/40',
-                )}
-              >
-                <td className="whitespace-nowrap px-4 py-2.5">
-                  <span className="font-mono font-semibold tabular-nums text-foreground">
-                    {String(entry.day).padStart(2, '0')}
-                  </span>{' '}
-                  <span className="text-xs text-muted-foreground">
-                    {format(parseISO(entry.date), 'EEE')}
-                  </span>
-                  {locked ? (
-                    <Hint label="A visit has landed on this date, so it is history — the correction pass skips it whatever is sent.">
-                      <span className="ml-1.5 inline-grid size-4 cursor-default place-items-center align-middle text-muted-foreground">
-                        <Lock className="size-3" />
-                      </span>
-                    </Hint>
-                  ) : null}
-                </td>
-
-                <td className="whitespace-nowrap px-4 py-2.5">
-                  <LabelChip day={entry} />
-                </td>
-
-                <td className="px-4 py-2">
-                  {canEdit ? (
-                    <ActivitySelect
-                      activities={activities}
-                      value={row?.activityId ?? 0}
-                      placeholder="Not scheduled"
-                      className="w-full min-w-0"
-                      onChange={(activityId) => onSetActivity(entry.date, activityId)}
-                    />
-                  ) : (
-                    <span className="block truncate py-1.5 text-sm text-foreground">
-                      {day?.activityName ?? '—'}
-                    </span>
-                  )}
-                </td>
-
-                <td className="px-4 py-2">
-                  {/* An activity without `requires_beat` must carry NEITHER a city
-                      nor a beat — the server refuses the pairing — so the controls
-                      are absent rather than disabled. */}
-                  {!row ? (
-                    <span className="block py-1.5 text-xs text-muted-foreground">—</span>
-                  ) : !takesBeats ? (
-                    <Hint label="This activity takes no beats, so it carries no city either.">
-                      <span className="block cursor-default py-1.5 text-xs text-muted-foreground">
-                        not applicable
-                      </span>
-                    </Hint>
-                  ) : canEdit ? (
-                    <Combobox
-                      value={row.cityId ?? ''}
-                      onChange={(cityId) => onSetCity(entry.date, cityId || null)}
-                      options={cityOptions}
-                      placeholder="Pick a city"
-                      searchable={cityOptions.length > 8}
-                      className="w-full min-w-0"
-                    />
-                  ) : (
-                    <span className="block truncate py-1.5 text-sm text-foreground">
-                      {day?.cityName ?? cityNameById.get(row.cityId ?? '') ?? '—'}
-                    </span>
-                  )}
-                </td>
-
-                <td className="px-4 py-2">
-                  <BeatCell
-                    day={day}
-                    row={row}
-                    beatNames={beatNames}
-                    takesBeats={takesBeats}
-                    canEdit={canEdit}
-                    onEdit={() => onEditBeats(entry.date)}
-                  />
-                </td>
-
-                <td className="px-4 py-2">
-                  {canEdit && row ? (
-                    <Hint label="Clear this date — it will be sent as having no row at all.">
-                      <button
-                        type="button"
-                        onClick={() => onClearDay(entry.date)}
-                        aria-label={`Clear ${entry.date}`}
-                        className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </Hint>
-                  ) : null}
-                </td>
-              </tr>
-            )
-          })}
+          {strip.map((stripDay) => (
+            <DayRows
+              key={stripDay.date}
+              stripDay={stripDay}
+              day={dayByDate.get(stripDay.date)}
+              draftDay={draft.get(stripDay.date)}
+              activities={activities}
+              activityById={activityById}
+              distributorOptions={distributorOptions}
+              cityOptions={cityOptions}
+              beatNames={beatNames}
+              distributorNames={distributorNames}
+              blanksMatter={blanksMatter}
+              focused={focusedDay === stripDay.day}
+              editable={editable}
+              busy={busy}
+              onSetActivity={onSetActivity}
+              onSetDistributor={onSetDistributor}
+              onSetCity={onSetCity}
+              onRemoveEntry={onRemoveEntry}
+              onClearDay={onClearDay}
+              onEditBeats={onEditBeats}
+            />
+          ))}
 
           {strip.length === 0 ? (
             <tr>
@@ -317,7 +256,262 @@ export function ScheduleTable({
   )
 }
 
-/** The server's derived label, as a chip. Each carries its own explanation. */
+/**
+ * One calendar date — as many rows as it carries pieces of work, with the date and
+ * state cells spanning them.
+ *
+ * An editable, unlocked date always shows **one row more** than it has work: the
+ * trailing blank picker. That is what makes "add a second activity to the 12th" a
+ * single click rather than a mode, and it is why a date with nothing on it looks
+ * exactly like one that has been emptied.
+ */
+function DayRows({
+  stripDay,
+  day,
+  draftDay,
+  activities,
+  activityById,
+  distributorOptions,
+  cityOptions,
+  beatNames,
+  distributorNames,
+  blanksMatter,
+  focused,
+  editable,
+  busy,
+  onSetActivity,
+  onSetDistributor,
+  onSetCity,
+  onRemoveEntry,
+  onClearDay,
+  onEditBeats,
+}: {
+  stripDay: MonthStripDay
+  day: PlanDay | undefined
+  draftDay: ScheduleDraftDay | undefined
+  activities: ActivityDef[]
+  activityById: Map<number, ActivityDef>
+  distributorOptions: ComboboxOption[]
+  cityOptions: ComboboxOption[]
+  beatNames: Map<string, string>
+  distributorNames: Map<string, string>
+  blanksMatter: boolean
+  focused: boolean
+  editable: boolean
+  busy: boolean
+  onSetActivity: (date: string, index: number, activityId: number) => void
+  onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetCity: (date: string, index: number, cityId: string | null) => void
+  onRemoveEntry: (date: string, index: number) => void
+  onClearDay: (date: string) => void
+  onEditBeats: (target: { date: string; index: number }) => void
+}) {
+  // A locked date survives the correction pass whatever is sent, so it is
+  // read-only even in an editable month — and it locks every entry on it,
+  // because the lock belongs to the date.
+  const locked = day ? isLocked(day) : false
+  const canEdit = editable && !locked && !busy
+
+  const entries = draftDay?.entries ?? []
+  // The trailing blank picker. Absent on a read-only date, where it would be a
+  // control that does nothing.
+  const rows = canEdit ? [...entries, EMPTY_ENTRY] : entries
+
+  /**
+   * The saved entry behind a draft row — matched on (activity, distributor), NOT
+   * on position.
+   *
+   * Position drifts the moment anything is removed or reordered: delete the first
+   * of two entries and row 0 is now what was saved as row 1, so an index lookup
+   * would hand it the wrong city, note and beat names. The pair is unique within
+   * a date by the server's own rule — the same activity may repeat only for two
+   * different distributors — so it identifies the row for as long as the row is
+   * still the same piece of work.
+   */
+  const savedByKey = new Map(
+    (day?.activities ?? []).map((saved) => [
+      `${saved.activityId}|${saved.distributorId ?? ''}`,
+      saved,
+    ]),
+  )
+
+  const rowClass = cn(
+    'border-b border-border/40 align-top transition-colors hover:bg-accent/40',
+    stripDay.label === 'holiday' && 'bg-muted/30',
+    stripDay.label === 'missed' && 'bg-warning/5',
+    blanksMatter && stripDay.label === 'unscheduled' && 'bg-destructive/5',
+    locked && 'text-muted-foreground',
+    focused && 'ring-1 ring-inset ring-primary/40',
+  )
+
+  if (rows.length === 0) {
+    return (
+      <tr id={dayRowId(stripDay.day)} className={rowClass}>
+        <DateCell day={stripDay} locked={locked} />
+        <td className="whitespace-nowrap px-4 py-2.5">
+          <LabelChip day={stripDay} />
+        </td>
+        <td className="px-4 py-2.5 text-sm text-muted-foreground" colSpan={4}>
+          —
+        </td>
+      </tr>
+    )
+  }
+
+  return (
+    <>
+      {rows.map((entry, index) => {
+        const first = index === 0
+        const last = index === rows.length - 1
+        // The trailing blank picker is not an entry the plan holds.
+        const isPlaceholder = entry.activityId === 0
+        const saved = isPlaceholder
+          ? undefined
+          : savedByKey.get(`${entry.activityId}|${entry.distributorId ?? ''}`)
+        const activity = activityById.get(entry.activityId)
+        /**
+         * Does this entry take a distributor and beats?
+         *
+         * The master's `requires_beat` is the answer, but it may still be in
+         * flight — so it falls back to whether the entry already carries a
+         * distributor. Defaulting to "yes" for an unknown activity is the safer
+         * error: it shows the pickers on work that may not need them, rather than
+         * hiding the beats of work that does.
+         */
+        const takesBeats = activity
+          ? activity.requiresBeat
+          : isPlaceholder
+            ? false
+            : entry.distributorId !== null || Boolean(saved?.distributorId)
+
+        return (
+          <tr
+            key={index}
+            id={first ? dayRowId(stripDay.day) : undefined}
+            className={cn(rowClass, !last && 'border-b-transparent')}
+          >
+            {first ? (
+              <>
+                <DateCell day={stripDay} locked={locked} rowSpan={rows.length} />
+                <td rowSpan={rows.length} className="whitespace-nowrap px-4 py-2.5">
+                  <LabelChip day={stripDay} />
+                </td>
+              </>
+            ) : null}
+
+            <td className="px-4 py-2">
+              {canEdit ? (
+                <ActivitySelect
+                  activities={activities}
+                  value={entry.activityId}
+                  placeholder={
+                    isPlaceholder && entries.length > 0 ? 'Add activity' : 'Not scheduled'
+                  }
+                  className="w-full min-w-0"
+                  onChange={(activityId) => onSetActivity(stripDay.date, index, activityId)}
+                />
+              ) : (
+                <span className="block truncate py-1.5 text-sm text-foreground">
+                  {saved?.activityName ?? '—'}
+                </span>
+              )}
+            </td>
+
+            <td className="px-4 py-2">
+              <WhereCell
+                date={stripDay.date}
+                index={index}
+                entry={entry}
+                saved={saved}
+                takesBeats={takesBeats}
+                isPlaceholder={isPlaceholder}
+                canEdit={canEdit}
+                distributorOptions={distributorOptions}
+                cityOptions={cityOptions}
+                distributorNames={distributorNames}
+                onSetDistributor={onSetDistributor}
+                onSetCity={onSetCity}
+              />
+            </td>
+
+            <td className="px-4 py-2">
+              <BeatCell
+                entry={isPlaceholder ? undefined : entry}
+                saved={saved}
+                beatNames={beatNames}
+                takesBeats={takesBeats}
+                canEdit={canEdit}
+                onEdit={() => onEditBeats({ date: stripDay.date, index })}
+              />
+            </td>
+
+            <td className="whitespace-nowrap px-4 py-2">
+              {canEdit && !isPlaceholder ? (
+                <Hint label="Remove this piece of work from the date.">
+                  <button
+                    type="button"
+                    onClick={() => onRemoveEntry(stripDay.date, index)}
+                    aria-label={`Remove activity ${index + 1} on ${stripDay.date}`}
+                    className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </Hint>
+              ) : canEdit && isPlaceholder && entries.length > 0 ? (
+                <Hint label="Clear this date — everything on it will be sent as gone.">
+                  <button
+                    type="button"
+                    onClick={() => onClearDay(stripDay.date)}
+                    aria-label={`Clear ${stripDay.date}`}
+                    className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 dark:text-rose-400"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </Hint>
+              ) : null}
+            </td>
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+/** The date itself, plus the lock marker when a visit has landed on it. */
+function DateCell({
+  day,
+  locked,
+  rowSpan,
+}: {
+  day: MonthStripDay
+  locked: boolean
+  rowSpan?: number
+}) {
+  return (
+    <td rowSpan={rowSpan} className="whitespace-nowrap px-4 py-2.5">
+      <span className="font-mono font-semibold tabular-nums text-foreground">
+        {String(day.day).padStart(2, '0')}
+      </span>{' '}
+      <span className="text-xs text-muted-foreground">
+        {format(parseISO(day.date), 'EEE')}
+      </span>
+      {locked ? (
+        <Hint label="A visit has landed on this date, so it is history — the correction pass skips it whatever is sent.">
+          <span className="ml-1.5 inline-grid size-4 cursor-default place-items-center align-middle text-muted-foreground">
+            <Lock className="size-3" />
+          </span>
+        </Hint>
+      ) : null}
+    </td>
+  )
+}
+
+/**
+ * The server's derived label, as a chip. Each carries its own explanation.
+ *
+ * The label belongs to the DATE, not to a piece of work on it: a date carrying a
+ * leave and a meeting is one square, badged by the working half.
+ */
 function LabelChip({ day }: { day: MonthStripDay }) {
   return (
     <Hint label={DAY_LABEL_HINT[day.label]}>
@@ -349,47 +543,154 @@ function LabelChip({ day }: { day: MonthStripDay }) {
 }
 
 /**
- * The day's beats — the chips plus, where the date is editable, the way into the
- * beat dialog.
+ * WHERE the work happens — and the two halves are genuinely different questions,
+ * decided by the activity:
  *
- * A working day with a city and **no beats at all** is a day the server will refuse
- * on save (an activity with `requires_beat` needs at least one), so it is called out
- * here rather than at the far end of a failed request.
+ * - **A field entry names a DISTRIBUTOR.** That is the bucket it spends, and it is
+ *   what the beat picker is filtered by. Its city is DERIVED from the beats
+ *   server-side, so it is shown and never offered as a control: a city picker here
+ *   would let the admin contradict the beats he just chose.
+ * - **A beatless entry may name a CITY.** Optional, and the only thing that makes
+ *   "distributor search, in Rajkot" expressible.
+ */
+function WhereCell({
+  date,
+  index,
+  entry,
+  saved,
+  takesBeats,
+  isPlaceholder,
+  canEdit,
+  distributorOptions,
+  cityOptions,
+  distributorNames,
+  onSetDistributor,
+  onSetCity,
+}: {
+  date: string
+  index: number
+  entry: ScheduleDraftEntry
+  saved: PlanDayEntry | undefined
+  takesBeats: boolean
+  isPlaceholder: boolean
+  canEdit: boolean
+  distributorOptions: ComboboxOption[]
+  cityOptions: ComboboxOption[]
+  distributorNames: Map<string, string>
+  onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetCity: (date: string, index: number, cityId: string | null) => void
+}) {
+  if (isPlaceholder) {
+    return <span className="block py-1.5 text-xs text-muted-foreground">—</span>
+  }
+
+  if (takesBeats) {
+    const name =
+      saved?.distributorName ??
+      (entry.distributorId ? distributorNames.get(entry.distributorId) : null)
+
+    return (
+      <div className="min-w-0 py-0.5">
+        {canEdit ? (
+          <Combobox
+            value={entry.distributorId ?? ''}
+            onChange={(distributorId) =>
+              onSetDistributor(date, index, distributorId || null)
+            }
+            options={distributorOptions}
+            placeholder="Pick a distributor"
+            searchable={distributorOptions.length > 8}
+            className="w-full min-w-0"
+          />
+        ) : (
+          <span className="block truncate py-1.5 text-sm text-foreground">
+            {name ?? '—'}
+          </span>
+        )}
+        {/* Derived from the beats, so it is a read-out rather than a choice. */}
+        {saved?.cityName ? (
+          <Hint label="Derived from the beats on this entry — a beat's city comes from its primary distributor.">
+            <span className="mt-0.5 block cursor-default truncate text-[11px] text-muted-foreground">
+              {saved.cityName}
+            </span>
+          </Hint>
+        ) : null}
+        {!entry.distributorId && canEdit ? (
+          <Hint label="Work that takes beats must say whose days it spends — the save is refused without it.">
+            <span className="mt-0.5 inline-flex cursor-default items-center gap-1 text-[11px] font-medium text-warning">
+              <TriangleAlert className="size-3" />
+              needs a distributor
+            </span>
+          </Hint>
+        ) : null}
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-w-0 py-0.5">
+      {canEdit ? (
+        <Combobox
+          value={entry.cityId ?? ''}
+          onChange={(cityId) => onSetCity(date, index, cityId || null)}
+          options={cityOptions}
+          placeholder="Anywhere"
+          searchable={cityOptions.length > 8}
+          className="w-full min-w-0"
+        />
+      ) : (
+        <span className="block truncate py-1.5 text-sm text-muted-foreground">
+          {saved?.cityName ?? 'Anywhere'}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The entry's beats — the chips plus, where it is editable, the way into the beat
+ * dialog.
+ *
+ * A field entry with a distributor and **no beats at all** is one the server will
+ * refuse on save (an activity with `requires_beat` needs at least one), so it is
+ * called out here rather than at the far end of a failed request.
  */
 function BeatCell({
-  day,
-  row,
+  entry,
+  saved,
   beatNames,
   takesBeats,
   canEdit,
   onEdit,
 }: {
-  day: PlanDay | undefined
-  row: ScheduleDraftDay | undefined
-  /** The beat master, for chips the saved day cannot name. */
+  entry: ScheduleDraftEntry | undefined
+  saved: PlanDayEntry | undefined
+  /** The beat master, for chips the saved entry cannot name. */
   beatNames: Map<string, string>
   takesBeats: boolean
   canEdit: boolean
   onEdit: () => void
 }) {
-  if (!row) {
+  if (!entry) {
     return <span className="block py-1.5 text-xs text-muted-foreground">—</span>
   }
 
   if (!takesBeats) {
     return (
       <div className="min-w-0 py-1.5">
-        {/* The note is the only thing a beatless day carries: a holiday's name, a
+        {/* The note is the only thing beatless work carries: a holiday's name, a
             leave reason, a meeting's venue. */}
-        {day?.reason ? (
-          <span className="block truncate text-xs text-muted-foreground">{day.reason}</span>
+        {saved?.reason ? (
+          <span className="block truncate text-xs text-muted-foreground">
+            {saved.reason}
+          </span>
         ) : (
           <span className="text-xs text-muted-foreground">no beats</span>
         )}
-        {day?.jointWorkingInchargeName ? (
+        {saved?.jointWorkingInchargeName ? (
           <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
             <Users className="size-3" />
-            {day.jointWorkingInchargeName}
+            {saved.jointWorkingInchargeName}
           </span>
         ) : null}
       </div>
@@ -397,21 +698,21 @@ function BeatCell({
   }
 
   /** Names for the saved beats, so a chip reads as more than an id. */
-  const nameById = new Map((day?.beats ?? []).map((beat) => [beat.beatId, beat]))
-  const empty = row.beatIds.length === 0
+  const savedById = new Map((saved?.beats ?? []).map((beat) => [beat.beatId, beat]))
+  const empty = entry.beatIds.length === 0
 
   return (
     <div className="min-w-0 py-0.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        {row.beatIds.map((beatId, index) => {
-          const saved = nameById.get(beatId)
+        {entry.beatIds.map((beatId, index) => {
+          const beat = savedById.get(beatId)
           return (
             <Hint
               key={beatId}
               label={
-                saved
-                  ? `${index + 1}. ${saved.beatName} — ${saved.stopCount} outlets${
-                      saved.locked ? ' (worked)' : ''
+                beat
+                  ? `${index + 1}. ${beat.beatName} — ${beat.stopCount} outlets${
+                      beat.locked ? ' (worked)' : ''
                     }`
                   : `${index + 1}. ${beatNames.get(beatId) ?? 'Beat'} — added in this edit`
               }
@@ -419,15 +720,15 @@ function BeatCell({
               <span className="inline-flex h-5 max-w-48 cursor-default items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 text-[11px] font-medium text-primary">
                 <Store className="size-2.5 shrink-0" />
                 <span className="truncate">
-                {saved?.beatName ?? beatNames.get(beatId) ?? `Beat ${beatId}`}
-              </span>
+                  {beat?.beatName ?? beatNames.get(beatId) ?? `Beat ${beatId}`}
+                </span>
               </span>
             </Hint>
           )
         })}
 
         {empty ? (
-          <Hint label="An activity that takes beats needs at least one — the save will be refused without it.">
+          <Hint label="Work that takes beats needs at least one — the save will be refused without it.">
             <span className="inline-flex cursor-default items-center gap-1 text-[11px] font-medium text-warning">
               <TriangleAlert className="size-3" />
               needs a beat
@@ -436,11 +737,17 @@ function BeatCell({
         ) : null}
 
         {canEdit ? (
-          <Hint label={row.cityId ? 'Choose the beats and their order' : 'Pick a city first'}>
+          <Hint
+            label={
+              entry.distributorId
+                ? 'Choose the beats and their order'
+                : 'Pick a distributor first — the beat list is his'
+            }
+          >
             <button
               type="button"
               onClick={onEdit}
-              disabled={!row.cityId}
+              disabled={!entry.distributorId}
               className="inline-flex h-5 cursor-pointer items-center gap-1 rounded-full border border-dashed border-border px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               <PencilLine className="size-2.5" />
@@ -450,10 +757,10 @@ function BeatCell({
         ) : null}
       </div>
 
-      {day?.jointWorkingInchargeName ? (
+      {saved?.jointWorkingInchargeName ? (
         <span className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
           <Users className="size-3" />
-          {day.jointWorkingInchargeName}
+          {saved.jointWorkingInchargeName}
         </span>
       ) : null}
     </div>

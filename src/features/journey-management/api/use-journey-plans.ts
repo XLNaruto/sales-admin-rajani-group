@@ -15,8 +15,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
-import { fetchQueue, generatePlans } from './journey-plan-api'
-import type { GenerateInput, QueueParams } from '../types'
+import { createPlan, fetchQueue } from './journey-plan-api'
+import type { CreatePlanInput, QueueParams } from '../types'
 
 /** GET /journey-plans — one page of the month's plans. */
 export function useJourneyPlanQueue(
@@ -34,19 +34,21 @@ export function useJourneyPlanQueue(
 }
 
 /**
- * POST /journey-plans/generate — drafts each sales incharge's month.
+ * POST /journey-plans — opens ONE empty draft for one sales incharge and month.
  *
- * Skips a sales incharge who already has a plan unless `replaceExisting` is set, and skips
- * one whose plan has left `draft` **either way** (`skipped_in_progress`) —
- * regenerating would discard the schedule he wrote.
+ * The response is the plan itself, so it is written straight into the detail
+ * cache: the screen the admin is about to open already has it.
  *
- * Invalidates the whole `journey` tree rather than the list alone: a replaced sales incharge
- * has a new allocation, so any detail already in cache is stale too.
+ * Invalidates the whole `journey` tree rather than the list alone, because the
+ * period's sales-incharge switcher gains an entry too.
  */
-export function useGenerateJourneyPlans() {
+export function useCreateJourneyPlan() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (input: GenerateInput) => generatePlans(input),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.journey.all }),
+    mutationFn: (input: CreatePlanInput) => createPlan(input),
+    onSuccess: (plan) => {
+      qc.setQueryData(queryKeys.journey.plan(plan.id), plan)
+      qc.invalidateQueries({ queryKey: queryKeys.journey.all })
+    },
   })
 }

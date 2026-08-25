@@ -4,17 +4,24 @@
  * The admin has **two separate write surfaces**, and they are separate on purpose
  * because the server treats them as opposites:
  *
- * - The **allocation** — day-counts per activity and per city. Editable everywhere
- *   except `approved`. Full replacements.
+ * - The **allocation** — day-counts per activity (optionally in a city) and per
+ *   distributor. Editable everywhere except `approved`. Full replacements.
  * - The **schedule** — the sales incharge's calendar. Editable only from `submitted` onward,
  *   including after approval. A full replacement, so every date is sent.
  *
  * They therefore get their own drafts and their own Save buttons. Merging them
  * would produce a screen where one button is always half-refused.
  *
+ * ── A date holds a LIST of work ────────────────────────────────────────────
+ * The schedule draft is `date → entries[]`, not `date → one activity`. Each entry
+ * is one piece of work — an activity, plus a distributor and its beats when the
+ * activity needs them — and each spends one day from its own bucket. An entry
+ * whose activity is still unset (`activityId: 0`) is a picker the admin has
+ * opened and not answered; it lives in the draft and is dropped on save.
+ *
  * Both responses are authoritative — the allocation's per-bucket `daysScheduled`
- * and the variance move with a save, and the correction pass silently keeps locked
- * dates — so the screen re-reads what landed rather than assuming.
+ * moves with a save, and the correction pass silently keeps locked dates — so the
+ * screen re-reads what landed rather than assuming.
  *
  * The screen is addressed by `(incharge, month)` rather than by plan id alone, so
  * the month pager can find the *next* month's plan for the same person.
@@ -44,8 +51,8 @@ import {
   isApprovable,
   isPublishable,
 } from '../lib/plan-status'
-import type { BucketDraft } from '../components/allocation-editor'
-import type { ScheduleDraftDay } from '../components/schedule-table'
+import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
+import type { ScheduleDraftDay, ScheduleDraftEntry } from '../components/schedule-table'
 import type { JourneyPlanDetail, ScheduleDayInput } from '../types'
 
 /** Params the list hands over in the encrypted `?data=` token. */
@@ -62,7 +69,7 @@ interface PlanParams {
 interface AllocationDraft {
   planId: string
   activities: BucketDraft[]
-  cities: BucketDraft[]
+  distributors: BucketDraft[]
 }
 
 /** The unsaved calendar edit, scoped to the plan it was made against. */
@@ -76,13 +83,15 @@ interface ScheduleDraft {
 function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
   return plan.activityAllocations.map((bucket) => ({
     id: String(bucket.activityId),
+    // Part of the bucket's identity, not a decoration — see `bucketKey`.
+    cityId: bucket.cityId,
     daysCount: bucket.daysCount,
   }))
 }
 
-function serverCityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
-  return plan.cityAllocations.map((bucket) => ({
-    id: bucket.cityId,
+function serverDistributorBuckets(plan: JourneyPlanDetail): BucketDraft[] {
+  return plan.distributorAllocations.map((bucket) => ({
+    id: bucket.distributorId,
     daysCount: bucket.daysCount,
   }))
 }
@@ -90,8 +99,9 @@ function serverCityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
 /**
  * The calendar as the server currently holds it.
  *
- * Beat order is preserved off `sequence`: `beat_ids` order **is** the intended
- * order, so re-reading them in array order would quietly reshuffle the sales incharge's day
+ * Entry and beat order are both preserved off `sequence` — the API mapper has
+ * already sorted them — because the order IS the sales incharge's intended
+ * walking order, and re-reading it any other way would quietly reshuffle his day
  * on the next save.
  */
 function serverSchedule(plan: JourneyPlanDetail): Map<string, ScheduleDraftDay> {
@@ -99,24 +109,34 @@ function serverSchedule(plan: JourneyPlanDetail): Map<string, ScheduleDraftDay> 
     plan.days.map((day) => [
       day.date,
       {
-        activityId: day.activityId,
-        cityId: day.cityId,
-        beatIds: [...day.beats]
-          .sort((a, b) => a.sequence - b.sequence)
-          .map((beat) => beat.beatId),
+        entries: day.activities.map((entry) => ({
+          activityId: entry.activityId,
+          distributorId: entry.distributorId,
+          cityId: entry.cityId,
+          beatIds: entry.beats.map((beat) => beat.beatId),
+        })),
       },
     ]),
   )
 }
 
-/** Same buckets, ignoring order. */
+/** Same buckets, ignoring order. Keyed on the PAIR — see `bucketKey`. */
 function sameBuckets(a: BucketDraft[], b: BucketDraft[]): boolean {
   if (a.length !== b.length) return false
-  const map = new Map(b.map((bucket) => [bucket.id, bucket.daysCount]))
-  return a.every((bucket) => map.get(bucket.id) === bucket.daysCount)
+  const map = new Map(b.map((bucket) => [bucketKey(bucket), bucket.daysCount]))
+  return a.every((bucket) => map.get(bucketKey(bucket)) === bucket.daysCount)
 }
 
-/** Same calendar — same dates, same activity, same city, same beats in order. */
+/** Same piece of work — same activity, same distributor, same city, same beats in order. */
+function sameEntry(a: ScheduleDraftEntry, b: ScheduleDraftEntry): boolean {
+  if (a.activityId !== b.activityId) return false
+  if ((a.distributorId ?? null) !== (b.distributorId ?? null)) return false
+  if ((a.cityId ?? null) !== (b.cityId ?? null)) return false
+  if (a.beatIds.length !== b.beatIds.length) return false
+  return a.beatIds.every((id, i) => id === b.beatIds[i])
+}
+
+/** Same calendar — same dates, each carrying the same work in the same order. */
 function sameSchedule(
   a: Map<string, ScheduleDraftDay>,
   b: Map<string, ScheduleDraftDay>,
@@ -125,10 +145,9 @@ function sameSchedule(
   for (const [date, day] of a) {
     const other = b.get(date)
     if (!other) return false
-    if (day.activityId !== other.activityId) return false
-    if ((day.cityId ?? null) !== (other.cityId ?? null)) return false
-    if (day.beatIds.length !== other.beatIds.length) return false
-    if (day.beatIds.some((id, i) => id !== other.beatIds[i])) return false
+    if (day.entries.length !== other.entries.length) return false
+    // Order matters: it is the order he means to work the day in.
+    if (day.entries.some((entry, i) => !sameEntry(entry, other.entries[i]!))) return false
   }
   return true
 }
@@ -153,8 +172,13 @@ export function useJourneyPlan(data?: string) {
   const [allocationDraft, setAllocationDraft] = useState<AllocationDraft | null>(null)
   const [scheduleDraft, setScheduleDraft] = useState<ScheduleDraft | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  /** Which date's beat dialog is open, if any. */
-  const [beatDate, setBeatDate] = useState<string | null>(null)
+  /**
+   * Which ENTRY's beat dialog is open, if any — a date can hold several, so the
+   * date alone no longer identifies one.
+   */
+  const [beatTarget, setBeatTarget] = useState<{ date: string; index: number } | null>(
+    null,
+  )
 
   const reps = useJourneyPlanReps(month)
 
@@ -216,27 +240,33 @@ export function useJourneyPlan(data?: string) {
   /* ── the allocation draft ────────────────────────────────────────────────── */
 
   const baseActivities = useMemo(() => (plan ? serverActivityBuckets(plan) : []), [plan])
-  const baseCities = useMemo(() => (plan ? serverCityBuckets(plan) : []), [plan])
+  const baseDistributors = useMemo(
+    () => (plan ? serverDistributorBuckets(plan) : []),
+    [plan],
+  )
 
   const liveAllocation =
     plan && allocationDraft?.planId === plan.id ? allocationDraft : null
   const activityBuckets = liveAllocation ? liveAllocation.activities : baseActivities
-  const cityBuckets = liveAllocation ? liveAllocation.cities : baseCities
+  const distributorBuckets = liveAllocation
+    ? liveAllocation.distributors
+    : baseDistributors
 
   const allocationDirty =
     Boolean(liveAllocation) &&
     (!sameBuckets(activityBuckets, baseActivities) ||
-      !sameBuckets(cityBuckets, baseCities))
+      !sameBuckets(distributorBuckets, baseDistributors))
 
   const editAllocation = useCallback(
-    (next: { activities?: BucketDraft[]; cities?: BucketDraft[] }) => {
+    (next: { activities?: BucketDraft[]; distributors?: BucketDraft[] }) => {
       if (!plan || !allocationEditable) return
       setAllocationDraft((prev) => {
         const from = prev?.planId === plan.id ? prev : null
         return {
           planId: plan.id,
           activities: next.activities ?? from?.activities ?? serverActivityBuckets(plan),
-          cities: next.cities ?? from?.cities ?? serverCityBuckets(plan),
+          distributors:
+            next.distributors ?? from?.distributors ?? serverDistributorBuckets(plan),
         }
       })
     },
@@ -247,17 +277,20 @@ export function useJourneyPlan(data?: string) {
     (activities: BucketDraft[]) => editAllocation({ activities }),
     [editAllocation],
   )
-  const setCityBuckets = useCallback(
-    (cities: BucketDraft[]) => editAllocation({ cities }),
+  const setDistributorBuckets = useCallback(
+    (distributors: BucketDraft[]) => editAllocation({ distributors }),
     [editAllocation],
   )
 
-  /** Days the draft allocates, against the month — the variance publish gates on. */
+  /**
+   * Days the draft allocates. Reported, not enforced — nothing refuses on it,
+   * and it may legitimately exceed the length of the month.
+   */
   const draftAllocatedDays = useMemo(
     () =>
       activityBuckets.reduce((sum, b) => sum + b.daysCount, 0) +
-      cityBuckets.reduce((sum, b) => sum + b.daysCount, 0),
-    [activityBuckets, cityBuckets],
+      distributorBuckets.reduce((sum, b) => sum + b.daysCount, 0),
+    [activityBuckets, distributorBuckets],
   )
 
   /* ── the schedule draft ──────────────────────────────────────────────────── */
@@ -291,60 +324,104 @@ export function useJourneyPlan(data?: string) {
   )
 
   /**
-   * Set a date's activity.
-   *
-   * An activity **without** `requires_beat` must carry neither a city nor a beat —
-   * the server refuses that pairing — so switching to one drops both rather than
-   * leaving a body that will be rejected. Switching *to* a beat-taking activity
-   * keeps whatever city was there, since it is usually still the right one.
+   * Edit one ENTRY of a date, in place. A date with nothing left on it is deleted
+   * outright, because an empty `entries` list is refused by the server and an
+   * omitted date is how you clear one.
    */
-  const setDayActivity = useCallback(
-    (date: string, activityId: number) => {
+  const editEntry = useCallback(
+    (
+      date: string,
+      index: number,
+      mutate: (entries: ScheduleDraftEntry[]) => void,
+    ) => {
       editSchedule((days) => {
-        if (!activityId) {
-          days.delete(date)
-          return
-        }
-        const activity = activityById.get(activityId)
-        const previous = days.get(date)
-        const takesBeats = activity?.requiresBeat ?? true
-        days.set(date, {
-          activityId,
-          cityId: takesBeats ? (previous?.cityId ?? null) : null,
-          beatIds: takesBeats ? (previous?.beatIds ?? []) : [],
-        })
+        const entries = [...(days.get(date)?.entries ?? [])]
+        if (index > entries.length) return
+        mutate(entries)
+        if (entries.length === 0) days.delete(date)
+        else days.set(date, { entries })
       })
     },
-    [editSchedule, activityById],
+    [editSchedule],
   )
 
   /**
-   * Move a date to another city.
+   * Set an entry's activity — and, at `index === entries.length`, create it.
    *
-   * Every beat on it is dropped: a beat must sit in its day's city, so keeping them
-   * would build a body the server refuses beat by beat.
+   * The shape follows the activity master, because the server refuses the wrong
+   * pairing outright: an activity that **requires a beat** carries a distributor
+   * and beats and has its city derived from them, and one that does not carries
+   * neither and may carry a city of its own. Switching between the two kinds
+   * therefore drops what no longer applies rather than leaving a body that will
+   * be rejected.
+   *
+   * Clearing the activity (`0`) removes the entry.
    */
-  const setDayCity = useCallback(
-    (date: string, cityId: string | null) => {
-      editSchedule((days) => {
-        const previous = days.get(date)
-        if (!previous) return
-        if (previous.cityId === cityId) return
-        days.set(date, { ...previous, cityId, beatIds: [] })
+  const setEntryActivity = useCallback(
+    (date: string, index: number, activityId: number) => {
+      editEntry(date, index, (entries) => {
+        if (!activityId) {
+          entries.splice(index, 1)
+          return
+        }
+        const takesBeats = activityById.get(activityId)?.requiresBeat ?? true
+        const previous = entries[index]
+        entries[index] = {
+          activityId,
+          distributorId: takesBeats ? (previous?.distributorId ?? null) : null,
+          // Derived server-side on a field entry, so there is nothing to keep.
+          cityId: takesBeats ? null : (previous?.cityId ?? null),
+          beatIds: takesBeats ? (previous?.beatIds ?? []) : [],
+        }
       })
     },
-    [editSchedule],
+    [editEntry, activityById],
   )
 
-  const setDayBeats = useCallback(
-    (date: string, beatIds: string[]) => {
-      editSchedule((days) => {
-        const previous = days.get(date)
-        if (!previous) return
-        days.set(date, { ...previous, beatIds })
+  /**
+   * Move an entry to another distributor.
+   *
+   * Every beat on it is dropped: a beat must serve its entry's distributor, so
+   * keeping them would build a body the server refuses beat by beat.
+   */
+  const setEntryDistributor = useCallback(
+    (date: string, index: number, distributorId: string | null) => {
+      editEntry(date, index, (entries) => {
+        const previous = entries[index]
+        if (!previous || previous.distributorId === distributorId) return
+        entries[index] = { ...previous, distributorId, beatIds: [] }
       })
     },
-    [editSchedule],
+    [editEntry],
+  )
+
+  /** The optional WHERE on a beatless entry. Never read on a field entry. */
+  const setEntryCity = useCallback(
+    (date: string, index: number, cityId: string | null) => {
+      editEntry(date, index, (entries) => {
+        const previous = entries[index]
+        if (!previous) return
+        entries[index] = { ...previous, cityId }
+      })
+    },
+    [editEntry],
+  )
+
+  const setEntryBeats = useCallback(
+    (date: string, index: number, beatIds: string[]) => {
+      editEntry(date, index, (entries) => {
+        const previous = entries[index]
+        if (!previous) return
+        entries[index] = { ...previous, beatIds }
+      })
+    },
+    [editEntry],
+  )
+
+  const removeEntry = useCallback(
+    (date: string, index: number) =>
+      editEntry(date, index, (entries) => void entries.splice(index, 1)),
+    [editEntry],
   )
 
   const clearDay = useCallback(
@@ -371,6 +448,9 @@ export function useJourneyPlan(data?: string) {
       setAllocationDraft(null)
       setScheduleDraft(null)
       setNotice(null)
+      // The dialog is addressed by (date, index) into a schedule that is about to
+      // be replaced — leaving it set would reopen it over another man's month.
+      setBeatTarget(null)
       navigate({
         to: '/journey/plan',
         search: { data: encryptParams(next) },
@@ -417,10 +497,11 @@ export function useJourneyPlan(data?: string) {
         planId,
         activityAllocations: activityBuckets.map((bucket) => ({
           activityId: Number(bucket.id),
+          cityId: bucket.cityId ?? null,
           daysCount: bucket.daysCount,
         })),
-        cityAllocations: cityBuckets.map((bucket) => ({
-          cityId: bucket.id,
+        distributorAllocations: distributorBuckets.map((bucket) => ({
+          distributorId: bucket.id,
           daysCount: bucket.daysCount,
         })),
       },
@@ -428,21 +509,22 @@ export function useJourneyPlan(data?: string) {
         onSuccess: (saved) => {
           setAllocationDraft(null)
           const mismatch = saved.flags.some((flag) => flag.code === 'schedule_mismatch')
+          const over = saved.progress.allocationVariance
           setNotice(
             mismatch
-              ? 'Saved. The sales incharge’s schedule no longer matches these counts, so approve is blocked until one of the two is corrected — his work was kept rather than discarded.'
-              : saved.progress.allocationVariance !== 0
-                ? `Saved. The counts are ${Math.abs(
-                    saved.progress.allocationVariance,
-                  )} day${
-                    Math.abs(saved.progress.allocationVariance) === 1 ? '' : 's'
-                  } ${saved.progress.allocationVariance < 0 ? 'short of' : 'over'} the month, so publish is still refused.`
+              ? 'Saved. The sales incharge’s schedule no longer matches these counts — his work was kept rather than discarded, and the difference is flagged for you to judge. Nothing is blocked.'
+              : // Only an OVER-allocation is worth a word. Being short of the
+                // month is the ordinary case: the rest of it is his to fill.
+                over > 0
+                ? `Saved. The counts promise ${over} day${
+                    over === 1 ? '' : 's'
+                  } more than the month holds — he can only fit that by doubling dates up.`
                 : null,
           )
           toastsuccessmsg('Allocation saved.')
         },
-        // Every 400 here carries a message written to be shown verbatim — a city
-        // outside the whitelist, an activity that is not allocatable.
+        // Every 400 here carries a message written to be shown verbatim — a
+        // distributor his beats do not reach, an activity that is not allocatable.
         onError: (error) => toastApiError(error, 'Failed to save the allocation.'),
       },
     )
@@ -452,7 +534,7 @@ export function useJourneyPlan(data?: string) {
     allocationEditable,
     allocationDirty,
     activityBuckets,
-    cityBuckets,
+    distributorBuckets,
     saveAllocation,
   ])
 
@@ -472,10 +554,22 @@ export function useJourneyPlan(data?: string) {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, day]) => ({
         date,
-        activityId: day.activityId,
-        cityId: day.cityId,
-        beatIds: day.beatIds,
+        entries: day.entries
+          // Belt and braces: the table's trailing picker is render-only and never
+          // reaches the draft, so nothing here should be activity-less. The server
+          // has no shape for one, and a stray would fail the whole month's save
+          // rather than the row that caused it.
+          .filter((entry) => entry.activityId > 0)
+          .map((entry) => ({
+            activityId: entry.activityId,
+            distributorId: entry.distributorId,
+            cityId: entry.cityId,
+            beatIds: entry.beatIds,
+          })),
       }))
+      // A date left with nothing on it is a cleared date, and a cleared date is
+      // one that is simply absent from the body.
+      .filter((day) => day.entries.length > 0)
 
     saveSchedule.mutate(
       { planId, days },
@@ -483,9 +577,14 @@ export function useJourneyPlan(data?: string) {
         onSuccess: (saved) => {
           setScheduleDraft(null)
           const landed = serverSchedule(saved)
+          // A date whose entries did not change is one the server skipped — it is
+          // locked, and kept as history.
           const held = days.filter((day) => {
             const after = landed.get(day.date)
-            return !after || after.activityId !== day.activityId
+            if (!after || after.entries.length !== day.entries.length) return true
+            return after.entries.some(
+              (entry, i) => entry.activityId !== day.entries[i]!.activityId,
+            )
           })
           setNotice(
             held.length
@@ -506,8 +605,9 @@ export function useJourneyPlan(data?: string) {
   /**
    * Publish — `draft` → `published`, releasing the month to the sales incharge.
    *
-   * Gated on the server's own `canPublish` rather than a recomputed variance, and
-   * one-way: there is no unpublish.
+   * Gated on the server's own `canPublish` — which asks only that the draft has a
+   * bucket on it — and never on a recomputed variance: a partial month is the
+   * normal thing to publish. One-way; there is no unpublish.
    */
   const submitPublish = useCallback(() => {
     if (!planId || !canTransition) return
@@ -515,9 +615,9 @@ export function useJourneyPlan(data?: string) {
       onSuccess: (result) => {
         setNotice(null)
         toastsuccessmsg(
-          `Published — the sales incharge can now see ${monthLabel(month)} and start dating his ${
+          `Published — the sales incharge can now see ${monthLabel(month)}, date his ${
             result.daysAllocated
-          } allocated days.`,
+          } allocated days and fill the rest of the month himself.`,
         )
       },
       // The 400 names the shortfall, and the 409 says it is not a draft.
@@ -528,9 +628,9 @@ export function useJourneyPlan(data?: string) {
   /**
    * Approve — `submitted` → `approved`.
    *
-   * Refused unless the schedule consumes every bucket exactly, checked bucket by
-   * bucket. There is **no reject**: an admin who dislikes the schedule corrects it
-   * above and approves.
+   * The counts are not re-checked: whatever he built is what he submits, and any
+   * variance is a flag above rather than a refusal. There is **no reject** — an
+   * admin who dislikes the schedule corrects it and approves.
    */
   const submitApprove = useCallback(() => {
     if (!planId || !canTransition) return
@@ -550,31 +650,54 @@ export function useJourneyPlan(data?: string) {
   const issues = useMemo(() => (plan ? planIssues(plan) : []), [plan])
 
   /**
-   * Cities a date may be moved to: **the ones this plan allocates**, not every city
-   * the sales incharge has beats in. Scheduling into an unallocated city is exactly what
-   * `schedule_unallocated` reports, and it blocks approve.
+   * Distributors an entry may be assigned to: **the ones this plan allocates**,
+   * plus any the schedule already uses.
+   *
+   * Scheduling onto an unallocated distributor is legal — it is the sales
+   * incharge's own work, reported as `schedule_unallocated` and blocking nothing —
+   * but the picker leads with the allocation, because that is what the admin
+   * promised and what the counts are measured against.
    */
-  const cityOptions = useMemo(
+  const distributorOptions = useMemo(
     () =>
-      (plan?.cityAllocations ?? []).map((bucket) => ({
-        value: bucket.cityId,
-        label: bucket.cityName ?? `City ${bucket.cityId}`,
+      (plan?.distributorAllocations ?? []).map((bucket) => ({
+        value: bucket.distributorId,
+        label: bucket.distributorName ?? `Distributor ${bucket.distributorId}`,
         hint: `${bucket.daysScheduled} of ${bucket.daysCount} days used`,
+        badge: bucket.beatCount ? `${bucket.beatCount} beats` : undefined,
       })),
-    [plan?.cityAllocations],
+    [plan?.distributorAllocations],
   )
 
-  /** The beat pool for the open date, narrowed to that date's city. */
-  const beatsForOpenDate = useMemo(() => {
-    if (!beatDate) return []
-    const cityId = schedule.get(beatDate)?.cityId
-    if (!cityId) return []
-    // A beat with no city of its own is offered too: that is a gap in the beat
-    // master, which the server explicitly allows, not a scheduling error.
-    return (beatPool.data ?? []).filter(
-      (beat) => beat.cityId === cityId || beat.cityId == null,
+  /** Cities a beatless entry may name — the plan's own, so the copy can name them. */
+  const cityOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const bucket of plan?.activityAllocations ?? []) {
+      if (bucket.cityId) {
+        map.set(bucket.cityId, bucket.cityName ?? `City ${bucket.cityId}`)
+      }
+    }
+    return [...map].map(([value, label]) => ({ value, label }))
+  }, [plan?.activityAllocations])
+
+  /**
+   * The beat pool for the open entry, narrowed to **the beats serving its
+   * distributor**.
+   *
+   * This is the rule that replaced beat-sits-in-the-day's-city, and it is
+   * stricter: a beat mapped to no distributor at all is offered by neither, since
+   * there would be no bucket to charge the day to. Fixing that is a beat-master
+   * job, not a scheduling one.
+   */
+  const beatsForOpenEntry = useMemo(() => {
+    if (!beatTarget) return []
+    const entry = schedule.get(beatTarget.date)?.entries[beatTarget.index]
+    const distributorId = entry?.distributorId
+    if (!distributorId) return []
+    return (beatPool.data ?? []).filter((beat) =>
+      beat.distributorIds.includes(distributorId),
     )
-  }, [beatDate, schedule, beatPool.data])
+  }, [beatTarget, schedule, beatPool.data])
 
   /**
    * Beat id → name, for the schedule's chips.
@@ -586,11 +709,35 @@ export function useJourneyPlan(data?: string) {
   const beatNames = useMemo(() => {
     const map = new Map<string, string>()
     for (const day of plan?.days ?? []) {
-      for (const beat of day.beats) map.set(beat.beatId, beat.beatName)
+      for (const entry of day.activities) {
+        for (const beat of entry.beats) map.set(beat.beatId, beat.beatName)
+      }
     }
     for (const beat of beatPool.data ?? []) map.set(beat.id, beat.name)
     return map
   }, [plan?.days, beatPool.data])
+
+  /**
+   * Distributor id → name, for the schedule's read-only rows.
+   *
+   * The plan's allocations seed it and the saved entries fill the gaps: an entry
+   * on a distributor the admin has since removed from the allocation still has to
+   * render as a name rather than an id.
+   */
+  const distributorNames = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const bucket of plan?.distributorAllocations ?? []) {
+      if (bucket.distributorName) map.set(bucket.distributorId, bucket.distributorName)
+    }
+    for (const day of plan?.days ?? []) {
+      for (const entry of day.activities) {
+        if (entry.distributorId && entry.distributorName) {
+          map.set(entry.distributorId, entry.distributorName)
+        }
+      }
+    }
+    return map
+  }, [plan?.distributorAllocations, plan?.days])
 
   /** Dates that survive the correction pass whatever is sent. */
   const lockedDates = useMemo(
@@ -628,6 +775,8 @@ export function useJourneyPlan(data?: string) {
      */
     missing:
       !detail.isLoading && !reps.isLoading && !detail.error && !reps.error && !planId,
+    /** The sales incharge the screen is on, when it knows — the create dialog's seed. */
+    inchargeId,
     /** Combobox props for the header's incharge picker, plus its current value. */
     incharge: {
       options: (reps.data ?? []).map((r) => ({
@@ -649,9 +798,9 @@ export function useJourneyPlan(data?: string) {
     allocationOptions: options.data,
     isLoadingOptions: options.isLoading,
     activityBuckets,
-    cityBuckets,
+    distributorBuckets,
     setActivityBuckets,
-    setCityBuckets,
+    setDistributorBuckets,
     draftAllocatedDays,
     allocationDirty,
     allocationEditable,
@@ -662,11 +811,15 @@ export function useJourneyPlan(data?: string) {
     /* the schedule */
     schedule,
     beatNames,
+    distributorNames,
     activities: activities.data ?? [],
+    distributorOptions,
     cityOptions,
-    setDayActivity,
-    setDayCity,
-    setDayBeats,
+    setEntryActivity,
+    setEntryDistributor,
+    setEntryCity,
+    setEntryBeats,
+    removeEntry,
     clearDay,
     scheduleDirty,
     scheduleEditable,
@@ -674,10 +827,10 @@ export function useJourneyPlan(data?: string) {
     submitSchedule,
     isSavingSchedule: saveSchedule.isPending,
     lockedDates,
-    /** The per-date beat dialog. */
-    beatDate,
-    openBeatDialog: setBeatDate,
-    beatsForOpenDate,
+    /** The per-ENTRY beat dialog — a date can hold several. */
+    beatTarget,
+    openBeatDialog: setBeatTarget,
+    beatsForOpenEntry,
 
     /* the transitions — one permission, both ends */
     canTransition,

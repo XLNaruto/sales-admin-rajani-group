@@ -15,11 +15,10 @@ import { toastsuccessmsg } from '@/lib/toast'
 import { toastApiError } from '@/lib/api-toast'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useCan } from '@/features/permissions'
-import { useGenerateJourneyPlans, useJourneyPlanQueue } from '../api/use-journey-plans'
-import { useActivities } from '../api/use-journey-plan-detail'
+import { useCreateJourneyPlan, useJourneyPlanQueue } from '../api/use-journey-plans'
 import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
 import { SORT_COLUMNS } from '../lib/journey-metrics'
-import type { ActivityQuota, PlanStatus, QueueParams } from '../types'
+import type { JourneyPlanDetail, PlanStatus, QueueParams } from '../types'
 
 /** Filters the toolbar owns. `status: null` is the "All" tab. */
 export interface AllocationFilters {
@@ -33,9 +32,10 @@ const DEFAULT_PAGE_SIZE = 5
 
 export function useAllocationList() {
   const { can } = useCan()
-  // Reading the list and generating a month are separate grants: a reviewer may
-  // hold `journey-plan:list` and neither write key.
-  const canGenerate = can('journey-plan:create')
+  // Reading the list and opening a month are separate grants: a reviewer may
+  // hold `journey-plan:list` and neither write key. `journey-plan:create` used to
+  // mean "run the solver over the team"; it now means "open one empty draft".
+  const canCreate = can('journey-plan:create')
 
   const [month, setMonth] = useState(currentMonth)
   const [filters, setFilters] = useState<AllocationFilters>(EMPTY_FILTERS)
@@ -66,15 +66,7 @@ export function useAllocationList() {
 
   const queue = useJourneyPlanQueue(params)
 
-  /**
-   * The activity master, for the generate dialog's activity column. Not fetched
-   * without the grant to generate — nothing else on this screen reads it.
-   */
-  const activities = useActivities({
-    enabled: canGenerate && can('activity:list'),
-  })
-
-  const generate = useGenerateJourneyPlans()
+  const create = useCreateJourneyPlan()
 
   // `refetch` is stable per query, so the toolbar's button keeps its identity.
   const refetch = queue.refetch
@@ -96,78 +88,39 @@ export function useAllocationList() {
   }, [])
 
   /**
-   * Generate the month. Every plan lands as a **draft**, invisible to the sales incharge.
+   * Open one empty draft for one sales incharge and this month.
    *
-   * Idempotent per sales incharge and period: a sales incharge who already has a plan is skipped unless
-   * `replaceExisting` is set, and one whose plan has left `draft` is skipped
-   * **either way** — regenerating would discard the schedule he wrote.
+   * There is no team-wide run any more: field time is allocated per distributor,
+   * so the allocation is a judgement about commercial relationships rather than
+   * something a solver can propose. The plan lands as a **draft**, invisible to
+   * the sales incharge, with nothing on it — the buckets go on next, on the plan
+   * screen.
    *
-   * **A non-zero `failed` is not a failed run** — the endpoint answers 201 either
-   * way. With no per sales incharge receipt on screen, the toast is the only report there is,
-   * so it names every outcome that isn't a plain success separately rather than
-   * folding them into one total. `skipped_in_progress` in particular has to be said
-   * out loud: it is the one case `replaceExisting` does not override.
+   * A sales incharge who already has a plan for the period is **refused**, not
+   * silently skipped, so the toast can name the collision instead of leaving the
+   * admin wondering why nothing happened.
    *
-   * `onDone` fires only on a resolved run, so the dialog keeps its rows on screen
-   * if the request itself was refused.
+   * `onDone` fires only on success, so the dialog keeps the chosen name on screen
+   * next to the error when the request is refused.
    */
-  const generatePlans = useCallback(
-    (
-      input: { activityAllocations: ActivityQuota[]; replaceExisting: boolean },
-      onDone?: () => void,
-    ) => {
-      if (!canGenerate) return
-      generate.mutate(
+  const createPlan = useCallback(
+    (inchargeId: string, onDone?: (plan: JourneyPlanDetail) => void) => {
+      if (!canCreate || !inchargeId) return
+      create.mutate(
+        { inchargeId, periodMonth: month },
         {
-          periodMonth: month,
-          activityAllocations: input.activityAllocations,
-          replaceExisting: input.replaceExisting,
-        },
-        {
-          onSuccess: (result) => {
-            const count = (outcome: string) =>
-              result.results.filter((r) => r.outcome === outcome).length
-            const inProgress = count('skipped_in_progress')
-            const noBeats = count('no_beats')
-            const existing = count('skipped_existing')
-            const written = result.created + count('replaced')
-            // Dates the run wrote onto the calendars itself. Worth saying: those
-            // days are already sitting on each sales incharge's month, and they
-            // are the admin's, not his to move.
-            const pinned = result.results.reduce((sum, r) => sum + r.daysPinned, 0)
-
-            const notes = [
-              existing ? `${existing} already had one` : '',
-              // Named apart from the rest: this is the skip `replaceExisting`
-              // cannot override, and an admin who ticked that box needs to know why
-              // some sales incharges still didn't move.
-              inProgress
-                ? `${inProgress} already past draft (the sales incharge's schedule was kept)`
-                : '',
-              noBeats ? `${noBeats} with no beats allocated` : '',
-              result.failed ? `${result.failed} failed` : '',
-            ].filter(Boolean)
-
+          onSuccess: (plan) => {
             toastsuccessmsg(
-              written
-                ? `${written} draft${written === 1 ? '' : 's'} written${
-                    pinned
-                      ? `, with ${pinned} dated activity day${pinned === 1 ? '' : 's'} pinned onto their calendars`
-                      : ''
-                  }${
-                    notes.length ? ` — ${notes.join('; ')}` : ''
-                  }. Publish each one to release it to the sales incharge.`
-                : notes.length
-                  ? `Nothing written — ${notes.join('; ')}.`
-                  : 'Nothing written — every sales incharge already has a plan for this month.',
+              `Draft created for ${plan.inchargeName}. Allocate his days, then publish to hand ${monthLabel(month)} over.`,
             )
-            onDone?.()
+            onDone?.(plan)
           },
-          onError: (error) => toastApiError(error, 'Failed to generate the plans.'),
+          // The 409 names the plan that already exists — worth showing verbatim.
+          onError: (error) => toastApiError(error, 'Failed to create the plan.'),
         },
       )
     },
-    [generate, month, canGenerate],
+    [create, month, canCreate],
   )
 
   return {
@@ -193,11 +146,9 @@ export function useAllocationList() {
     setPagination,
     sorting,
     setSorting,
-    generatePlans,
-    isGenerating: generate.isPending,
-    /** Activity master behind the generate dialog's activity column. */
-    activities: activities.data ?? [],
+    createPlan,
+    isCreating: create.isPending,
     /** Permission gate for the header action. */
-    canGenerate,
+    canCreate,
   }
 }

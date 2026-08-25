@@ -175,23 +175,28 @@ export const endpoints = {
     CITIES: '/sales-incharge-admin/cities',
   },
   /**
-   * Journey plans — one sales incharge's **allocation** for a month: which of his
-   * beats are in play, plus the dates the office pins. Not a calendar; the sales incharge
-   * writes each day row himself from the app.
+   * Journey plans — one sales incharge's month, negotiated in four states
+   * (`draft → published → submitted → approved`).
    *
-   * There is no approval lifecycle, so there is no `/summary`, no `/approve`, no
-   * `/bulk-approve`, no `/re-solve`, no day-level PATCH and no
-   * `/materialise-stops` — the whole admin write surface is the PATCH below.
+   * The admin allocates **day-counts**: per activity (optionally in a city) and
+   * per DISTRIBUTOR, which is the unit field time comes in. He never picks a date
+   * or a beat — the sales incharge turns the counts into dates, choosing the
+   * distributor and its beats per piece of work, and a date may carry several.
+   *
+   * The allocation is deliberately **partial**: nothing refuses on the counts, so
+   * there is no variance to clear before publishing.
    */
   JOURNEY_PLAN: {
     /** GET one page of the month's plans (page-based, server-sorted, status-filtered). */
     LIST: '/sales-incharge-admin/journey-plans',
     /**
-     * POST { period_month, sales_incharge_ids?, activity_allocations?, replace_existing?, seed? }.
-     * The activity buckets apply to EVERY sales incharge in the run — "one monthly meeting,
-     * four weekly offs" is a company fact. Every plan lands as a `draft`.
+     * POST { sales_incharge_id, period_month } → 201 with a bare `draft`.
+     * There is no generate any more: field time is allocated per distributor, and
+     * a distributor is a commercial relationship rather than something a solver
+     * can propose. A sales incharge who already has a plan for the period gets a
+     * 409 naming it, so a double-click cannot hand back someone else's month.
      */
-    GENERATE: '/sales-incharge-admin/journey-plans/generate',
+    CREATE: '/sales-incharge-admin/journey-plans',
     /** GET the sales incharge switcher's options for a period (carries each plan id + status). */
     REPS: '/sales-incharge-admin/journey-plans/reps',
     /**
@@ -202,29 +207,31 @@ export const endpoints = {
     ALLOCATION_OPTIONS: '/sales-incharge-admin/journey-plans/allocation-options',
     GET: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
     /**
-     * PATCH { activity_allocations?, city_allocations? } — the admin allocates
-     * **day-counts**, never a date or a beat. Each field is a FULL REPLACEMENT of
-     * what it covers; an omitted field is untouched. Does not touch the schedule.
-     * Refused (409) once the plan is `approved`.
+     * PATCH { activity_allocations?, distributor_allocations? } — the admin
+     * allocates **day-counts**, never a date or a beat. Each field is a FULL
+     * REPLACEMENT of what it covers; an omitted field is untouched. Neither total
+     * is capped at the length of the month. Does not touch the schedule. Refused
+     * (409) once the plan is `approved`.
      */
     SAVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}`,
     /**
-     * PATCH { days } — the correction pass over the sales incharge's calendar. A FULL
-     * REPLACEMENT: send every date. Open from `submitted` onward, including after
-     * approval; refused (409) on a `draft` or `published` plan, where the schedule
-     * is the sales incharge's. Locked dates survive whatever is sent.
+     * PATCH { days: [{ date, entries }] } — the correction pass over the sales
+     * incharge's calendar. A FULL REPLACEMENT: send every date, each with the
+     * list of work on it. Open from `submitted` onward, including after approval;
+     * refused (409) on a `draft` or `published` plan, where the schedule is the
+     * sales incharge's. Locked dates survive whatever is sent.
      */
     SCHEDULE: (id: string | number) =>
       `/sales-incharge-admin/journey-plans/${id}/schedule`,
     /**
-     * POST — `draft` → `published`. 400 unless the counts account for the whole
-     * month. Guarded by `journey-plan:approve`, the same key as approve.
+     * POST — `draft` → `published`. Needs only one bucket on the plan; a partial
+     * month is normal. Guarded by `journey-plan:approve`, the same key as approve.
      */
     PUBLISH: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/publish`,
     /**
-     * POST — `submitted` → `approved`. 400 unless the schedule consumes every
-     * bucket exactly; the error `details` name the offending buckets. There is no
-     * reject and no send-back — an admin who dislikes a schedule corrects it.
+     * POST — `submitted` → `approved`. The counts are NOT re-checked; a variance
+     * comes back as a flag for the admin to judge. There is no reject and no
+     * send-back — an admin who dislikes a schedule corrects it.
      */
     APPROVE: (id: string | number) => `/sales-incharge-admin/journey-plans/${id}/approve`,
     /**
@@ -237,10 +244,11 @@ export const endpoints = {
       `/sales-incharge-admin/journey-plans/${id}/agent/messages`,
   },
   /**
-   * Activity master — what a plan day is spent on. The three booleans
-   * (`requires_beat`, `is_working_day`, `counts_toward_coverage`) are read by
-   * the solver; `company_id: null` marks the seeded platform rows, which no
-   * tenant may edit.
+   * Activity master — what a piece of a plan day is spent on. The three booleans
+   * (`requires_beat`, `is_working_day`, `counts_toward_coverage`) are enforced by
+   * the scheduler: `requires_beat` in particular decides whether an entry must
+   * name a distributor and beats, or must name neither. `company_id: null` marks
+   * the seeded platform rows, which no tenant may edit.
    */
   ACTIVITY: {
     LIST: '/sales-incharge-admin/activities',

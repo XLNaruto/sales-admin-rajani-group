@@ -6,7 +6,7 @@ import { Hint } from '@/components/common/hint'
 import { encryptParams } from '@/lib/crypto'
 import { cn } from '@/lib/utils'
 import { timeOfDay, toKm } from '../lib/journey-format'
-import { activityLabel, activityTone, isOnField } from '../lib/live-day-metrics'
+import { activityBadges, activityTone, isOnField } from '../lib/live-day-metrics'
 import { CounterGrid } from './counter-grid'
 import type { RepDaySummary } from '../types'
 
@@ -93,8 +93,14 @@ export function LiveDayCard({
         ) : null}
       </div>
 
+      {/* One badge per piece of work. A date carrying two is genuinely two
+          things, and folding them into one would hide half his day. */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <Badge variant={activityTone(day)}>{activityLabel(day)}</Badge>
+        {activityBadges(day).map((label, index) => (
+          <Badge key={`${label}-${index}`} variant={activityTone(day)}>
+            {label}
+          </Badge>
+        ))}
         {day.distanceMetres > 0 ? (
           <span className="text-xs tabular-nums text-muted-foreground">
             {toKm(day.distanceMetres)} km
@@ -117,10 +123,12 @@ export function LiveDayCard({
         )}
       </Field>
 
-      <Field label="Beat" icon={Route}>
-        {day.beatName ? (
-          <Hint label={day.beatName}>
-            <span className="block truncate">{day.beatName}</span>
+      {/* Distinct beats across every entry on the date — they are one day's work
+          however many pieces it was split into. */}
+      <Field label={day.beatNames.length > 1 ? 'Beats' : 'Beat'} icon={Route}>
+        {day.beatNames.length > 0 ? (
+          <Hint label={day.beatNames.join(', ')}>
+            <span className="block truncate">{day.beatNames.join(', ')}</span>
           </Hint>
         ) : (
           EMPTY

@@ -88,16 +88,20 @@ interface JourneyPlanPageProps {
  * independent write surfaces**, because the server treats them as opposites and one
  * combined Save would always be half-refused:
  *
- * - **The allocation** — day-counts per activity and per city. His, everywhere
- *   except an approved plan. He never picks a date or a beat here.
- * - **The schedule** — the sales incharge's calendar. His only from `submitted` onward, and
- *   still his after approval, because a live month has to be fixable and the sales incharge is
- *   read-only from submission permanently.
+ * - **The allocation** — day-counts per activity (optionally in a city) and per
+ *   distributor. His, everywhere except an approved plan. He never picks a date or
+ *   a beat here, and he is **not** expected to cover the whole month: whatever he
+ *   leaves is the sales incharge's to fill in.
+ * - **The schedule** — the sales incharge's calendar, a list of work per date.
+ *   His only from `submitted` onward, and still his after approval, because a live
+ *   month has to be fixable and the sales incharge is read-only from submission
+ *   permanently.
  *
  * Plus the two transitions, which share one permission: **publish** hands the draft
- * to the sales incharge, **approve** signs off what he handed back. Nothing goes backwards —
- * there is no reject, no send-back, no unpublish, no unsubmit. An admin who dislikes
- * a schedule corrects it and approves.
+ * to the sales incharge, **approve** signs off what he handed back. Neither reads
+ * the counts — publish wants one bucket, approve wants nothing beyond `submitted`,
+ * and any variance between the two comes back as a flag to judge. Nothing goes
+ * backwards: there is no reject, no send-back, no unpublish, no unsubmit.
  */
 export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
   const {
@@ -118,9 +122,9 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
 
     allocationOptions,
     activityBuckets,
-    cityBuckets,
+    distributorBuckets,
     setActivityBuckets,
-    setCityBuckets,
+    setDistributorBuckets,
     allocationDirty,
     allocationEditable,
     discardAllocation,
@@ -129,20 +133,24 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
 
     schedule,
     beatNames,
+    distributorNames,
     activities,
+    distributorOptions,
     cityOptions,
-    setDayActivity,
-    setDayCity,
-    setDayBeats,
+    setEntryActivity,
+    setEntryDistributor,
+    setEntryCity,
+    setEntryBeats,
+    removeEntry,
     clearDay,
     scheduleDirty,
     scheduleEditable,
     discardSchedule,
     submitSchedule,
     isSavingSchedule,
-    beatDate,
+    beatTarget,
     openBeatDialog,
-    beatsForOpenDate,
+    beatsForOpenEntry,
 
     canTransition,
     showPublish,
@@ -214,7 +222,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           className="min-h-88 flex-1"
           icon={CalendarX2}
           title="No plan for this month"
-          description={`Nothing has been generated for ${monthLabel} yet. Generate the month from the plans list, or pick another month.`}
+          description={`Nobody has opened a plan for ${monthLabel} yet. Create one from the plans list, or pick another month.`}
         />
       </div>
     )
@@ -385,18 +393,20 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           options={
             allocationOptions ?? {
               inchargeId: plan.inchargeId,
-              // Falls back to the plan's own figures so the variance stays truthful
-              // while the pickers load, or when the admin has no grant to fetch them.
+              // Falls back to the plan's own figures so the running total stays
+              // truthful while the pickers load, or when the admin has no grant
+              // to fetch them.
               totalDays: plan.progress.totalDays,
               activities: [],
+              distributors: [],
               cities: [],
             }
           }
           activityBuckets={activityBuckets}
-          cityBuckets={cityBuckets}
+          distributorBuckets={distributorBuckets}
           onChangeActivities={setActivityBuckets}
-          onChangeCities={setCityBuckets}
-          savedCities={plan.cityAllocations}
+          onChangeDistributors={setDistributorBuckets}
+          savedDistributors={plan.distributorAllocations}
           savedActivities={plan.activityAllocations}
           readOnly={!allocationEditable}
           busy={busy}
@@ -414,11 +424,15 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           days={plan.days}
           status={status}
           activities={activities}
+          distributorOptions={distributorOptions}
           cityOptions={cityOptions}
           draft={schedule}
           beatNames={beatNames}
-          onSetActivity={setDayActivity}
-          onSetCity={setDayCity}
+          distributorNames={distributorNames}
+          onSetActivity={setEntryActivity}
+          onSetDistributor={setEntryDistributor}
+          onSetCity={setEntryCity}
+          onRemoveEntry={removeEntry}
           onClearDay={clearDay}
           onEditBeats={openBeatDialog}
           focusedDay={focusedDay}
@@ -486,17 +500,17 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
             ) : null}
 
             {/* Publish and approve share one permission, and each is one-way. Both
-                consult the SERVER's verdict rather than a recomputed sum: approve is
-                checked bucket by bucket, and the totals can balance while the
-                buckets do not. */}
+                consult the SERVER's verdict rather than a recomputed sum — neither
+                reads the counts, and a month that does not fill the calendar is
+                exactly what you are meant to be publishing. */}
             {canTransition && showPublish ? (
               <Hint
                 label={
                   allocationDirty
                     ? 'Save the counts first — publish reads what the server holds, not the draft on screen.'
                     : canPublish
-                      ? 'Hand this month to the sales incharge. He dates every allocated day and picks the beats. There is no unpublish.'
-                      : 'The counts do not account for every date of the month yet, so publish would be refused.'
+                      ? 'Hand this month to the sales incharge. He dates the days you allocated, picks the distributor and beats for each, and fills the rest of the month himself. There is no unpublish.'
+                      : 'Nothing is allocated yet, so there would be nothing to hand over.'
                 }
               >
                 <span className="inline-flex">
@@ -518,8 +532,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                   scheduleDirty
                     ? 'Save your corrections first — approve reads what the server holds, not the draft on screen.'
                     : canApprove
-                      ? 'Sign the month off. You can still correct the calendar afterwards; that does not reopen the cycle.'
-                      : 'His schedule does not yet consume every bucket exactly, so approve would be refused. Correct the calendar above — there is nothing to send back.'
+                      ? 'Sign the month off. The counts are not re-checked — any variance from your allocation is flagged above for you to judge. You can still correct the calendar afterwards; that does not reopen the cycle.'
+                      : 'This month is not waiting on you — approve only applies to a plan the sales incharge has submitted.'
                 }
               >
                 <span className="inline-flex">
@@ -544,8 +558,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                 Unsaved:{' '}
                 {[
                   allocationDirty
-                    ? `${activityBuckets.length + cityBuckets.length} bucket${
-                        activityBuckets.length + cityBuckets.length === 1 ? '' : 's'
+                    ? `${activityBuckets.length + distributorBuckets.length} bucket${
+                        activityBuckets.length + distributorBuckets.length === 1 ? '' : 's'
                       }`
                     : '',
                   scheduleDirty
@@ -561,24 +575,32 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         </div>
       ) : null}
 
-      {/* One dialog reused for all 31 dates: the pool is already narrowed to the
-          open date's city, because a beat may only go on a day whose city it sits
-          in and the server refuses anything else. */}
+      {/* One dialog reused for every entry of every date: the pool is already
+          narrowed to the open entry's distributor, because a beat may only go on
+          an entry whose distributor it serves and the server refuses anything
+          else. */}
       <DayBeatDialog
-        open={beatDate !== null}
-        onOpenChange={(open) => openBeatDialog(open ? beatDate : null)}
-        date={beatDate ?? ''}
-        cityName={
-          cityOptions.find(
+        open={beatTarget !== null}
+        onOpenChange={(open) => openBeatDialog(open ? beatTarget : null)}
+        date={beatTarget?.date ?? ''}
+        distributorName={
+          distributorOptions.find(
             (option) =>
-              option.value === (beatDate ? schedule.get(beatDate)?.cityId : null),
+              option.value ===
+              (beatTarget
+                ? schedule.get(beatTarget.date)?.entries[beatTarget.index]?.distributorId
+                : null),
           )?.label ?? null
         }
-        pool={beatsForOpenDate}
+        pool={beatsForOpenEntry}
         beatNames={beatNames}
-        value={beatDate ? (schedule.get(beatDate)?.beatIds ?? []) : []}
+        value={
+          beatTarget
+            ? (schedule.get(beatTarget.date)?.entries[beatTarget.index]?.beatIds ?? [])
+            : []
+        }
         onSave={(beatIds) => {
-          if (beatDate) setDayBeats(beatDate, beatIds)
+          if (beatTarget) setEntryBeats(beatTarget.date, beatTarget.index, beatIds)
         }}
         readOnly={!scheduleEditable}
       />

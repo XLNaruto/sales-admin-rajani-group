@@ -1,11 +1,11 @@
 /**
  * Activity lookups over the server's master (`GET /activities`).
  *
- * The master is tenant-editable and the solver reads its three booleans, so
- * nothing here hard-codes them: a screen that needs to know whether a day takes
- * beats looks the day's activity up in the list it was given. Only the *kind* of
- * a day (worked / off / holiday / leave) is derived from the code, because the
- * rhythm strip has to colour days it has no master row for.
+ * The master is tenant-editable and the scheduler enforces its three booleans,
+ * so nothing here hard-codes them: a screen that needs to know whether a piece of
+ * work takes beats looks its activity up in the list it was given. Only the
+ * *kind* of a day (worked / off / holiday / leave) is derived from the code,
+ * because the rhythm strip has to colour days it has no master row for.
  */
 import type { ActivityCode, ActivityDef, DayKind } from '../types'
 
@@ -67,11 +67,13 @@ function activityOfDay(
 }
 
 /**
- * Does this day take beats?
+ * Does this piece of work take beats — and therefore a distributor?
  *
- * Falls back to the day's own code while the master is still loading: the seeded
- * codes that carry no beats are known, and assuming `true` for an unknown code is
- * the safer error — it shows the picker rather than hiding a day's beats.
+ * The two go together under the distributor model: an activity with
+ * `requires_beat` must name whose days it spends, and one without must name
+ * neither. Falls back to the entry's own code while the master is still loading;
+ * the seeded codes that carry no beats are known, and assuming `true` for an
+ * unknown code is the safer error — it shows the picker rather than hiding beats.
  */
 export function requiresBeat(
   activities: ActivityDef[],

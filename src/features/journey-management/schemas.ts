@@ -7,6 +7,11 @@
  * no attendance session, a plan with no coordinates and a day with no route, and
  * a strict schema would turn each of those into a blank screen.
  *
+ * Several fields that were singular are now **lists** — a date carries a list of
+ * work, not one activity. They are parsed through `idList` / `stringList`, which
+ * turn an absent field into `[]` rather than `null`, so no render site has to
+ * decide what a missing list means.
+ *
  * The live contract is Swagger (`<api-base>/sales-incharge-admin/docs`); these
  * schemas are the client's own guard rails over it.
  */
@@ -24,6 +29,18 @@ const decimal = z
   .union([z.number(), z.string()])
   .nullish()
   .transform((v) => (v == null || v === '' ? null : String(v)))
+
+/** A list of ids, normalised to strings. Absent reads as empty, never as null. */
+const idList = z
+  .array(z.union([z.number(), z.string()]))
+  .nullish()
+  .transform((v) => (v ?? []).map(String))
+
+/** A list of plain strings — activity codes, names. Absent reads as empty. */
+const stringList = z
+  .array(z.string())
+  .nullish()
+  .transform((v) => v ?? [])
 
 const int = z.coerce
   .number()
@@ -52,9 +69,12 @@ const pageMeta = {
 export const monthStripDaySchema = z.object({
   date: z.string(),
   label: z.string(),
-  activity_code: z.string().nullish(),
-  city_id: optionalId,
+  /** Every activity on the date — empty when it carries no day row. */
+  activity_codes: stringList,
+  distributor_ids: idList,
+  city_ids: idList,
   origin: z.string().nullish(),
+  /** DISTINCT beats across every entry on the date. */
   beat_count: int,
 })
 
@@ -64,7 +84,11 @@ export const monthStripDaySchema = z.object({
  */
 export const planFlagSchema = z.object({
   code: z.string(),
+  /** Always false today — read it, never derive it from `code`. */
+  blocking: z.boolean().nullish(),
   date: z.string().nullish(),
+  distributor_id: optionalId,
+  distributor_name: z.string().nullish(),
   city_id: optionalId,
   city_name: z.string().nullish(),
   activity_id: nullableInt,
@@ -85,10 +109,11 @@ export const journeyPlanRowSchema = z.object({
   status: z.string(),
   days_allocated: int,
   days_scheduled: int,
+  entries_scheduled: int,
   days_worked: int,
   scheduling_percentage: int,
   completion_percentage: int,
-  cities_allocated: int,
+  distributors_allocated: int,
   working_days: int,
   flags: z.array(planFlagSchema).nullish(),
   month_strip: z.array(monthStripDaySchema).nullish(),
@@ -99,48 +124,33 @@ export const journeyPlanListSchema = z.object({
   ...pageMeta,
 })
 
-/**
- * POST /journey-plans/generate — per sales incharge outcomes plus the run's totals. One
- * sales incharge's failure does not fail the run, so `failed > 0` is data, not an error.
- */
-export const generateSchema = z.object({
-  results: z
-    .array(
-      z.object({
-        sales_incharge_id: optionalId,
-        outcome: z.string(),
-        journey_plan_id: optionalId,
-        days_allocated: int,
-        cities_allocated: int,
-        /** Dated activity days written straight onto this sales incharge's calendar. */
-        days_pinned: int,
-        message: z.string().nullish(),
-      }),
-    )
-    .nullish(),
-  created: int,
-  skipped: int,
-  failed: int,
-})
-
 /* ──────────────────── the allocation and the schedule ─────────────────────── */
 
-/** One activity bucket, with what the sales incharge has dated against it. */
+/**
+ * One activity bucket. `city_id` is part of its IDENTITY — two searches in two
+ * cities are two buckets — so never key one on `activity_id` alone.
+ */
 export const activityAllocationSchema = z.object({
   activity_id: z.coerce.number(),
   activity_code: z.string().nullish(),
   activity_name: z.string().nullish(),
+  city_id: optionalId,
+  city_name: z.string().nullish(),
   days_count: int,
   days_scheduled: int,
 })
 
-/** One city bucket. `beat_count` reads 0 when the sales incharge no longer has beats here. */
-export const cityAllocationSchema = z.object({
-  city_id: id,
+/**
+ * One distributor bucket — the field allocation. `beat_count` reads 0 when the
+ * sales incharge no longer holds a beat serving it.
+ */
+export const distributorAllocationSchema = z.object({
+  distributor_id: id,
+  distributor_name: z.string().nullish(),
+  city_id: optionalId,
   city_name: z.string().nullish(),
   days_count: int,
   days_scheduled: int,
-  source: z.string().nullish(),
   beat_count: int,
   outlet_count: int,
 })
@@ -154,20 +164,30 @@ export const planDayBeatSchema = z.object({
   locked: z.boolean().nullish(),
 })
 
-export const planDaySchema = z.object({
+/** ONE piece of work on a date — what a day row used to be. */
+export const planDayActivitySchema = z.object({
   id,
-  date: z.string(),
+  sequence: int,
   activity_id: z.coerce.number().nullish(),
   activity_code: z.string().nullish(),
   activity_name: z.string().nullish(),
+  distributor_id: optionalId,
+  distributor_name: z.string().nullish(),
   city_id: optionalId,
   city_name: z.string().nullish(),
-  origin: z.string().nullish(),
-  selected_at: z.string().nullish(),
   beats: z.array(planDayBeatSchema).nullish(),
   joint_working_sales_incharge_id: optionalId,
   joint_working_sales_incharge_name: z.string().nullish(),
   reason: z.string().nullish(),
+})
+
+/** One scheduled DATE, and everything on it. */
+export const planDaySchema = z.object({
+  id,
+  date: z.string(),
+  origin: z.string().nullish(),
+  selected_at: z.string().nullish(),
+  activities: z.array(planDayActivitySchema).nullish(),
   locked: z.boolean().nullish(),
   locked_at: z.string().nullish(),
 })
@@ -194,13 +214,14 @@ export const journeyPlanDetailSchema = z.object({
   submitted_at: z.string().nullish(),
   approved_at: z.string().nullish(),
   activity_allocations: z.array(activityAllocationSchema).nullish(),
-  city_allocations: z.array(cityAllocationSchema).nullish(),
+  distributor_allocations: z.array(distributorAllocationSchema).nullish(),
   days_allocated: int,
   days_scheduled: int,
+  entries_scheduled: int,
   days_worked: int,
   scheduling_percentage: int,
   completion_percentage: int,
-  cities_allocated: int,
+  distributors_allocated: int,
   beats_scheduled: int,
   working_days: int,
   total_days: int,
@@ -216,8 +237,8 @@ export const journeyPlanDetailSchema = z.object({
  * GET /journey-plans/allocation-options — the pickers, and the whitelist the
  * allocation Save enforces.
  *
- * `last_worked_date: null` means **never worked**, which the solver weighs
- * heaviest; it is not "long ago".
+ * `distributors` is the field axis; `cities` exists only for the optional city on
+ * an activity bucket, and is never an axis of its own.
  */
 export const allocationOptionsSchema = z.object({
   sales_incharge_id: optionalId,
@@ -232,16 +253,20 @@ export const allocationOptionsSchema = z.object({
       }),
     )
     .nullish(),
-  cities: z
+  distributors: z
     .array(
       z.object({
-        city_id: id,
+        distributor_id: id,
+        distributor_name: z.string().nullish(),
+        city_id: optionalId,
         city_name: z.string().nullish(),
         beat_count: int,
         outlet_count: int,
-        last_worked_date: z.string().nullish(),
       }),
     )
+    .nullish(),
+  cities: z
+    .array(z.object({ city_id: id, city_name: z.string().nullish() }))
     .nullish(),
 })
 
@@ -251,6 +276,7 @@ export const transitionSchema = z.object({
   status: z.string(),
   days_allocated: int,
   days_scheduled: int,
+  entries_scheduled: int,
 })
 
 /** The sales incharge switcher. Carries each sales incharge's plan id and its status, nothing else. */
@@ -288,9 +314,13 @@ export const activityListSchema = z.object({
  * The sales incharge's allocated beats. Shared with the beat-allocation screen, so the row
  * shape is only partly ours — everything but id/name is optional.
  *
- * `city_id` is what lets the correction pass check itself: a beat may only go on
- * a day whose city it sits in. **Null is legitimate** — a beat whose primary
- * distributor has no city — so it is nullable rather than required.
+ * **`distributors` is what lets the correction pass check itself**: a beat may
+ * only go on an entry whose distributor it serves. The array is primary-first and
+ * is never empty on a well-formed beat — an empty one is a gap in the beat master
+ * and makes the beat unschedulable.
+ *
+ * `city_id` is kept for display; it is derived from the primary distributor, and
+ * null is legitimate.
  */
 export const allocatedBeatListSchema = z.object({
   beats: z.array(
@@ -299,6 +329,9 @@ export const allocatedBeatListSchema = z.object({
       name: z.string().nullish(),
       beat_name: z.string().nullish(),
       city_id: optionalId,
+      distributors: z
+        .array(z.object({ id, name: z.string().nullish() }))
+        .nullish(),
       outlet_count: nullableInt,
       retailer_count: nullableInt,
     }),
@@ -325,10 +358,14 @@ export const liveSummariesSchema = z.object({
     z.object({
       date: z.string(),
       status: z.string(),
-      activity_code: z.string().nullish(),
-      activity_name: z.string().nullish(),
-      beat_id: optionalId,
-      beat_name: z.string().nullish(),
+      /** Every activity on the date — a date may carry several. */
+      activity_codes: stringList,
+      activity_names: stringList,
+      distributor_ids: idList,
+      distributor_names: stringList,
+      /** DISTINCT beats across every entry on the date. */
+      beat_ids: idList,
+      beat_names: stringList,
       counters: countersSchema,
       distance_metres: int,
       mock_suspected_count: int,
@@ -357,9 +394,8 @@ export const liveDetailSchema = z.object({
   status: z.string(),
   counters: countersSchema,
   /**
-   * The beats he worked, in the order he took them — this replaced the old
-   * `assigned_beat` / `selected_beat` pair, because nothing assigns beats to
-   * dates any more.
+   * The beats he worked across EVERY entry on the date, in the order he took
+   * them — this replaced the old `assigned_beat` / `selected_beat` pair.
    */
   beats: z.array(z.object({ id, name: z.string().nullish() })).nullish(),
   /** `true` on a day with no beats at all, not just on a compliant one. */

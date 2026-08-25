@@ -21,8 +21,10 @@ function percentTone(value: number) {
  * *scheduling* before approval and with *completion* after it, rather than showing
  * one percentage that means different things on different days.
  *
- * The variance cell is the actionable one on a draft: publish is refused until it
- * reads zero.
+ * The last cell reports how much of the month the allocation speaks for. It used
+ * to be a gate — publish was refused until it balanced — and it is now purely
+ * informative, because the admin allocates a PART of the month on purpose. Only an
+ * over-allocation is coloured, and even that refuses nothing.
  *
  * Deliberately flat: it sits directly under the header, where a row of cards would
  * compete with the editors below it.
@@ -36,6 +38,7 @@ export function PlanStatRail({
 }) {
   const nothingAllocated = progress.daysAllocated === 0
   const variance = progress.allocationVariance
+  const over = variance > 0
   // After submission the month is meant to be fully dated, so `scheduled` is the
   // settled figure and `worked` is the live one. Before that it is the reverse.
   const leadWithCompletion = unscheduledIsAProblem(status)
@@ -84,13 +87,21 @@ export function PlanStatRail({
 
       <Cell
         label="Days scheduled"
-        hint="Dates the sales incharge has dated, against the days the admin allocated."
+        hint="DISTINCT dates he has dated, against the days the admin allocated. The second figure below is the pieces of work across them — a date carrying two activities spends two allocated days."
       >
         {progress.daysScheduled}
         <span className="text-sm font-medium text-muted-foreground">
           {' '}
           / {progress.daysAllocated}
         </span>
+        {/* The reconciling figure. It differs from the date count exactly when he
+            doubled a date up, and that difference is the whole point of the
+            multi-activity model. */}
+        {progress.entriesScheduled !== progress.daysScheduled ? (
+          <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground">
+            {progress.entriesScheduled} activities
+          </span>
+        ) : null}
       </Cell>
 
       <Cell
@@ -100,24 +111,34 @@ export function PlanStatRail({
         {progress.daysWorked}
       </Cell>
 
-      {/* The gate on publish. Zero is the only value that lets a draft move on, so
-          it is stated as a verdict rather than as a signed number to interpret. */}
+      {/* How much of the month the allocation speaks for. NOT a gate: publishing a
+          partial month is the normal thing to do, so being short is stated as a
+          fact and only an over-allocation is coloured. */}
       <Cell
         label="Allocation"
         hint={
-          variance === 0
-            ? 'The counts account for every calendar date — this is what publish requires.'
-            : 'Publish is refused until the activity and city counts add up to the whole month.'
+          over
+            ? 'You have promised more work than the month has dates. He can only fit it by putting two activities on one date — publishing is not affected.'
+            : variance === 0
+              ? 'The counts account for every calendar date.'
+              : 'The counts cover part of the month; the remaining dates are the sales incharge’s to fill in. Publishing is not affected.'
         }
       >
-        {variance === 0 ? (
-          <span className="text-success">Balanced</span>
-        ) : (
-          <span className="tabular-nums text-destructive">
-            {variance > 0 ? '+' : ''}
-            {variance}
+        {over ? (
+          <span className="tabular-nums text-warning">
+            +{variance}
             <span className="ml-1 align-top text-sm font-medium text-muted-foreground">
-              {Math.abs(variance) === 1 ? 'day' : 'days'}
+              {variance === 1 ? 'day' : 'days'}
+            </span>
+          </span>
+        ) : variance === 0 ? (
+          <span className="text-foreground">Full month</span>
+        ) : (
+          <span className="tabular-nums text-foreground">
+            {progress.daysAllocated}
+            <span className="text-sm font-medium text-muted-foreground">
+              {' '}
+              / {progress.totalDays}
             </span>
           </span>
         )}

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import type { ColumnDef } from '@tanstack/react-table'
-import { CalendarCheck, Eye, Loader2, Wand2 } from 'lucide-react'
+import { CalendarCheck, CalendarPlus, Eye, Loader2 } from 'lucide-react'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
 import { DataTable, DataTableColumnHeader } from '@/components/data-table'
@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { encryptParams } from '@/lib/crypto'
 import { AllocationToolbar } from '../components/allocation-toolbar'
 import { CompletionMeter } from '../components/completion-meter'
+import { CreatePlanDialog } from '../components/create-plan-dialog'
 import { FlagsCell } from '../components/flags-cell'
-import { GenerateMonthDialog } from '../components/generate-month-dialog'
 import { MonthStrip } from '../components/month-strip'
 import { MonthStepper } from '../components/month-stepper'
 import { StatusChip } from '../components/status-chip'
@@ -64,10 +64,9 @@ export function AllocationListPage() {
     setPagination,
     sorting,
     setSorting,
-    generatePlans,
-    isGenerating,
-    activities,
-    canGenerate,
+    createPlan,
+    isCreating,
+    canCreate,
   } = useAllocationList()
 
   const navigate = useNavigate()
@@ -77,22 +76,16 @@ export function AllocationListPage() {
    * month step there can resolve the same person's next month.
    */
   const openPlan = useCallback(
-    (plan: JourneyPlan) => {
+    (id: string, inchargeId: string) => {
       navigate({
         to: '/journey/plan',
-        search: {
-          data: encryptParams({
-            id: plan.id,
-            inchargeId: plan.inchargeId,
-            month,
-          }),
-        },
+        search: { data: encryptParams({ id, inchargeId, month }) },
       })
     },
     [navigate, month],
   )
 
-  const [confirmGenerate, setConfirmGenerate] = useState(false)
+  const [creating, setCreating] = useState(false)
 
   const columns = useMemo<ColumnDef<JourneyPlan>[]>(
     () => [
@@ -119,7 +112,7 @@ export function AllocationListPage() {
           <Hint label="Open plan">
             <button
               type="button"
-              onClick={() => openPlan(row.original)}
+              onClick={() => openPlan(row.original.id, row.original.inchargeId)}
               className="grid size-8 cursor-pointer place-items-center rounded-lg bg-slate-500/10 text-slate-600 transition-colors hover:bg-slate-500/20 dark:text-slate-300"
             >
               <Eye className="size-4" />
@@ -171,13 +164,15 @@ export function AllocationListPage() {
           <DataTableColumnHeader column={column} title="Scheduling" />
         ),
         cell: ({ row }) => (
+          // Routinely over 100%, and that is correct: the admin allocates part of
+          // the month and the sales incharge dates the rest himself.
           <CompletionMeter
             value={row.original.schedulingPercentage}
             done={row.original.daysScheduled}
             total={row.original.daysAllocated}
             ariaLabel="Days scheduled of days allocated"
             emptyLabel="Nothing allocated"
-            emptyHint="No days are allocated for this month, so there is nothing for the sales incharge to schedule — and publishing will be refused."
+            emptyHint="No days are allocated for this month, so nothing says what the sales incharge is meant to be doing."
           />
         ),
       },
@@ -209,12 +204,12 @@ export function AllocationListPage() {
         ),
       },
       {
-        id: 'cities',
-        header: 'Cities',
+        id: 'distributors',
+        header: 'Distributors',
         enableSorting: false,
         cell: ({ row }) => (
           <span className="font-mono text-sm tabular-nums">
-            {row.original.citiesAllocated}
+            {row.original.distributorsAllocated}
           </span>
         ),
       },
@@ -255,12 +250,12 @@ export function AllocationListPage() {
         }
         actions={
           <>
-            {canGenerate ? (
+            {canCreate ? (
               <Hint
                 label={
-                  isGenerating
-                    ? `Drafting ${monthLabel}…`
-                    : `Draft the ${monthLabel} allocation for every sales incharge without one — each lands as a draft the sales incharge cannot see`
+                  isCreating
+                    ? `Opening ${monthLabel}…`
+                    : `Open an empty ${monthLabel} draft for one sales incharge — he cannot see a draft until you publish it`
                 }
               >
                 {/* Wrapped: a disabled button fires no pointer events, so the hint
@@ -269,11 +264,11 @@ export function AllocationListPage() {
                   <Button
                     variant="outline"
                     className="cursor-pointer"
-                    disabled={isGenerating}
-                    onClick={() => setConfirmGenerate(true)}
+                    disabled={isCreating}
+                    onClick={() => setCreating(true)}
                   >
-                    {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />}{' '}
-                    Generate month
+                    {isCreating ? <Loader2 className="animate-spin" /> : <CalendarPlus />}{' '}
+                    Create plan
                   </Button>
                 </span>
               </Hint>
@@ -324,8 +319,8 @@ export function AllocationListPage() {
                   ? `No plan for ${monthLabel} is ${scope}.`
                   : hasActiveFilters
                     ? 'No sales incharge matches that search.'
-                    : canGenerate
-                      ? `No plans exist for ${monthLabel} yet — generate the month to start.`
+                    : canCreate
+                      ? `No plans exist for ${monthLabel} yet — create one to start.`
                       : `No plans exist for ${monthLabel} yet.`}
               </p>
             </div>
@@ -333,16 +328,21 @@ export function AllocationListPage() {
         }
       />
 
-      <GenerateMonthDialog
-        open={confirmGenerate}
-        onOpenChange={setConfirmGenerate}
-        month={month}
+      <CreatePlanDialog
+        open={creating}
+        onOpenChange={setCreating}
         monthLabel={monthLabel}
-        activities={activities}
-        isPending={isGenerating}
-        // Closed from the success path, not on click: a refused run has to keep
-        // the activity rows on screen next to the toast that explains the refusal.
-        onGenerate={(input) => generatePlans(input, () => setConfirmGenerate(false))}
+        isPending={isCreating}
+        // Closed from the success path, not on click: a refused create — usually
+        // because he already has a plan — has to keep the chosen name on screen
+        // next to the toast explaining it. Straight onto the new draft, since
+        // opening one is only ever the first half of the job.
+        onCreate={(inchargeId) =>
+          createPlan(inchargeId, (plan) => {
+            setCreating(false)
+            openPlan(plan.id, plan.inchargeId)
+          })
+        }
       />
     </div>
   )

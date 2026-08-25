@@ -4,10 +4,11 @@
  * Every number is the server's — bucket counts, day counts and beat counts all
  * come down in `facts`. This module only chooses wording, category and severity.
  *
- * **Three of the eight flags mirror a refusal** and so genuinely gate a
- * transition: `allocation_incomplete` blocks publish, `schedule_unallocated` and
- * `schedule_mismatch` block approve. They get their own `blocking` category, so a
- * flag that merely wants attention never reads like one that stops the month.
+ * **None of them blocks anything.** The admin allocates the work he cares about
+ * and the sales incharge fills the rest of the month, so publish no longer wants
+ * the counts to add up and approve no longer re-checks them. Every flag here is
+ * something to look at and judge — the wording says what happened and leaves the
+ * decision where it belongs.
  */
 import { format, parseISO } from 'date-fns'
 import type {
@@ -32,20 +33,13 @@ function dateLabel(date: string): string {
   }
 }
 
-/** Which transition a flag mirrors the refusal of, when it mirrors one. */
-const BLOCKS: Record<string, 'publish' | 'approve'> = {
-  allocation_incomplete: 'publish',
-  schedule_unallocated: 'approve',
-  schedule_mismatch: 'approve',
-}
-
 const CATEGORY: Record<string, IssueCategory> = {
-  no_cities_allocated: 'allocation',
-  allocation_incomplete: 'blocking',
-  schedule_unallocated: 'blocking',
-  schedule_mismatch: 'blocking',
-  city_without_beats: 'master-data',
-  beat_outside_city: 'master-data',
+  no_distributors_allocated: 'allocation',
+  allocation_over_month: 'allocation',
+  schedule_mismatch: 'schedule',
+  schedule_unallocated: 'schedule',
+  distributor_without_beats: 'master-data',
+  beat_outside_distributor: 'master-data',
   activity_not_allocatable: 'schedule',
   awaiting_schedule: 'schedule',
 }
@@ -53,21 +47,25 @@ const CATEGORY: Record<string, IssueCategory> = {
 /**
  * How loudly a flag reads.
  *
- * The three that block a transition are `high`, because the admin cannot move the
- * month on until each is gone. `awaiting_schedule` stays `low`: a published month
- * the sales incharge has not started is a normal Tuesday, not a fault.
+ * `no_distributors_allocated` is the only `high` one left: a month with no field
+ * allocation at all is one nobody has actually planned, and it is the one thing
+ * here the admin certainly has to act on.
+ *
+ * `schedule_unallocated` is deliberately **low**. Under the old model it was a
+ * refusal; now it is the expected shape of a healthy month — the days the sales
+ * incharge filled in himself, which is exactly what he is meant to do.
  */
 function severityOf(flag: PlanFlag): FlagSeverity {
   switch (flag.code) {
-    case 'allocation_incomplete':
-    case 'schedule_unallocated':
-    case 'schedule_mismatch':
-    case 'no_cities_allocated':
+    case 'no_distributors_allocated':
       return 'high'
-    case 'city_without_beats':
-    case 'beat_outside_city':
+    case 'allocation_over_month':
+    case 'schedule_mismatch':
+    case 'distributor_without_beats':
+    case 'beat_outside_distributor':
     case 'activity_not_allocatable':
       return 'medium'
+    case 'schedule_unallocated':
     case 'awaiting_schedule':
       return 'low'
     default:
@@ -77,7 +75,7 @@ function severityOf(flag: PlanFlag): FlagSeverity {
 
 /** The bucket a flag points at, named however the server named it. */
 function bucketName(flag: PlanFlag): string {
-  return flag.cityName ?? flag.activityName ?? 'A bucket'
+  return flag.distributorName ?? flag.cityName ?? flag.activityName ?? 'A bucket'
 }
 
 /** A signed day count as "2 days short" / "3 days exceeded". */
@@ -96,49 +94,47 @@ function labelOf(flag: PlanFlag): string {
   const outlets = Number(flag.facts.outlet_count ?? NaN)
 
   switch (flag.code) {
-    case 'no_cities_allocated':
-      return 'No cities are allocated, so the sales incharge has nowhere to work — publishing will be refused.'
+    case 'no_distributors_allocated':
+      return 'No distributors are allocated, so nothing about this month says where the sales incharge is meant to sell. Add at least one before publishing.'
 
-    case 'allocation_incomplete':
-      // The variance is the actionable number: how many days to add or take away
-      // before publish stops refusing.
+    case 'allocation_over_month':
+      // Reachable — a date carrying two entries spends two days — so this is a
+      // fact to weigh, not an error to clear.
       if (Number.isFinite(allocated) && Number.isFinite(total)) {
-        return `The counts cover ${allocated} of ${total} days — ${variance(
+        return `The counts promise ${allocated} days of work in a ${total}-day month — ${variance(
           allocated - total,
-        )}. Publish is refused until they add up.`
+        )}. He can only fit that by doubling dates up.`
       }
-      return 'The counts do not account for the whole month. Publish is refused until they add up.'
+      return 'The counts promise more work than the month holds. He can only fit that by doubling dates up.'
 
     case 'schedule_unallocated':
+      // The ordinary shape of a healthy month, not a defect: the admin allocates
+      // part of it and the sales incharge fills the rest as he judges right.
       return flag.date
-        ? `${dateLabel(
-            flag.date,
-          )} is scheduled to something the allocation never covered. Approve is refused until it is corrected.`
-        : 'Some scheduled dates fall outside every bucket. Approve is refused until they are corrected.'
+        ? `${dateLabel(flag.date)} carries work the allocation never covered — the sales incharge's own.`
+        : 'Some entries fall outside every bucket — days the sales incharge filled in himself.'
 
     case 'schedule_mismatch':
       if (Number.isFinite(allocated) && Number.isFinite(scheduled)) {
         return `${bucketName(flag)}: ${scheduled} day${
           scheduled === 1 ? '' : 's'
-        } scheduled against ${allocated} allocated — ${variance(
-          scheduled - allocated,
-        )}. Approve is refused until every bucket matches exactly.`
+        } scheduled against ${allocated} allocated — ${variance(scheduled - allocated)}.`
       }
-      return `${bucketName(
-        flag,
-      )} does not match its allocated count. Approve is refused until every bucket matches exactly.`
+      return `${bucketName(flag)} does not match its allocated count.`
 
-    case 'city_without_beats':
+    case 'distributor_without_beats':
       // Not a scheduling error and not fixable here: the beat master moved under
       // an allocation that was correct when it was made.
       return `${bucketName(
         flag,
-      )} is allocated days but the sales incharge no longer holds any beats there — fix it in the beat master, or move the days elsewhere.`
+      )} is allocated days but the sales incharge holds no beat serving it — fix it in the beat master, or move the days elsewhere.`
 
-    case 'beat_outside_city':
+    case 'beat_outside_distributor':
       return `${flag.beatName ?? 'A scheduled beat'}${
         flag.date ? ` on ${dateLabel(flag.date)}` : ''
-      } no longer sits in that day's city — the beat master has drifted since approval${
+      } no longer serves ${
+        flag.distributorName ?? 'that entry\u2019s distributor'
+      } — the beat master has drifted since it was scheduled${
         Number.isFinite(outlets) && outlets > 0 ? ` (${outlets} outlets)` : ''
       }.`
 
@@ -177,7 +173,6 @@ export function planIssues(plan: JourneyPlanDetail): PlanIssue[] {
     severity: severityOf(flag),
     label: labelOf(flag),
     day: flag.date ? dayOfMonth(flag.date) : undefined,
-    blocks: BLOCKS[flag.code],
   }))
 
   return rows.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity])

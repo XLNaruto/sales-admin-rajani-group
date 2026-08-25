@@ -3,10 +3,12 @@
  * feature's camelCase domain types here, so no component ever sees a snake_case
  * field or an unvalidated body.
  *
- * The write surface is four calls, and they are deliberately different things:
+ * The write surface is five calls, and they are deliberately different things:
  *
- * - `saveAllocation` — the admin's **day-counts** per activity and per city. Full
- *   replacements, and it never touches the schedule.
+ * - `createPlan` — opens ONE empty draft for a sales incharge's month. This is
+ *   what `journey-plan:create` means now; there is no generate and no solver.
+ * - `saveAllocation` — the admin's **day-counts** per activity and per
+ *   distributor. Full replacements, and it never touches the schedule.
  * - `saveSchedule` — the **correction pass** over the sales incharge's calendar, open from
  *   `submitted` onward. A full replacement, so every date goes.
  * - `publishPlan` / `approvePlan` — the two transitions, both guarded by the one
@@ -22,7 +24,6 @@ import {
   activityListSchema,
   allocatedBeatListSchema,
   allocationOptionsSchema,
-  generateSchema,
   journeyPlanDetailSchema,
   journeyPlanListSchema,
   planRepsSchema,
@@ -36,11 +37,9 @@ import type {
   ActivityDef,
   AllocatedBeat,
   AllocationOptions,
+  CreatePlanInput,
   DayLabel,
   DayOrigin,
-  GenerateInput,
-  GenerateOutcome,
-  GenerateResult,
   JourneyPlan,
   JourneyPlanDetail,
   MonthStripDay,
@@ -54,6 +53,11 @@ import type {
   SaveScheduleInput,
   TransitionResult,
 } from '../types'
+
+/** Ids travel as numbers where the API takes numbers; a non-numeric id passes through. */
+function toApiId(value: string): number | string {
+  return Number(value) || value
+}
 
 /** The five labels the server derives. */
 const DAY_LABELS: DayLabel[] = ['worked', 'planned', 'holiday', 'missed', 'unscheduled']
@@ -82,12 +86,19 @@ function toOrigin(value: string | null | undefined): DayOrigin | null {
   return null
 }
 
-/** One calendar date of the strip. */
+/**
+ * One calendar date of the strip.
+ *
+ * The three arrays are plural because a date carries a LIST of entries now —
+ * folding them into a single code would silently hide the second half of a
+ * doubled-up day.
+ */
 function toStripDay(day: {
   date: string
   label: string
-  activity_code?: string | null
-  city_id?: string | null
+  activity_codes: string[]
+  distributor_ids: string[]
+  city_ids: string[]
   origin?: string | null
   beat_count: number
 }): MonthStripDay {
@@ -95,8 +106,9 @@ function toStripDay(day: {
     date: day.date,
     day: dayOfMonth(day.date),
     label: toDayLabel(day.label),
-    activityCode: day.activity_code ?? null,
-    cityId: day.city_id ?? null,
+    activityCodes: day.activity_codes,
+    distributorIds: day.distributor_ids,
+    cityIds: day.city_ids,
     origin: toOrigin(day.origin),
     beatCount: day.beat_count,
   }
@@ -107,7 +119,10 @@ function toFlags(
   flags:
     | {
         code: string
+        blocking?: boolean | null
         date?: string | null
+        distributor_id?: string | null
+        distributor_name?: string | null
         city_id?: string | null
         city_name?: string | null
         activity_id?: number | null
@@ -121,7 +136,13 @@ function toFlags(
 ): PlanFlag[] {
   return (flags ?? []).map((flag) => ({
     code: flag.code,
+    // Read, never derived. A missing value reads as advisory, which is what every
+    // flag is today — inventing a block out of an absent field would grey out a
+    // button the server would happily have accepted.
+    blocking: flag.blocking ?? false,
     date: flag.date ?? null,
+    distributorId: flag.distributor_id ?? null,
+    distributorName: flag.distributor_name ?? null,
     cityId: flag.city_id ?? null,
     cityName: flag.city_name ?? null,
     activityId: flag.activity_id ?? null,
@@ -143,10 +164,11 @@ function toPlanRow(row: JourneyPlanRow): JourneyPlan {
     status: toPlanStatus(row.status),
     daysAllocated: row.days_allocated,
     daysScheduled: row.days_scheduled,
+    entriesScheduled: row.entries_scheduled,
     daysWorked: row.days_worked,
     schedulingPercentage: row.scheduling_percentage,
     completionPercentage: row.completion_percentage,
-    citiesAllocated: row.cities_allocated,
+    distributorsAllocated: row.distributors_allocated,
     workingDays: row.working_days,
     flags: toFlags(row.flags),
     monthStrip: (row.month_strip ?? []).map(toStripDay),
@@ -188,37 +210,52 @@ export async function fetchQueue(params: QueueParams): Promise<QueueResult> {
   }
 }
 
-/** `solver` | `manual` | `import` — anything unrecognised reads as `manual`. */
+/** `manual` | `import` — anything unrecognised reads as `manual`. */
 function toSource(value: string | null | undefined): PlanSource {
-  return value === 'solver' || value === 'import' ? value : 'manual'
+  return value === 'import' ? 'import' : 'manual'
 }
 
 /** Map one plan in full — the same shape both writes answer with. */
 function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
+  // A date, then everything on it. The date-level facts (locked, origin) stay on
+  // the day; the work moves down into `activities`, in the sales incharge's own
+  // intended order.
   const days: PlanDay[] = (r.days ?? []).map((day) => ({
     id: day.id,
     date: day.date,
     day: dayOfMonth(day.date),
-    activityId: day.activity_id ?? 0,
-    activityCode: day.activity_code ?? '',
-    activityName: day.activity_name ?? '—',
-    cityId: day.city_id ?? null,
-    cityName: day.city_name ?? null,
     // Unlabelled reads as the sales incharge's: `admin` marks a correction, and calling an
     // un-labelled row a correction would show the whole month as edited.
     origin: day.origin === 'admin' ? 'admin' : 'rep',
     selectedAt: day.selected_at ?? null,
-    beats: (day.beats ?? []).map((beat) => ({
-      id: beat.id,
-      beatId: beat.beat_id,
-      beatName: beat.beat_name ?? `Beat ${beat.beat_id}`,
-      sequence: beat.sequence,
-      stopCount: beat.stop_count,
-      locked: Boolean(beat.locked),
-    })),
-    jointWorkingInchargeId: day.joint_working_sales_incharge_id,
-    jointWorkingInchargeName: day.joint_working_sales_incharge_name ?? null,
-    reason: day.reason ?? null,
+    activities: [...(day.activities ?? [])]
+      // `sequence` is the intended order and array order is not guaranteed to
+      // match it; reading it off the array would quietly reshuffle his day.
+      .sort((a, b) => a.sequence - b.sequence)
+      .map((entry) => ({
+        id: entry.id,
+        sequence: entry.sequence,
+        activityId: entry.activity_id ?? 0,
+        activityCode: entry.activity_code ?? '',
+        activityName: entry.activity_name ?? '—',
+        distributorId: entry.distributor_id ?? null,
+        distributorName: entry.distributor_name ?? null,
+        cityId: entry.city_id ?? null,
+        cityName: entry.city_name ?? null,
+        beats: [...(entry.beats ?? [])]
+          .sort((a, b) => a.sequence - b.sequence)
+          .map((beat) => ({
+            id: beat.id,
+            beatId: beat.beat_id,
+            beatName: beat.beat_name ?? `Beat ${beat.beat_id}`,
+            sequence: beat.sequence,
+            stopCount: beat.stop_count,
+            locked: Boolean(beat.locked),
+          })),
+        jointWorkingInchargeId: entry.joint_working_sales_incharge_id,
+        jointWorkingInchargeName: entry.joint_working_sales_incharge_name ?? null,
+        reason: entry.reason ?? null,
+      })),
     locked: Boolean(day.locked),
     lockedAt: day.locked_at ?? null,
   }))
@@ -240,32 +277,36 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
       activityId: bucket.activity_id,
       activityCode: bucket.activity_code ?? null,
       activityName: bucket.activity_name ?? null,
-      daysCount: bucket.days_count,
-      daysScheduled: bucket.days_scheduled,
-    })),
-    cityAllocations: (r.city_allocations ?? []).map((bucket) => ({
-      cityId: bucket.city_id,
+      cityId: bucket.city_id ?? null,
       cityName: bucket.city_name ?? null,
       daysCount: bucket.days_count,
       daysScheduled: bucket.days_scheduled,
-      source: bucket.source === 'solver' ? 'solver' : 'manual',
+    })),
+    distributorAllocations: (r.distributor_allocations ?? []).map((bucket) => ({
+      distributorId: bucket.distributor_id,
+      distributorName: bucket.distributor_name ?? null,
+      cityId: bucket.city_id ?? null,
+      cityName: bucket.city_name ?? null,
+      daysCount: bucket.days_count,
+      daysScheduled: bucket.days_scheduled,
       beatCount: bucket.beat_count,
       outletCount: bucket.outlet_count,
     })),
     progress: {
       daysAllocated: r.days_allocated,
       daysScheduled: r.days_scheduled,
+      entriesScheduled: r.entries_scheduled,
       daysWorked: r.days_worked,
       schedulingPercentage: r.scheduling_percentage,
       completionPercentage: r.completion_percentage,
-      citiesAllocated: r.cities_allocated,
+      distributorsAllocated: r.distributors_allocated,
       beatsScheduled: r.beats_scheduled,
       workingDays: r.working_days,
       totalDays: r.total_days,
       allocationVariance: r.allocation_variance,
     },
-    // The server's own verdicts, never re-derived: it checks each bucket
-    // individually, and the totals can balance while the buckets do not.
+    // The server's own verdicts, never re-derived from the counts: publish only
+    // wants one bucket on a draft, and approve re-checks nothing at all.
     canPublish: Boolean(r.can_publish),
     canApprove: Boolean(r.can_approve),
     flags: toFlags(r.flags),
@@ -285,11 +326,38 @@ export async function fetchPlan(id: string): Promise<JourneyPlanDetail> {
 }
 
 /**
+ * POST /journey-plans — open ONE empty draft for a sales incharge's month.
+ *
+ * There is no generate and no solver: field time is allocated per distributor,
+ * and a distributor is a commercial relationship rather than something a neglect
+ * heuristic can propose. What lands is a bare draft the sales incharge cannot
+ * see; the buckets go on with `saveAllocation`.
+ *
+ * **Idempotent by refusal, not by silence**: a sales incharge who already has a
+ * plan for the period gets a 409 naming the existing one, so a double-click
+ * cannot quietly hand back someone else's month.
+ */
+export async function createPlan(input: CreatePlanInput): Promise<JourneyPlanDetail> {
+  try {
+    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.CREATE, {
+      sales_incharge_id: toApiId(input.inchargeId),
+      period_month: input.periodMonth,
+    })
+    return toPlanDetail(journeyPlanDetailSchema.parse(raw))
+  } catch (error) {
+    throw asApiError(error, 'Failed to create the plan.')
+  }
+}
+
+/**
  * PATCH /journey-plans/{id} — the allocation, as day-counts.
  *
  * Both fields are **full replacements** and both optional: an omitted field is
  * left alone. Anything absent from `allocation-options` is refused with a 400,
  * and the whole call is refused with a 409 once the plan is `approved`.
+ *
+ * The totals are **not** capped at the length of the month — an over-allocation
+ * raises the `allocation_over_month` flag rather than an error.
  */
 export async function saveAllocation(
   id: string,
@@ -301,14 +369,17 @@ export async function saveAllocation(
         ? {
             activity_allocations: input.activityAllocations.map((bucket) => ({
               activity_id: bucket.activityId,
+              // Sent only where it exists: `null` and absent both mean
+              // "anywhere", and the bucket's key is the pair either way.
+              ...(bucket.cityId ? { city_id: toApiId(bucket.cityId) } : {}),
               days_count: bucket.daysCount,
             })),
           }
         : {}),
-      ...(input.cityAllocations
+      ...(input.distributorAllocations
         ? {
-            city_allocations: input.cityAllocations.map((bucket) => ({
-              city_id: Number(bucket.cityId) || bucket.cityId,
+            distributor_allocations: input.distributorAllocations.map((bucket) => ({
+              distributor_id: toApiId(bucket.distributorId),
               days_count: bucket.daysCount,
             })),
           }
@@ -338,21 +409,28 @@ export async function saveSchedule(
     const raw = await http.patch<unknown>(endpoints.JOURNEY_PLAN.SCHEDULE(id), {
       days: input.days.map((day) => ({
         date: day.date,
-        activity_id: day.activityId,
-        // Sent only where they exist: an activity without `requires_beat` must
-        // carry NEITHER a city nor a beat, and an explicit null is not the same
-        // as an absent key to a schema that forbids the pairing.
-        ...(day.cityId ? { city_id: Number(day.cityId) || day.cityId } : {}),
-        ...(day.beatIds?.length
-          ? { beat_ids: day.beatIds.map((beatId) => Number(beatId) || beatId) }
-          : {}),
-        ...(day.jointWorkingInchargeId
-          ? {
-              joint_working_sales_incharge_id:
-                Number(day.jointWorkingInchargeId) || day.jointWorkingInchargeId,
-            }
-          : {}),
-        ...(day.reason ? { reason: day.reason } : {}),
+        entries: day.entries.map((entry) => ({
+          activity_id: entry.activityId,
+          // Each key is sent only where it exists. A beat-taking activity must
+          // carry a distributor and beats; one without must carry neither, and
+          // an explicit null is not the same as an absent key to a schema that
+          // forbids the pairing.
+          ...(entry.distributorId
+            ? { distributor_id: toApiId(entry.distributorId) }
+            : {}),
+          // Only read on a beatless entry — on a field entry the server derives
+          // the city from the beats and ignores whatever is sent.
+          ...(entry.cityId ? { city_id: toApiId(entry.cityId) } : {}),
+          ...(entry.beatIds?.length
+            ? { beat_ids: entry.beatIds.map(toApiId) }
+            : {}),
+          ...(entry.jointWorkingInchargeId
+            ? {
+                joint_working_sales_incharge_id: toApiId(entry.jointWorkingInchargeId),
+              }
+            : {}),
+          ...(entry.reason ? { reason: entry.reason } : {}),
+        })),
       })),
     })
     return toPlanDetail(journeyPlanDetailSchema.parse(raw))
@@ -365,9 +443,10 @@ export async function saveSchedule(
  * POST /journey-plans/{id}/publish — `draft` → `published`, releasing the month
  * to the sales incharge.
  *
- * Refused (400) unless the counts account for every calendar date: a month
- * published two days short is one the sales incharge can never complete. Read
- * `allocationVariance` (0 = ready) and `canPublish` before offering it.
+ * The only precondition is that the plan has **at least one bucket** on it. A
+ * partial month is the normal case: the admin allocates the work he cares about
+ * and the sales incharge fills the rest. Read the server's `canPublish` — never
+ * the variance, which is negative on almost every healthy plan.
  */
 export async function publishPlan(id: string): Promise<TransitionResult> {
   try {
@@ -381,10 +460,10 @@ export async function publishPlan(id: string): Promise<TransitionResult> {
 /**
  * POST /journey-plans/{id}/approve — `submitted` → `approved`.
  *
- * Refused (400) unless the schedule consumes **each bucket exactly** — checked
- * bucket by bucket, not on the totals, because a day moved from Morbi to Rajkot
- * keeps the total right and the month wrong. The error `details` name the
- * offending buckets.
+ * **The counts are not re-checked.** The sales incharge submits the month he
+ * built and any variance from the allocation comes back as a flag for the admin
+ * to judge, not as a refusal — so the only precondition is that the plan is
+ * still `submitted`.
  *
  * There is no reject and no send-back: an admin who dislikes a schedule corrects
  * it with `saveSchedule` and then approves.
@@ -406,6 +485,7 @@ function toTransition(raw: unknown): TransitionResult {
     status: toPlanStatus(res.status),
     daysAllocated: res.days_allocated,
     daysScheduled: res.days_scheduled,
+    entriesScheduled: res.entries_scheduled,
   }
 }
 
@@ -432,8 +512,8 @@ export async function fetchPlanReps(periodMonth: string): Promise<PlanRepOption[
 }
 
 /**
- * GET /journey-plans/allocation-options — the allocatable activities and the
- * cities the sales incharge's beats sit in.
+ * GET /journey-plans/allocation-options — the allocatable activities, the
+ * distributors the sales incharge's beats reach, and the cities those sit in.
  *
  * **This is the whitelist the allocation Save enforces**, not a convenience:
  * anything absent from it is refused with a 400. It needs no plan to exist.
@@ -445,7 +525,7 @@ export async function fetchAllocationOptions(
   try {
     const raw = await http.get<unknown>(endpoints.JOURNEY_PLAN.ALLOCATION_OPTIONS, {
       params: {
-        sales_incharge_id: Number(inchargeId) || inchargeId,
+        sales_incharge_id: toApiId(inchargeId),
         period_month: periodMonth,
       },
     })
@@ -459,92 +539,21 @@ export async function fetchAllocationOptions(
         name: activity.name,
         isWorkingDay: Boolean(activity.is_working_day),
       })),
+      distributors: (res.distributors ?? []).map((distributor) => ({
+        distributorId: distributor.distributor_id,
+        distributorName: distributor.distributor_name ?? null,
+        cityId: distributor.city_id ?? null,
+        cityName: distributor.city_name ?? null,
+        beatCount: distributor.beat_count,
+        outletCount: distributor.outlet_count,
+      })),
       cities: (res.cities ?? []).map((city) => ({
         cityId: city.city_id,
         cityName: city.city_name ?? null,
-        beatCount: city.beat_count,
-        outletCount: city.outlet_count,
-        // Left null rather than defaulted: null means NEVER worked, which the
-        // solver weighs heaviest, and a fallback date would hide that entirely.
-        lastWorkedDate: city.last_worked_date ?? null,
       })),
     }
   } catch (error) {
     throw asApiError(error, 'Failed to load the allocation options.')
-  }
-}
-
-/** The outcomes the server reports; anything unrecognised reads as a failure. */
-const OUTCOMES: GenerateOutcome[] = [
-  'created',
-  'replaced',
-  'skipped_existing',
-  'skipped_in_progress',
-  'no_beats',
-  'failed',
-]
-
-function toOutcome(value: string): GenerateOutcome {
-  return OUTCOMES.includes(value as GenerateOutcome)
-    ? (value as GenerateOutcome)
-    : 'failed'
-}
-
-/**
- * POST /journey-plans/generate — draft each sales incharge's month.
- *
- * The activity buckets apply to **every sales incharge in the run**; the solver then splits
- * each sales incharge's remaining days across his own cities, weighted by how much work each
- * holds and by how long it has gone untouched. Every plan lands as a `draft`.
- *
- * A sales incharge whose plan has already left `draft` is `skipped_in_progress` even with
- * `replaceExisting` — regenerating would discard the schedule he wrote. **One
- * sales incharge's failure does not fail the run.**
- */
-export async function generatePlans(input: GenerateInput): Promise<GenerateResult> {
-  try {
-    const raw = await http.post<unknown>(endpoints.JOURNEY_PLAN.GENERATE, {
-      period_month: input.periodMonth,
-      ...(input.inchargeIds?.length
-        ? {
-            sales_incharge_ids: input.inchargeIds.map((id) => Number(id) || id),
-          }
-        : {}),
-      ...(input.activityAllocations?.length
-        ? {
-            // Each bucket is EITHER a count the sales incharge dates himself OR the
-            // exact dates the office fixed — the endpoint derives a dated bucket's
-            // day-count from `dates.length`, so sending both would be the same
-            // number said twice and a mismatch waiting to happen.
-            activity_allocations: input.activityAllocations.map((bucket) =>
-              bucket.dates?.length
-                ? { activity_id: bucket.activityId, dates: bucket.dates }
-                : { activity_id: bucket.activityId, days_count: bucket.daysCount },
-            ),
-          }
-        : {}),
-      ...(input.replaceExisting != null
-        ? { replace_existing: input.replaceExisting }
-        : {}),
-      ...(input.seed ? { seed: input.seed } : {}),
-    })
-    const res = generateSchema.parse(raw)
-    return {
-      results: (res.results ?? []).map((row) => ({
-        inchargeId: row.sales_incharge_id ?? '',
-        outcome: toOutcome(row.outcome),
-        journeyPlanId: row.journey_plan_id,
-        daysAllocated: row.days_allocated,
-        citiesAllocated: row.cities_allocated,
-        daysPinned: row.days_pinned,
-        message: row.message ?? null,
-      })),
-      created: res.created,
-      skipped: res.skipped,
-      failed: res.failed,
-    }
-  } catch (error) {
-    throw asApiError(error, 'Failed to generate the monthly plans.')
   }
 }
 
@@ -579,9 +588,9 @@ export async function fetchActivities(): Promise<ActivityDef[]> {
 /**
  * GET /sales-incharges/{id}/beats — every beat allocated to the sales incharge.
  *
- * `cityId` is the load-bearing field: the correction pass may only put a beat on a
- * day whose city it sits in, so the day editor filters this pool by the day's
- * city rather than offering all 60+.
+ * **`distributorIds` is the load-bearing field**: the correction pass may only
+ * put a beat on an entry whose distributor it serves, so the entry editor filters
+ * this pool by the entry's distributor rather than offering all 60+.
  */
 export async function fetchAllocatedBeats(inchargeId: string): Promise<AllocatedBeat[]> {
   try {
@@ -593,6 +602,7 @@ export async function fetchAllocatedBeats(inchargeId: string): Promise<Allocated
       id: beat.id,
       name: beat.name ?? beat.beat_name ?? `Beat ${beat.id}`,
       cityId: beat.city_id,
+      distributorIds: (beat.distributors ?? []).map((distributor) => distributor.id),
       outlets: beat.outlet_count ?? beat.retailer_count ?? null,
     }))
   } catch (error) {

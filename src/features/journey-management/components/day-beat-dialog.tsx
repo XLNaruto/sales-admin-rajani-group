@@ -15,30 +15,31 @@ import { dayLabel } from '../lib/journey-format'
 import type { AllocatedBeat } from '../types'
 
 /**
- * The beats for **one date** of the correction pass.
+ * The beats for **one piece of work** on one date of the correction pass.
  *
  * The rules this control exists to make unbreakable, all three enforced server-side:
  *
  * - Every beat must be **allocated to the sales incharge** — so the pool is his beats, never
  *   the beat master.
- * - Every beat must **sit in that day's city** — so the pool is filtered by it. A
- *   beat whose own city is unknown is offered anyway and flagged: that is a gap in
- *   the beat master, not a scheduling error, and refusing it here would make an
- *   unfixable day.
+ * - Every beat must **serve that entry's distributor** — so the pool is filtered by
+ *   it. This replaced the old beat-sits-in-the-day's-city rule and is stricter: a
+ *   beat mapped to no distributor at all is offered by neither, because there
+ *   would be no bucket to charge the day to. That is a beat-master gap, and the
+ *   fix is there rather than here.
  * - **`beatIds` order is the intended order**, and there is no limit on how many. So
  *   the chosen list is ordered and reorderable, and nothing caps its length.
  *
- * A dialog rather than an inline control because a month is 31 rows: an expanding
- * checklist inside a table cell would push the rest of the calendar off-screen every
- * time one date was touched.
+ * A dialog rather than an inline control because a month is 31 dates and a date
+ * may carry several entries: an expanding checklist inside a table cell would push
+ * the rest of the calendar off-screen every time one was touched.
  */
 export function DayBeatDialog({
   open,
   onOpenChange,
   date,
-  cityName,
+  distributorName,
   pool,
-  /** Beat id → name across the whole plan, to name an off-city beat. */
+  /** Beat id → name across the whole plan, to name a beat that has left the pool. */
   beatNames,
   value,
   onSave,
@@ -48,11 +49,12 @@ export function DayBeatDialog({
   onOpenChange: (open: boolean) => void
   /** The date being edited, `yyyy-MM-dd`. */
   date: string
-  cityName: string | null
-  /** The sales incharge's beats **already narrowed to the day's city** by the caller. */
+  /** The entry's distributor — whose beats these are. Null until one is picked. */
+  distributorName: string | null
+  /** The sales incharge's beats **already narrowed to the entry's distributor**. */
   pool: AllocatedBeat[]
   beatNames: Map<string, string>
-  /** Beat ids currently on the day, in their intended order. */
+  /** Beat ids currently on the entry, in their intended order. */
   value: string[]
   onSave: (beatIds: string[]) => void
   readOnly?: boolean
@@ -110,9 +112,9 @@ export function DayBeatDialog({
           </span>
           <DialogTitle>Beats for {dayLabel(date)}</DialogTitle>
           <DialogDescription>
-            {cityName
-              ? `Only beats in ${cityName} can go on this date — the scheduler refuses a beat from another city. The order below is the order he is meant to walk them.`
-              : 'This date has no city, so no beat can go on it. Set the city first.'}
+            {distributorName
+              ? `Only beats serving ${distributorName} can go on this entry — the scheduler refuses a beat that does not. The order below is the order he is meant to walk them.`
+              : 'This entry has no distributor, so no beat can go on it. Pick a distributor first.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -121,7 +123,7 @@ export function DayBeatDialog({
         {draft.length > 0 ? (
           <div className="mt-5">
             <p className="text-xs font-medium text-foreground">
-              On this date
+              On this entry
               <span className="ml-2 font-normal tabular-nums text-muted-foreground">
                 {draft.length} beat{draft.length === 1 ? '' : 's'}
                 {outlets > 0 ? ` · ${outlets} outlets` : ''}
@@ -139,15 +141,16 @@ export function DayBeatDialog({
                       {index + 1}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                      {/* A beat not in the pool is one that has left the day's city
-                          since it was scheduled — `beat_outside_city`. It must stay
-                          visible and removable, not vanish. */}
+                      {/* A beat not in the pool is one that has stopped serving this
+                          distributor since it was scheduled —
+                          `beat_outside_distributor`. It must stay visible and
+                          removable, not vanish. */}
                       {beat?.name ?? beatNames.get(beatId) ?? `Beat ${beatId}`}
                       {!beat ? (
-                        <Hint label="This beat no longer sits in the day's city — the beat master has drifted. Remove it, or fix the master.">
+                        <Hint label="This beat no longer serves the entry's distributor — the beat master has drifted. Remove it, or fix the master.">
                           <span className="ml-1.5 inline-flex cursor-default items-center gap-0.5 rounded-full bg-warning/15 px-1.5 align-middle text-[10px] font-semibold text-warning">
                             <TriangleAlert className="size-2.5" />
-                            off-city
+                            off-distributor
                           </span>
                         </Hint>
                       ) : null}
@@ -185,9 +188,9 @@ export function DayBeatDialog({
         <div className="mt-4 overflow-hidden rounded-xl border border-border/60">
           {pool.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
-              {cityName
-                ? `He holds no beats in ${cityName}. Allocate him one, or move this date to another city.`
-                : 'Set the city first.'}
+              {distributorName
+                ? `He holds no beat serving ${distributorName}. Allocate him one, or move this entry to another distributor.`
+                : 'Pick a distributor first.'}
             </p>
           ) : (
             <>
@@ -197,7 +200,9 @@ export function DayBeatDialog({
                   autoComplete="off"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={cityName ? `Search beats in ${cityName}` : 'Search beats'}
+                  placeholder={
+                    distributorName ? `Search ${distributorName} beats` : 'Search beats'
+                  }
                   aria-label="Search beats"
                   className="h-10 w-full bg-transparent pl-10 pr-3 text-sm outline-none placeholder:text-muted-foreground"
                 />
@@ -249,10 +254,13 @@ export function DayBeatDialog({
                               {beat.outlets != null
                                 ? `${beat.outlets} outlets`
                                 : 'Outlets unknown'}
-                              {/* A beat with no city of its own is reachable but
-                                  unverifiable — the master, not the schedule, is the
-                                  thing to fix. */}
-                              {beat.cityId == null ? ' · no city in the master' : ''}
+                              {/* A beat serving several distributors appears under
+                                  each — it is genuinely workable on any of their
+                                  days, and saying so stops it reading as a
+                                  duplicate. */}
+                              {beat.distributorIds.length > 1
+                                ? ` · serves ${beat.distributorIds.length} distributors`
+                                : ''}
                             </span>
                           </span>
                         </button>

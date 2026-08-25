@@ -4,7 +4,7 @@ export { LiveMapPage } from './pages/live-map-page'
 export { LiveDayPage } from './pages/live-day-page'
 
 /* Query + mutation hooks — the only way another feature may reach these endpoints. */
-export { useJourneyPlanQueue, useGenerateJourneyPlans } from './api/use-journey-plans'
+export { useJourneyPlanQueue, useCreateJourneyPlan } from './api/use-journey-plans'
 export {
   useJourneyPlanDetail,
   useJourneyPlanReps,
@@ -33,6 +33,8 @@ export {
   NON_WORKING_CODES,
 } from './lib/activities'
 export { planIssues, isLocked, COMPLETION_FAIR, COMPLETION_GOOD } from './lib/plan-flags'
+export { bucketKey } from './lib/allocation-buckets'
+export type { BucketDraft } from './lib/allocation-buckets'
 export {
   PLAN_STATUS_CHAIN,
   PLAN_STATUS_LABEL,
@@ -61,6 +63,7 @@ export {
   scopeCounts,
   activityTone,
   activityLabel,
+  activityBadges,
   trailCount,
   visitsInFilter,
   missesInFilter,
@@ -100,13 +103,13 @@ export type {
   ActivityAllocation,
   ActivityCode,
   ActivityDef,
-  ActivityQuota,
   AllocationOptions,
   AgentConversation,
   AgentMessage,
   AgentStreamEvent,
   AllocatedBeat,
-  CityAllocation,
+  CreatePlanInput,
+  DistributorAllocation,
   DayAttendance,
   DayCounters,
   DayFacets,
@@ -117,9 +120,6 @@ export type {
   DayScope,
   DayVisit,
   FlagSeverity,
-  GenerateInput,
-  GenerateOutcome,
-  GenerateResult,
   GeoPoint,
   IssueCategory,
   JourneyPlan,
@@ -131,6 +131,7 @@ export type {
   OutletMarker,
   PlanDay,
   PlanDayBeat,
+  PlanDayEntry,
   PlanFlag,
   PlanFlagCode,
   PlanIssue,
@@ -146,6 +147,7 @@ export type {
   SaveAllocationInput,
   SaveScheduleInput,
   ScheduleDayInput,
+  ScheduleEntryInput,
   ScheduledOutlet,
   ToolActivity,
   TransitionResult,

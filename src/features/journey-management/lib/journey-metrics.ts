@@ -65,12 +65,12 @@ export function groupIntoWeeks(
  * client can brand on them; the copy belongs here.
  */
 const FLAG_LABELS: Record<string, string> = {
-  no_cities_allocated: 'No cities allocated',
-  allocation_incomplete: 'Allocation does not cover the month',
+  no_distributors_allocated: 'No distributors allocated',
+  allocation_over_month: 'Allocation exceeds the month',
   schedule_unallocated: 'Scheduled outside the allocation',
   schedule_mismatch: 'Schedule does not match the counts',
-  city_without_beats: 'Allocated city has no beats',
-  beat_outside_city: 'Beat outside its day’s city',
+  distributor_without_beats: 'Allocated distributor has no beats',
+  beat_outside_distributor: 'Beat no longer serves its distributor',
   activity_not_allocatable: 'Activity not allocatable',
   awaiting_schedule: 'Awaiting the sales incharge’s schedule',
 }
