@@ -1,6 +1,16 @@
 import { useEffect, useMemo } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Lock, PencilLine, Store, TriangleAlert, User, Users, X } from 'lucide-react'
+import {
+  Lock,
+  PencilLine,
+  Pin,
+  Store,
+  TriangleAlert,
+  Truck,
+  User,
+  Users,
+  X,
+} from 'lucide-react'
 import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
@@ -37,6 +47,12 @@ export interface ScheduleDraftEntry {
   /** Only meaningful on a beatless entry — derived from the beats otherwise. */
   cityId: string | null
   beatIds: string[]
+  /**
+   * Who this date calls on, **in intended order** — a visit entry only, and
+   * required there. Not to be confused with `distributorId`: that names the
+   * bucket a field day is charged to and is null on a visit.
+   */
+  distributorIds: string[]
 }
 
 /** One date of the draft calendar — everything on it, in intended order. */
@@ -50,6 +66,7 @@ const EMPTY_ENTRY: ScheduleDraftEntry = {
   distributorId: null,
   cityId: null,
   beatIds: [],
+  distributorIds: [],
 }
 
 /**
@@ -85,6 +102,8 @@ export function ScheduleTable({
   activities,
   /** Distributors the plan allocates — what a field entry is normally assigned to. */
   distributorOptions,
+  /** Who a VISIT may call on — every distributor his beats reach, not just the buckets. */
+  visitDistributorOptions,
   /** The city master — offered on a distributor-search entry and nowhere else. */
   city,
   /** The draft calendar by date; absent means the date carries no work. */
@@ -95,6 +114,7 @@ export function ScheduleTable({
   distributorNames,
   onSetActivity,
   onSetDistributor,
+  onSetDistributors,
   onSetCity,
   onRemoveEntry,
   onClearDay,
@@ -110,12 +130,14 @@ export function ScheduleTable({
   status: PlanStatus
   activities: ActivityDef[]
   distributorOptions: ComboboxOption[]
+  visitDistributorOptions: ComboboxOption[]
   city: CitySelect
   draft: Map<string, ScheduleDraftDay>
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
   onSetActivity: (date: string, index: number, activityId: number) => void
   onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetDistributors: (date: string, index: number, distributorIds: string[]) => void
   onSetCity: (date: string, index: number, cityId: string | null) => void
   onRemoveEntry: (date: string, index: number) => void
   onClearDay: (date: string) => void
@@ -145,11 +167,22 @@ export function ScheduleTable({
   const blanksMatter = unscheduledIsAProblem(status)
   const unscheduled = strip.filter((day) => day.label === 'unscheduled').length
   const missed = strip.filter((day) => day.label === 'missed').length
-  /** Pieces of work across the month — the figure the buckets reconcile with. */
-  const entryCount = [...draft.values()].reduce(
-    (total, day) => total + day.entries.filter((entry) => entry.activityId > 0).length,
-    0,
-  )
+  /**
+   * Pieces of work across the month — the figure the buckets reconcile with.
+   *
+   * The pins are counted too, and have to be: they are real work on real dates,
+   * they spend their bucket's days, and they are deliberately absent from the
+   * draft, so counting the draft alone would under-report the month.
+   */
+  const entryCount =
+    [...draft.values()].reduce(
+      (total, day) => total + day.entries.filter((entry) => entry.activityId > 0).length,
+      0,
+    ) +
+    days.reduce(
+      (total, day) => total + day.activities.filter((entry) => entry.pinned).length,
+      0,
+    )
 
   return (
     // `overflow-clip`, not `overflow-hidden`: both clip the rounded corners, but
@@ -198,62 +231,70 @@ export function ScheduleTable({
         </span>
       </div>
 
-      {/* Full month, no height cap and — deliberately — no scroll wrapper: the
-          whole table scrolls with the page and the column header pins as it
-          passes. An `overflow-x-auto` here would become the header's scrollport
-          (an `auto` on one axis makes the other one `auto` too) and park it a
-          header's height down the table instead. */}
-      <table className="w-full border-collapse text-sm">
-        {/* Parks under the page's sticky header rather than at the very top of
-            the scrollport, where it would slide behind it and hide the column
-            labels. The page measures its header and publishes the offset. */}
-        <thead className="sticky z-10" style={{ top: 'var(--plan-header-h, 0px)' }}>
-          {/* border-collapse drops a sticky row's own border, so the header rule
-              is an inset shadow instead. */}
-          <tr className="bg-card text-left shadow-[inset_0_-1px_0_var(--border)]">
-            <Th className="w-20">Date</Th>
-            <Th className="w-36">State</Th>
-            <Th className="w-56">Activity</Th>
-            <Th className="w-48">Distributor / City</Th>
-            <Th>Beats</Th>
-            <Th className="w-px" />
-          </tr>
-        </thead>
-        <tbody>
-          {strip.map((stripDay) => (
-            <DayRows
-              key={stripDay.date}
-              stripDay={stripDay}
-              day={dayByDate.get(stripDay.date)}
-              draftDay={draft.get(stripDay.date)}
-              activities={activities}
-              activityById={activityById}
-              distributorOptions={distributorOptions}
-              city={city}
-              beatNames={beatNames}
-              distributorNames={distributorNames}
-              blanksMatter={blanksMatter}
-              focused={focusedDay === stripDay.day}
-              editable={editable}
-              busy={busy}
-              onSetActivity={onSetActivity}
-              onSetDistributor={onSetDistributor}
-              onSetCity={onSetCity}
-              onRemoveEntry={onRemoveEntry}
-              onClearDay={onClearDay}
-              onEditBeats={onEditBeats}
-            />
-          ))}
-
-          {strip.length === 0 ? (
-            <tr>
-              <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                No calendar for this month.
-              </td>
+      {/* The table scrolls in its OWN box, both ways.
+          A horizontal scroller cannot be a page-level one: `overflow-x: auto`
+          makes the wrapper a scroll container, and a `sticky` header inside it
+          then pins to the wrapper rather than to the viewport. So the wrapper
+          owns both axes — a capped height with the header stuck to its top —
+          which is the ordinary data-table arrangement and keeps the column
+          labels visible however far down the month you are. */}
+      <div className="max-h-[70vh] overflow-auto overscroll-contain">
+        {/* `table-fixed` + `min-w`: the header's widths ARE the layout, and the
+            minimum is what gives the wrapper something to scroll horizontally on
+            a narrow screen instead of crushing six columns into it. */}
+        <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
+          <thead className="sticky top-0 z-10">
+            {/* border-collapse drops a sticky row's own border, so the header rule
+                is an inset shadow instead. */}
+            <tr className="bg-card text-left shadow-[inset_0_-1px_0_var(--border)]">
+              <Th className="w-20">Date</Th>
+              <Th className="w-36">State</Th>
+              <Th className="w-80">Activity</Th>
+              <Th className="w-56">Distributor / City</Th>
+              <Th>Beats</Th>
+              {/* A real width, not `w-px`: under `table-fixed` a 1px column would
+                  let its buttons spill over the Beats cell beside it. */}
+              <Th className="w-16" />
             </tr>
-          ) : null}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {strip.map((stripDay) => (
+              <DayRows
+                key={stripDay.date}
+                stripDay={stripDay}
+                day={dayByDate.get(stripDay.date)}
+                draftDay={draft.get(stripDay.date)}
+                activities={activities}
+                activityById={activityById}
+                distributorOptions={distributorOptions}
+                visitDistributorOptions={visitDistributorOptions}
+                city={city}
+                beatNames={beatNames}
+                distributorNames={distributorNames}
+                blanksMatter={blanksMatter}
+                focused={focusedDay === stripDay.day}
+                editable={editable}
+                busy={busy}
+                onSetActivity={onSetActivity}
+                onSetDistributor={onSetDistributor}
+                onSetDistributors={onSetDistributors}
+                onSetCity={onSetCity}
+                onRemoveEntry={onRemoveEntry}
+                onClearDay={onClearDay}
+                onEditBeats={onEditBeats}
+              />
+            ))}
+
+            {strip.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                  No calendar for this month.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -274,6 +315,7 @@ function DayRows({
   activities,
   activityById,
   distributorOptions,
+  visitDistributorOptions,
   city,
   beatNames,
   distributorNames,
@@ -283,6 +325,7 @@ function DayRows({
   busy,
   onSetActivity,
   onSetDistributor,
+  onSetDistributors,
   onSetCity,
   onRemoveEntry,
   onClearDay,
@@ -294,6 +337,7 @@ function DayRows({
   activities: ActivityDef[]
   activityById: Map<number, ActivityDef>
   distributorOptions: ComboboxOption[]
+  visitDistributorOptions: ComboboxOption[]
   city: CitySelect
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
@@ -303,6 +347,7 @@ function DayRows({
   busy: boolean
   onSetActivity: (date: string, index: number, activityId: number) => void
   onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetDistributors: (date: string, index: number, distributorIds: string[]) => void
   onSetCity: (date: string, index: number, cityId: string | null) => void
   onRemoveEntry: (date: string, index: number) => void
   onClearDay: (date: string) => void
@@ -320,6 +365,19 @@ function DayRows({
   const rows = canEdit ? [...entries, EMPTY_ENTRY] : entries
 
   /**
+   * Work the ADMIN fixed to this date from an allocation bucket's `dates`.
+   *
+   * Rendered from `days`, never from the draft — it is deliberately absent
+   * there, because the server keeps it whatever the correction pass sends and
+   * sending it is a 400. It holds the lowest sequences on the date, so it
+   * renders first, and it is read-only here: to move one, edit the bucket's
+   * dates on the allocation above.
+   */
+  const pinned = (day?.activities ?? []).filter((entry) => entry.pinned)
+  /** Every row this date renders — the pins, then the draft, then the picker. */
+  const rowCount = pinned.length + rows.length
+
+  /**
    * The saved entry behind a draft row — matched on (activity, distributor), NOT
    * on position.
    *
@@ -331,10 +389,12 @@ function DayRows({
    * still the same piece of work.
    */
   const savedByKey = new Map(
-    (day?.activities ?? []).map((saved) => [
-      `${saved.activityId}|${saved.distributorId ?? ''}`,
-      saved,
-    ]),
+    (day?.activities ?? [])
+      .filter((saved) => !saved.pinned)
+      .map((saved) => [
+        `${saved.activityId}|${saved.distributorId ?? ''}`,
+        saved,
+      ]),
   )
 
   const rowClass = cn(
@@ -346,7 +406,7 @@ function DayRows({
     focused && 'ring-1 ring-inset ring-primary/40',
   )
 
-  if (rows.length === 0) {
+  if (rowCount === 0) {
     return (
       <tr id={dayRowId(stripDay.day)} className={rowClass}>
         <DateCell day={stripDay} locked={locked} />
@@ -362,9 +422,22 @@ function DayRows({
 
   return (
     <>
+      {pinned.map((entry, index) => (
+        <PinnedRow
+          key={entry.id}
+          entry={entry}
+          stripDay={stripDay}
+          locked={locked}
+          rowClass={rowClass}
+          first={index === 0}
+          rowCount={rowCount}
+          last={index === rowCount - 1}
+        />
+      ))}
+
       {rows.map((entry, index) => {
-        const first = index === 0
-        const last = index === rows.length - 1
+        const first = pinned.length === 0 && index === 0
+        const last = pinned.length + index === rowCount - 1
         // The trailing blank picker is not an entry the plan holds.
         const isPlaceholder = entry.activityId === 0
         const saved = isPlaceholder
@@ -380,6 +453,16 @@ function DayRows({
          * error: it shows the pickers on work that may not need them, rather than
          * hiding the beats of work that does.
          */
+        /**
+         * A visit — off the master's flag, falling back to the saved entry
+         * already naming targets while the master is in flight.
+         */
+        const takesVisits = activity
+          ? activity.requiresDistributors
+          : isPlaceholder
+            ? false
+            : entry.distributorIds.length > 0 || (saved?.distributors.length ?? 0) > 0
+
         const takesBeats = activity
           ? activity.requiresBeat
           : isPlaceholder
@@ -394,8 +477,8 @@ function DayRows({
           >
             {first ? (
               <>
-                <DateCell day={stripDay} locked={locked} rowSpan={rows.length} />
-                <td rowSpan={rows.length} className="whitespace-nowrap px-4 py-2.5">
+                <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
+                <td rowSpan={rowCount} className="whitespace-nowrap px-4 py-2.5">
                   <LabelChip day={stripDay} />
                 </td>
               </>
@@ -412,10 +495,14 @@ function DayRows({
                   className="w-full min-w-0"
                   onChange={(activityId) => onSetActivity(stripDay.date, index, activityId)}
                 />
+              ) : saved?.activityName ? (
+                <Hint label={saved.activityName}>
+                  <span className="block cursor-default truncate py-1.5 text-sm text-foreground">
+                    {saved.activityName}
+                  </span>
+                </Hint>
               ) : (
-                <span className="block truncate py-1.5 text-sm text-foreground">
-                  {saved?.activityName ?? '—'}
-                </span>
+                <span className="block py-1.5 text-sm text-foreground">—</span>
               )}
             </td>
 
@@ -430,12 +517,15 @@ function DayRows({
                 // activity has no use for one. Falls back to the saved entry's
                 // own code while the master is still loading.
                 takesCity={takesCity(activity?.code ?? saved?.activityCode)}
+                takesVisits={takesVisits}
                 isPlaceholder={isPlaceholder}
                 canEdit={canEdit}
                 distributorOptions={distributorOptions}
+                visitDistributorOptions={visitDistributorOptions}
                 city={city}
                 distributorNames={distributorNames}
                 onSetDistributor={onSetDistributor}
+                onSetDistributors={onSetDistributors}
                 onSetCity={onSetCity}
               />
             </td>
@@ -480,6 +570,92 @@ function DayRows({
         )
       })}
     </>
+  )
+}
+
+/**
+ * One piece of work the ADMIN pinned to this date.
+ *
+ * Read-only everywhere, in every status: the pin lives on the allocation
+ * bucket's `dates`, so moving or removing it is an edit to the allocation above,
+ * not to this row. It is also absent from the draft, so nothing here can reach
+ * the save body.
+ */
+function PinnedRow({
+  entry,
+  stripDay,
+  locked,
+  rowClass,
+  first,
+  last,
+  rowCount,
+}: {
+  entry: PlanDayEntry
+  stripDay: MonthStripDay
+  locked: boolean
+  rowClass: string
+  first: boolean
+  last: boolean
+  rowCount: number
+}) {
+  const targets = entry.distributors
+    .map((row) => row.distributorName ?? `Distributor ${row.distributorId}`)
+    .join(', ')
+
+  return (
+    <tr
+      id={first ? dayRowId(stripDay.day) : undefined}
+      className={cn(rowClass, !last && 'border-b-transparent', 'bg-primary/[0.04]')}
+    >
+      {first ? (
+        <>
+          <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
+          <td rowSpan={rowCount} className="whitespace-nowrap px-4 py-2.5">
+            <LabelChip day={stripDay} />
+          </td>
+        </>
+      ) : null}
+
+      <td className="px-4 py-2">
+        <span className="flex min-w-0 items-center gap-1.5 py-1.5">
+          {/* The column is finite and an activity name is not, so the truncated
+              label carries its own full text. */}
+          <Hint label={entry.activityName}>
+            <span className="cursor-default truncate text-sm text-foreground">
+              {entry.activityName}
+            </span>
+          </Hint>
+          <Hint label="You fixed this date on the allocation above. The sales incharge cannot move or remove it, and neither can this screen — edit the bucket's dates to change it.">
+            <span className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+              <Pin className="size-2.5" />
+              fixed by you
+            </span>
+          </Hint>
+        </span>
+      </td>
+
+      <td className="px-4 py-2">
+        {/* Every target this date calls on, in order. It WRAPS rather than
+            truncating behind a tooltip: a visit can name eight distributors, and
+            a row of the month is the one place the whole list has to be readable
+            without hovering. `break-all` keeps a long registered name — which
+            has no spaces to break at — inside the column instead of widening the
+            table past the card. */}
+        {targets || entry.cityName ? (
+          <span className="block py-1.5 text-xs break-all whitespace-normal text-muted-foreground">
+            {targets || entry.cityName}
+          </span>
+        ) : (
+          <span className="block py-1.5 text-xs text-muted-foreground">—</span>
+        )}
+      </td>
+
+      <td className="px-4 py-2">
+        <span className="block py-1.5 text-xs text-muted-foreground">—</span>
+      </td>
+
+      <td className="whitespace-nowrap px-4 py-2" />
+    </tr>
   )
 }
 
@@ -567,12 +743,15 @@ function WhereCell({
   saved,
   takesBeats,
   takesCity: showCity,
+  takesVisits,
   isPlaceholder,
   canEdit,
   distributorOptions,
+  visitDistributorOptions,
   city,
   distributorNames,
   onSetDistributor,
+  onSetDistributors,
   onSetCity,
 }: {
   date: string
@@ -581,16 +760,106 @@ function WhereCell({
   saved: PlanDayEntry | undefined
   takesBeats: boolean
   takesCity: boolean
+  /** A visit: it names WHO it calls on, in order, and no beat and no bucket. */
+  takesVisits: boolean
   isPlaceholder: boolean
   canEdit: boolean
   distributorOptions: ComboboxOption[]
+  visitDistributorOptions: ComboboxOption[]
   city: CitySelect
   distributorNames: Map<string, string>
   onSetDistributor: (date: string, index: number, distributorId: string | null) => void
+  onSetDistributors: (date: string, index: number, distributorIds: string[]) => void
   onSetCity: (date: string, index: number, cityId: string | null) => void
 }) {
   if (isPlaceholder) {
     return <span className="block py-1.5 text-xs text-muted-foreground">—</span>
+  }
+
+  /**
+   * A visit names its targets and nothing else.
+   *
+   * Deliberately NOT `distributorId`: that names the distributor bucket a field
+   * day is charged to, and a visit spends its activity bucket instead. Sending
+   * both is what the API refuses.
+   */
+  if (takesVisits) {
+    const ids = entry.distributorIds
+    const nameOf = (id: string) =>
+      saved?.distributors.find((row) => row.distributorId === id)?.distributorName ??
+      distributorNames.get(id) ??
+      visitDistributorOptions.find((option) => option.value === id)?.label ??
+      `Distributor ${id}`
+
+    return (
+      <div className="min-w-0 py-0.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Order is the instruction — the chips are numbered because a visit
+              list is a route through the day, not a set. */}
+          {ids.map((id, position) => (
+            <span
+              key={`${id}-${position}`}
+              className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden rounded-full border border-border/60 bg-background py-0.5 pr-1 pl-2 text-[11px] text-foreground"
+            >
+              <span className="shrink-0 tabular-nums text-muted-foreground">
+                {position + 1}.
+              </span>
+              <Hint label={nameOf(id)}>
+                <span className="min-w-0 cursor-default truncate">{nameOf(id)}</span>
+              </Hint>
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onSetDistributors(
+                      date,
+                      index,
+                      ids.filter((_, i) => i !== position),
+                    )
+                  }
+                  aria-label={`Remove ${nameOf(id)}`}
+                  className="grid size-4 shrink-0 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-2.5" />
+                </button>
+              ) : null}
+            </span>
+          ))}
+
+          {canEdit ? (
+            <Combobox
+              value=""
+              onChange={(id) => {
+                if (!id || ids.includes(id)) return
+                onSetDistributors(date, index, [...ids, id])
+              }}
+              options={visitDistributorOptions.filter(
+                (option) => !ids.includes(option.value),
+              )}
+              icon={Truck}
+              placeholder={ids.length === 0 ? 'Who does he call on?' : 'Add another'}
+              searchable
+              searchPlaceholder="Search distributors…"
+              className="inline-flex w-auto max-w-full shrink-0"
+              triggerClassName="h-7 w-auto gap-1 rounded-full border-dashed px-2.5 text-[11px] font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground [&_svg]:size-3"
+            />
+          ) : null}
+
+          {!canEdit && ids.length === 0 ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : null}
+        </div>
+
+        {canEdit && ids.length === 0 ? (
+          <Hint label="A visit has to say who it calls on — the save is refused without it.">
+            <span className="mt-0.5 inline-flex cursor-default items-center gap-1 text-[11px] font-medium text-warning">
+              <TriangleAlert className="size-3" />
+              needs a distributor
+            </span>
+          </Hint>
+        ) : null}
+      </div>
+    )
   }
 
   if (takesBeats) {
@@ -657,8 +926,13 @@ function WhereCell({
           onScrollEnd={city.onScrollEnd}
           onSearchChange={city.onSearchChange}
           searchable
+          // The city is optional on a beatless entry, so it must be clearable.
+          clearable
           placeholder="Anywhere"
           searchPlaceholder="Search cities…"
+          // Same paging problem as the allocation's picker: the saved entry's own
+          // city name is the only label available until the page holding it loads.
+          fallbackLabel={saved?.cityName ?? undefined}
           className="w-full min-w-0"
         />
       ) : (

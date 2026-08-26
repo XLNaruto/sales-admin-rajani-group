@@ -263,6 +263,43 @@ export const endpoints = {
     /** GET ?sales_incharge_id&date — counters, timeline, route, misses, facets. */
     DETAIL: '/sales-incharge-admin/live-day/detail',
   },
+  /**
+   * Beat change requests — what the reps have asked to swap on a planned day,
+   * and the admin's answer. Read-only apart from the review PATCH: the request
+   * itself is raised from the field app, never here.
+   */
+  BEAT_CHANGE: {
+    /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
+    LIST: '/sales-incharge-admin/beat-changes',
+    /**
+     * PATCH { status: 'approved' } | { status: 'rejected', rejection_reason }.
+     * Approving is what MOVES THE DAY — the replacement beat takes the outgoing
+     * one's place in the walk, in the same transaction as the answer. Every
+     * precondition is re-checked here (the beat may since have been de-allocated,
+     * the day may have locked), so a stale request is refused rather than applied.
+     */
+    STATUS: (id: string | number) =>
+      `/sales-incharge-admin/beat-changes/${id}/status`,
+  },
+  /**
+   * Profile edit requests — a rep asking for his own record to be corrected.
+   * The ask is prose, so approving records the intent; the correction itself is
+   * still made through `PATCH /sales-incharges/:id`.
+   */
+  PROFILE_EDIT_REQUEST: {
+    /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
+    LIST: '/sales-incharge-admin/profile-edit-requests',
+    /** GET one request in full (404s outside the selected company). */
+    GET: (id: string | number) =>
+      `/sales-incharge-admin/profile-edit-requests/${id}`,
+    /**
+     * PATCH { status, reason? } — `reason` is REQUIRED on a rejection and
+     * optional on an approval. Either answer also frees the rep to raise his
+     * next request; a request already answered comes back `409`.
+     */
+    STATUS: (id: string | number) =>
+      `/sales-incharge-admin/profile-edit-requests/${id}/status`,
+  },
   /** Firebase Cloud Messaging — register/refresh this device's push token. */
   FCM: {
     /** POST { token, platform?, device_id? } — idempotent per token. */

@@ -127,6 +127,11 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     setDistributorBuckets,
     allocationDirty,
     allocationEditable,
+    draftOverBy,
+    savedOverBy,
+    bucketsMissingDistributors,
+    bucketsMissingCity,
+    lockedDates,
     discardAllocation,
     submitAllocation,
     isSavingAllocation,
@@ -136,9 +141,11 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     distributorNames,
     activities,
     distributorOptions,
+    visitDistributorOptions,
     city,
     setEntryActivity,
     setEntryDistributor,
+    setEntryDistributors,
     setEntryCity,
     setEntryBeats,
     removeEntry,
@@ -401,6 +408,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
               distributors: [],
             }
           }
+          month={plan.month}
+          lockedDates={lockedDates}
           activityBuckets={activityBuckets}
           distributorBuckets={distributorBuckets}
           onChangeActivities={setActivityBuckets}
@@ -425,12 +434,14 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           status={status}
           activities={activities}
           distributorOptions={distributorOptions}
+          visitDistributorOptions={visitDistributorOptions}
           city={city}
           draft={schedule}
           beatNames={beatNames}
           distributorNames={distributorNames}
           onSetActivity={setEntryActivity}
           onSetDistributor={setEntryDistributor}
+          onSetDistributors={setEntryDistributors}
           onSetCity={setEntryCity}
           onRemoveEntry={removeEntry}
           onClearDay={clearDay}
@@ -455,14 +466,38 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
             {allocationEditable && allocationDirty ? (
               <>
-                <Button
-                  className="cursor-pointer"
-                  disabled={busy}
-                  onClick={submitAllocation}
+                {/* The one hard stop on this screen: a month cannot promise more
+                    days than it holds, so the Save refuses until the counts come
+                    back inside the calendar. */}
+                <Hint
+                  label={
+                    draftOverBy > 0
+                      ? `The counts run ${draftOverBy} day${
+                          draftOverBy === 1 ? '' : 's'
+                        } past the end of the month. Reduce them before saving.`
+                      : bucketsMissingDistributors > 0
+                        ? 'An activity that visits distributors has to name at least one. Pick them, or remove the row.'
+                        : bucketsMissingCity > 0
+                          ? 'A distributor search has to name the city to search in. Pick one, or remove the row.'
+                          : 'Replaces both bucket sets with what is on screen.'
+                  }
                 >
-                  {isSavingAllocation ? <Loader2 className="animate-spin" /> : <Save />}{' '}
-                  Save allocation
-                </Button>
+                  <span className="inline-flex">
+                    <Button
+                      className="cursor-pointer"
+                      disabled={
+                        busy ||
+                        draftOverBy > 0 ||
+                        bucketsMissingDistributors > 0 ||
+                        bucketsMissingCity > 0
+                      }
+                      onClick={submitAllocation}
+                    >
+                      {isSavingAllocation ? <Loader2 className="animate-spin" /> : <Save />}{' '}
+                      Save allocation
+                    </Button>
+                  </span>
+                </Hint>
                 <Button
                   variant="outline"
                   className="cursor-pointer"
@@ -508,8 +543,12 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                 label={
                   allocationDirty
                     ? 'Save the counts first — publish reads what the server holds, not the draft on screen.'
-                    : canPublish
-                      ? 'Hand this month to the sales incharge. He dates the days you allocated, picks the distributor and beats for each, and fills the rest of the month himself. There is no unpublish.'
+                    : savedOverBy > 0
+                      ? `This month allocates ${savedOverBy} day${
+                          savedOverBy === 1 ? '' : 's'
+                        } more than it holds. Bring the counts within the month before publishing.`
+                      : canPublish
+                        ? 'Hand this month to the sales incharge. He dates the days you allocated, picks the distributor and beats for each, and fills the rest of the month himself. There is no unpublish.'
                       : 'Nothing is allocated yet, so there would be nothing to hand over.'
                 }
               >

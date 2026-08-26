@@ -1,10 +1,20 @@
-import { useMemo, useState } from 'react'
-import { CalendarClock, Plus, Store, Trash2, TriangleAlert, Truck } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import {
+  CalendarClock,
+  MapPin,
+  Plus,
+  Store,
+  Trash2,
+  TriangleAlert,
+  Truck,
+  X,
+} from 'lucide-react'
 import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
 import { takesCity } from '../lib/activities'
+import { BucketDatePicker } from './bucket-date-picker'
 import { DayCountInput } from './day-count-input'
 import type {
   ActivityAllocation,
@@ -42,10 +52,12 @@ function sum(rows: BucketDraft[]): number {
  * "18 of 31 days allocated · 13 left to him" — rather than as a variance to
  * clear, and nothing here is coloured as an error for being short.
  *
- * ── Going OVER the month is legal too ──────────────────────────────────────
- * A date can carry two entries, so 40 days of work fits in a 31-day month by
- * doubling dates up. It is worth saying, because it is rarely intended, so it
- * gets a warning — but nothing stops it, and no ceiling prevents typing it.
+ * ── Going OVER the month is the one thing that BLOCKS ──────────────────────
+ * A month cannot be worked for more days than it has, so an allocation whose
+ * counts add up past the calendar is refused: the running total turns red, the
+ * banner names the excess, and both the allocation Save and the Publish are
+ * disabled until it comes back inside the month. Nothing prevents *typing* it —
+ * the field would be unusable mid-edit — it is stopped at the commit.
  *
  * ── Only a SEARCH takes a city ─────────────────────────────────────────────
  * The API accepts a city on any activity bucket, but only a distributor search
@@ -55,6 +67,14 @@ function sum(rows: BucketDraft[]): number {
  * on. And the picker is the **whole city master**, not the cities his
  * distributors already sit in — a search is by definition somewhere he has
  * nobody yet.
+ *
+ * ── A distributor VISIT names its distributors ─────────────────────────────
+ * Same shape of idea as the city, one axis over: a `distributor_visit` bucket
+ * carries a **set** of distributors — "four days calling on these three" — as
+ * chips plus an adder rather than a select. It is a set on ONE bucket, not an
+ * identity axis: adding a distributor edits the bucket, it does not split it,
+ * which is what separates it from the distributor panel on the right (one
+ * bucket per distributor, each with its own count of field-selling days).
  *
  * Two rules are still enforced by construction rather than by a validator,
  * because a control that can't take a wrong answer beats an error message:
@@ -68,6 +88,8 @@ function sum(rows: BucketDraft[]): number {
  */
 export function AllocationEditor({
   options,
+  month,
+  lockedDates,
   activityBuckets,
   distributorBuckets,
   onChangeActivities,
@@ -84,6 +106,13 @@ export function AllocationEditor({
   lockedReason,
 }: {
   options: AllocationOptions | undefined
+  /** The plan's month, `yyyy-MM` — the only month a pinned date may fall in. */
+  month: string
+  /**
+   * Dates a visit has already landed on. The server refuses a pin on one, so the
+   * calendar disables them rather than letting the whole save come back a 400.
+   */
+  lockedDates?: Set<string>
   activityBuckets: BucketDraft[]
   distributorBuckets: BucketDraft[]
   onChangeActivities: (next: BucketDraft[]) => void
@@ -105,19 +134,54 @@ export function AllocationEditor({
   const over = allocated > totalDays
 
   /**
-   * City names for the read-only rows.
+   * Names for cities picked in THIS session.
    *
-   * The plan's own buckets are the source, because `allocation-options` is not
-   * fetched at all once the allocation is frozen and the master picker is paged —
-   * an approved month would otherwise render every city as a raw id.
+   * Needed because `cityId` is part of a bucket's identity: picking one changes
+   * the row's React key, the row remounts, and the Combobox's own memory of what
+   * was chosen goes with it. The name is captured at pick time — where the
+   * option is certainly loaded — and kept here, above the row.
+   */
+  const [pickedCityNames, setPickedCityNames] = useState<Map<string, string>>(new Map())
+
+  const rememberCity = (cityId: string | null) => {
+    if (!cityId) return
+    const label = city.options.find((option) => option.value === cityId)?.label
+    if (!label) return
+    setPickedCityNames((previous) => {
+      if (previous.get(cityId) === label) return previous
+      const next = new Map(previous)
+      next.set(cityId, label)
+      return next
+    })
+  }
+
+  /**
+   * Names for distributors picked in this session — the same insurance the
+   * cities have. `allocation-options.distributors` is the whole reachable list
+   * today, but it is a server list with a page size, and a chip that reads
+   * `Distributor 42` is the failure mode when it stops being complete.
+   */
+  const [pickedDistributorNames, setPickedDistributorNames] = useState<
+    Map<string, string>
+  >(new Map())
+
+  /**
+   * A city's name, for the read-only rows and for the picker's fallback label.
+   *
+   * Four sources, in order of authority: the plan's own buckets (the only one an
+   * approved month has, since `allocation-options` is not fetched then), what was
+   * picked here this session, the master page currently loaded, and — when the
+   * server sent an id with no name and the master has not reached it — the id.
    */
   const cityNameById = useMemo(() => {
     const map = new Map<string, string>()
+    for (const option of city.options) map.set(option.value, option.label)
+    for (const [cityId, name] of pickedCityNames) map.set(cityId, name)
     for (const bucket of savedActivities) {
       if (bucket.cityId && bucket.cityName) map.set(bucket.cityId, bucket.cityName)
     }
     return map
-  }, [savedActivities])
+  }, [savedActivities, city.options, pickedCityNames])
 
   /**
    * Which activities take a city — read off the CODE, which comes from the
@@ -185,7 +249,8 @@ export function AllocationEditor({
   const nameOfActivity = useMemo(() => {
     const map = new Map<string, string>()
     for (const activity of savedActivities) {
-      if (activity.activityName) map.set(String(activity.activityId), activity.activityName)
+      if (activity.activityName)
+        map.set(String(activity.activityId), activity.activityName)
     }
     for (const activity of options?.activities ?? []) {
       map.set(String(activity.activityId), activity.name)
@@ -195,14 +260,56 @@ export function AllocationEditor({
 
   const nameOfDistributor = useMemo(() => {
     const map = new Map<string, string>()
+    for (const [distributorId, name] of pickedDistributorNames) {
+      map.set(distributorId, name)
+    }
     for (const row of savedDistributors) {
       if (row.distributorName) map.set(row.distributorId, row.distributorName)
+    }
+    // The ones named on an ACTIVITY bucket need naming too, and an approved
+    // month fetches no options at all — the saved buckets are the only source.
+    for (const bucket of savedActivities) {
+      for (const row of bucket.distributors) {
+        if (row.distributorName) map.set(row.distributorId, row.distributorName)
+      }
     }
     for (const row of options?.distributors ?? []) {
       if (row.distributorName) map.set(row.distributorId, row.distributorName)
     }
     return map
-  }, [savedDistributors, options?.distributors])
+  }, [savedDistributors, savedActivities, options?.distributors, pickedDistributorNames])
+
+  /**
+   * Activities that must name at least one distributor.
+   *
+   * Off `requires_distributors`, **never off the code** — the flag is data and
+   * the client may move it to another activity. An approved month fetches no
+   * options at all; there the saved bucket's own `distributors` is the only
+   * evidence, and it is enough, because nothing there is editable anyway.
+   */
+  const needsDistributors = useMemo(() => {
+    const set = new Set<string>()
+    for (const activity of options?.activities ?? []) {
+      if (activity.requiresDistributors) set.add(String(activity.activityId))
+    }
+    for (const bucket of savedActivities) {
+      if (bucket.distributors.length > 0) set.add(String(bucket.activityId))
+    }
+    return set
+  }, [options?.activities, savedActivities])
+
+
+  /** Every allocatable distributor, as the visit picker offers them. */
+  const distributorOptions = useMemo<ComboboxOption[]>(
+    () =>
+      (options?.distributors ?? []).map((distributor) => ({
+        label: distributor.distributorName ?? `Distributor ${distributor.distributorId}`,
+        value: distributor.distributorId,
+        badge: `${distributor.beatCount} beat${distributor.beatCount === 1 ? '' : 's'}`,
+        hint: distributor.cityName ?? undefined,
+      })),
+    [options?.distributors],
+  )
 
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
@@ -217,7 +324,9 @@ export function AllocationEditor({
           <span
             className={cn(
               'cursor-default rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums',
-              over ? 'bg-warning/15 text-warning' : 'bg-muted text-muted-foreground',
+              over
+                ? 'bg-destructive/15 text-destructive'
+                : 'bg-muted text-muted-foreground',
             )}
           >
             {allocated} / {totalDays} days
@@ -239,19 +348,20 @@ export function AllocationEditor({
         </p>
       ) : null}
 
-      {/* Reachable, and occasionally deliberate — a date carrying two entries
-          spends two allocated days — so this states the consequence rather than
-          demanding a fix. Publishing is not affected. */}
+      {/* The one blocking state on this screen: a month cannot promise more days
+          than it holds, so neither the Save nor the Publish will take it. Short of
+          the month is still perfectly fine — that is the sales incharge's to fill. */}
       {over ? (
         <p
           role="alert"
-          className="flex items-start gap-2 border-b border-warning/25 bg-warning/10 px-4 py-2.5 text-xs font-medium text-warning"
+          className="flex items-start gap-2 border-b border-destructive/25 bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive"
         >
           <TriangleAlert className="mt-px size-3.5 shrink-0" />
           <span>
-            You have promised {allocated} days of work in a {totalDays}-day month.
-            He can only fit that by putting two activities on the same date — fine
-            if you meant it, worth a second look if you did not.
+            You have promised {allocated} days of work in a {totalDays}-day month —{' '}
+            {allocated - totalDays} more than it holds. Reduce the counts by{' '}
+            {allocated - totalDays} day
+            {allocated - totalDays === 1 ? '' : 's'} before saving or publishing.
           </span>
         </p>
       ) : null}
@@ -264,6 +374,8 @@ export function AllocationEditor({
           icon={CalendarClock}
           blurb="Fixed days — meetings, weekly offs, training, distributor search. Field selling is never here: that is allocated by distributor."
           emptyCopy="No activity days. Nothing about the month is fixed for him."
+          month={month}
+          lockedDates={lockedDates}
           rows={activityBuckets}
           nameOf={(row) => nameOfActivity.get(row.id) ?? `Activity ${row.id}`}
           savedOf={(row) => savedActivityByKey.get(bucketKey(row))?.daysScheduled}
@@ -273,9 +385,14 @@ export function AllocationEditor({
             takesCity(codeOfActivity.get(row.id))
               ? {
                   value: row.cityId ?? null,
+                  // No fabricated "City 173": the master is paged and cannot be
+                  // asked for one id, so when the bucket came back with a
+                  // `city_id` and no `city_name` there is genuinely no name to
+                  // show. Say that, rather than printing the row's primary key.
                   name: row.cityId
-                    ? (cityNameById.get(row.cityId) ?? `City ${row.cityId}`)
+                    ? (cityNameById.get(row.cityId) ?? 'Selected city')
                     : null,
+                  remember: rememberCity,
                   select: {
                     ...city,
                     options: city.options.filter(
@@ -290,8 +407,28 @@ export function AllocationEditor({
                 }
               : undefined
           }
+          // Only an activity the master flags names distributors, and it names a
+          // set of them on one bucket. Every other row renders no picker at all,
+          // and sending ids on one is a 400.
+          distributorsOf={(row) =>
+            needsDistributors.has(row.id)
+              ? {
+                  ids: row.distributorIds ?? [],
+                  nameOf: (id) => nameOfDistributor.get(id) ?? `Distributor ${id}`,
+                  options: distributorOptions,
+                  remember: (distributorId, label) =>
+                    setPickedDistributorNames((previous) =>
+                      previous.get(distributorId) === label
+                        ? previous
+                        : new Map(previous).set(distributorId, label),
+                    ),
+                }
+              : undefined
+          }
           addOptions={addableActivities}
           addPlaceholder="Add an activity"
+          searchPlaceholder="Search activities…"
+          withDates
           exhaustedHint="Every allocatable activity already has a count. Give one a city to add it a second time."
           subtotal={activityDays}
           totalDays={totalDays}
@@ -305,6 +442,7 @@ export function AllocationEditor({
           icon={Truck}
           blurb="Days per distributor — the unit field time comes in. He picks which of that distributor's beats to work, and on which dates."
           emptyCopy="No distributors allocated — nothing says where he is meant to sell this month."
+          month={month}
           rows={distributorBuckets}
           nameOf={(row) => nameOfDistributor.get(row.id) ?? `Distributor ${row.id}`}
           savedOf={(row) => savedDistributorById.get(row.id)?.daysScheduled}
@@ -321,6 +459,7 @@ export function AllocationEditor({
           }}
           addOptions={addableDistributors}
           addPlaceholder="Add a distributor"
+          searchPlaceholder="Search distributors…"
           exhaustedHint="Every distributor his beats reach already has a count."
           subtotal={distributorDays}
           totalDays={totalDays}
@@ -340,11 +479,22 @@ interface RowMeta {
   city?: string | null
 }
 
+/** The distributors named on a visit row: the set, their names, and the picker. */
+interface RowDistributors {
+  ids: string[]
+  nameOf: (id: string) => string
+  options: ComboboxOption[]
+  /** Called with what was just picked, so its name outlives the option list. */
+  remember: (distributorId: string, label: string) => void
+}
+
 /** The optional city on a search row: its value, its name, and the master picker. */
 interface RowCity {
   value: string | null
   name: string | null
   select: CitySelect
+  /** Called with the picked id, so its name survives the row's remount. */
+  remember: (cityId: string | null) => void
 }
 
 /**
@@ -358,13 +508,18 @@ function BucketPanel({
   icon: Icon,
   blurb,
   emptyCopy,
+  month,
+  lockedDates,
   rows,
   nameOf,
   savedOf,
   metaOf,
   cityOf,
+  distributorsOf,
   addOptions,
   addPlaceholder,
+  searchPlaceholder,
+  withDates = false,
   exhaustedHint,
   subtotal,
   totalDays,
@@ -376,6 +531,8 @@ function BucketPanel({
   icon: typeof Truck
   blurb: string
   emptyCopy: string
+  month: string
+  lockedDates?: Set<string>
   rows: BucketDraft[]
   nameOf: (row: BucketDraft) => string
   /** Days the sales incharge has already dated against this bucket, if any. */
@@ -383,8 +540,20 @@ function BucketPanel({
   metaOf?: (row: BucketDraft) => RowMeta
   /** `undefined` for a row whose activity has no use for a city. */
   cityOf?: (row: BucketDraft) => RowCity | undefined
+  /** `undefined` for a row whose activity names no distributors. */
+  distributorsOf?: (row: BucketDraft) => RowDistributors | undefined
   addOptions: ComboboxOption[]
   addPlaceholder: string
+  /** Placeholder in the adder's search box (e.g. "Search distributors…"). */
+  searchPlaceholder: string
+  /**
+   * Offer the optional date pins on these rows.
+   *
+   * Activity days only. A distributor bucket is field selling — which of that
+   * distributor's beats on which date is the sales incharge's whole job, and
+   * pinning dates for him from here is the one thing the model does not do.
+   */
+  withDates?: boolean
   exhaustedHint: string
   subtotal: number
   /** Calendar days in the month — a single bucket never sensibly exceeds it. */
@@ -407,10 +576,45 @@ function BucketPanel({
 
   const patch = (row: BucketDraft, next: Partial<BucketDraft>) =>
     onChange(
-      rows.map((candidate) =>
-        bucketKey(candidate) === bucketKey(row) ? { ...candidate, ...next } : candidate,
-      ),
+      rows.map((candidate) => {
+        if (bucketKey(candidate) !== bucketKey(row)) return candidate
+        const merged = { ...candidate, ...next }
+        // Pinned dates can never outnumber the days they are pinned on, so
+        // lowering the count drops the ones that no longer fit — from the end,
+        // which is the order they were added in.
+        return merged.dates && merged.dates.length > merged.daysCount
+          ? { ...merged, dates: merged.dates.slice(0, merged.daysCount) }
+          : merged
+      }),
     )
+
+  /**
+   * Which bucket has fixed which date — **one date carries one fixed activity.**
+   *
+   * A date is a day of his month: two activities pinned to it is two
+   * instructions for the same day, and nothing downstream can act on both. The
+   * calendar therefore disables a date another bucket already holds, which is
+   * also what keeps `JOURNEY_PLAN_DUPLICATE_FIXED_DATE` unreachable.
+   */
+  const dateOwner = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const row of rows) {
+      for (const date of row.dates ?? []) map.set(date, bucketKey(row))
+    }
+    return map
+  }, [rows])
+
+  /** The same map from one row's point of view: dates it does NOT hold. */
+  const datesTakenFrom = (row: BucketDraft): Map<string, string> => {
+    const key = bucketKey(row)
+    const taken = new Map<string, string>()
+    for (const [date, owner] of dateOwner) {
+      if (owner === key) continue
+      const holder = rows.find((candidate) => bucketKey(candidate) === owner)
+      taken.set(date, holder ? nameOf(holder) : 'another activity')
+    }
+    return taken
+  }
 
   const remove = (row: BucketDraft) =>
     onChange(rows.filter((candidate) => bucketKey(candidate) !== bucketKey(row)))
@@ -433,108 +637,274 @@ function BucketPanel({
           {emptyCopy}
         </p>
       ) : (
-        // Capped rather than grown: a month can hold a dozen distributor buckets,
-        // and the two panels sit side by side — an uncapped list pushes the
-        // calendar below off the screen and leaves the shorter panel with a wall
-        // of white beside it. `pr-1` keeps the scrollbar off the counts.
-        <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1">
+        // Grows with the buckets, then STOPS: a month can hold a dozen of them
+        // and the two panels sit side by side, so an uncapped list pushes the
+        // calendar below off the screen. Short lists stay short — a fixed height
+        // would leave a wall of white under two rows. `pr-1.5` keeps the
+        // scrollbar off the counts.
+        <ul className="mt-3 max-h-[30rem] space-y-2 overflow-y-auto overscroll-contain pr-1.5">
           {rows.map((row) => {
             const scheduled = savedOf(row)
             const meta = metaOf?.(row)
             const rowCity = cityOf?.(row)
+            const rowDistributors = distributorsOf?.(row)
             // A count below what the sales incharge has already dated is what
             // `schedule_mismatch` reports. It no longer blocks anything, but it is
             // still the kind of thing to notice before saving rather than after.
             const undercut = scheduled != null && scheduled > row.daysCount
 
+            const beatsLine =
+              meta && meta.beats != null && meta.beats > 0
+                ? `${meta.beats} beat${meta.beats === 1 ? '' : 's'}${meta.outlets ? ` · ${meta.outlets} outlets` : ''}`
+                : null
+            const hasMeta = Boolean(beatsLine || meta?.city || scheduled != null)
+
             return (
-              <li key={bucketKey(row)} className="flex items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="flex items-center gap-1.5 truncate text-sm text-foreground">
-                    <span className="truncate">{nameOf(row)}</span>
-                    {/* 0 beats is `distributor_without_beats`: the allocation was
-                        right when it was made and the beat master moved under it. */}
-                    {meta && meta.beats === 0 ? (
-                      <Hint label="He holds no beat serving this distributor, so he cannot work these days. Fix the beat allocation, or move the days elsewhere.">
-                        <span className="inline-flex shrink-0 cursor-default items-center gap-0.5 rounded-full bg-warning/15 px-1.5 text-[10px] font-semibold text-warning">
-                          <TriangleAlert className="size-2.5" />
-                          no beats
+              <li
+                key={bucketKey(row)}
+                className="rounded-lg border border-border/60 bg-muted/25 p-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="flex items-center gap-1.5 text-sm leading-5 text-foreground">
+                      {/* The card is narrow and a distributor's registered name
+                          is not, so the truncated title keeps the whole of it. */}
+                      <Hint label={nameOf(row)}>
+                        <span className="min-w-0 cursor-default truncate">
+                          {nameOf(row)}
                         </span>
                       </Hint>
-                    ) : null}
-                  </p>
+                      {/* 0 beats is `distributor_without_beats`: the allocation was
+                          right when it was made and the beat master moved under it. */}
+                      {meta && meta.beats === 0 ? (
+                        <Hint label="He holds no beat serving this distributor, so he cannot work these days. Fix the beat allocation, or move the days elsewhere.">
+                          <span className="inline-flex shrink-0 cursor-default items-center gap-0.5 rounded-full bg-warning/15 px-1.5 text-[10px] font-semibold text-warning">
+                            <TriangleAlert className="size-2.5" />
+                            no beats
+                          </span>
+                        </Hint>
+                      ) : null}
+                    </p>
 
-                  {rowCity ? (
-                    <div className="mt-1">
-                      {readOnly ? (
-                        <span className="text-[11px] text-muted-foreground">
-                          {rowCity.name ?? 'Anywhere'}
-                        </span>
-                      ) : (
-                        // The whole city master, paged and server-searched — a
-                        // search is by definition somewhere he has no
-                        // distributor yet, so his existing cities are the wrong
-                        // list to narrow to.
-                        <Combobox
-                          value={rowCity.value ?? ''}
-                          onChange={(cityId) => patch(row, { cityId: cityId || null })}
-                          options={rowCity.select.options}
-                          loading={rowCity.select.loading}
-                          onScrollEnd={rowCity.select.onScrollEnd}
-                          onSearchChange={rowCity.select.onSearchChange}
-                          searchable
-                          placeholder="Anywhere"
-                          searchPlaceholder="Search cities…"
+                    {/* Rendered only when there is something to say — an empty
+                        meta line is pure row height, and these rows sit in a
+                        capped scroller beside a second panel. */}
+                    {hasMeta ? (
+                      <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] leading-4 tabular-nums text-muted-foreground">
+                        {beatsLine ? (
+                          <span className="inline-flex items-center gap-1">
+                            <Store className="size-2.5" />
+                            {beatsLine}
+                          </span>
+                        ) : null}
+                        {meta?.city ? <span>{meta.city}</span> : null}
+                        {scheduled != null ? (
+                          <span className={cn(undercut && 'font-medium text-warning')}>
+                            {scheduled} scheduled
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* The count and the bin sit on the NAME line and stay there
+                      whether or not the row carries a city, so every row in the
+                      list keeps one column of controls at one height. */}
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {/* Capped at the length of the month, and at nothing else: a
+                        single bucket bigger than the calendar is certainly a typo,
+                        but the TOTAL across buckets is free to exceed it, because a
+                        date can carry two entries. */}
+                    <DayCountInput
+                      value={row.daysCount}
+                      max={totalDays || undefined}
+                      disabled={readOnly || busy}
+                      ariaLabel={`Days for ${nameOf(row)}`}
+                      onChange={(daysCount) => patch(row, { daysCount })}
+                      className="h-8 w-14 text-sm"
+                    />
+                    {!readOnly ? (
+                      <Hint label="Remove this bucket">
+                        <button
+                          type="button"
                           disabled={busy}
-                          className="h-8 w-full min-w-0 text-xs"
+                          onClick={() => remove(row)}
+                          aria-label={`Remove ${nameOf(row)}`}
+                          className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-md bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:text-rose-400"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </Hint>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* The fields the bucket carries, each in its own labelled row
+                    under a rule: which are present differs by activity (only a
+                    search takes a city, only a visit names distributors) and
+                    without a label they read as one unexplained stack of
+                    controls. Dates are always here; they are always optional. */}
+                {rowCity || rowDistributors || withDates ? (
+                  <dl className="mt-2.5 space-y-2 border-t border-border/60 pt-2.5">
+                    {rowCity ? (
+                      <Field label="City">
+                        {readOnly ? (
+                          <span className="flex h-8 items-center gap-1.5 text-xs text-muted-foreground">
+                            <MapPin className="size-3 shrink-0" />
+                            <span className="truncate">{rowCity.name ?? 'Anywhere'}</span>
+                          </span>
+                        ) : (
+                          // The whole city master, paged and server-searched — a
+                          // search is by definition somewhere he has no
+                          // distributor yet, so his existing cities are the wrong
+                          // list to narrow to.
+                          <Combobox
+                            value={rowCity.value ?? ''}
+                            onChange={(cityId) => {
+                              rowCity.remember(cityId || null)
+                              patch(row, { cityId: cityId || null })
+                            }}
+                            options={rowCity.select.options}
+                            loading={rowCity.select.loading}
+                            onScrollEnd={rowCity.select.onScrollEnd}
+                            onSearchChange={rowCity.select.onSearchChange}
+                            icon={MapPin}
+                            searchable
+                            // A search with no city is a real answer — "find
+                            // someone, anywhere" — so the field has to be able
+                            // to go back to empty once it has a value.
+                            clearable
+                            placeholder="Anywhere"
+                            searchPlaceholder="Search cities…"
+                            // The master is paged: a city picked in an earlier
+                            // session is very rarely on the first page, so
+                            // without the plan's own name for it the trigger
+                            // would read "Anywhere" over a bucket that has one.
+                            fallbackLabel={rowCity.name ?? undefined}
+                            disabled={busy}
+                            className="h-8 w-full min-w-0 text-xs"
+                          />
+                        )}
+
+                        {/* Required by this screen, not by the API: a search
+                            with no city is "find someone, somewhere", which is
+                            not a day anyone can be sent out on. */}
+                        {!readOnly && !rowCity.value ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                            <TriangleAlert className="size-3 shrink-0" />
+                            Pick a city
+                          </span>
+                        ) : null}
+                      </Field>
+                    ) : null}
+
+                    {rowDistributors ? (
+                      // A SET on one bucket, so it reads as chips plus an adder
+                      // rather than a single select: "four days of visits, across
+                      // these three". Removing the last one is legal — the bucket
+                      // is then days of visiting nobody in particular yet.
+                      <Field label="Distributors">
+                        {/* `w-full min-w-0`: as a flex item of the field's `dd`
+                            this box would otherwise take its width from the
+                            chips inside it — the default `min-width: auto` — and
+                            carry them straight past the card's edge. */}
+                        <div className="flex w-full min-w-0 flex-wrap items-center gap-1.5">
+                          {rowDistributors.ids.map((id) => (
+                            <span
+                              key={id}
+                              // `min-w-0` + `overflow-hidden` is what makes the
+                              // chip give way instead of pushing its own × past
+                              // the card's edge: without it the name sets a
+                              // floor the flex line cannot go under.
+                              className="inline-flex h-8 min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-full border border-border/60 bg-background pr-1.5 pl-2.5 text-xs text-foreground"
+                            >
+                              <Truck className="size-3 shrink-0 text-muted-foreground" />
+                              {/* Truncation is the point of the chip; the hint
+                                  is where the whole name still lives. */}
+                              <Hint label={rowDistributors.nameOf(id)}>
+                                <span className="min-w-0 cursor-default truncate">
+                                  {rowDistributors.nameOf(id)}
+                                </span>
+                              </Hint>
+                              {!readOnly ? (
+                                <button
+                                  type="button"
+                                  disabled={busy}
+                                  onClick={() =>
+                                    patch(row, {
+                                      distributorIds: rowDistributors.ids.filter(
+                                        (candidate) => candidate !== id,
+                                      ),
+                                    })
+                                  }
+                                  aria-label={`Remove ${rowDistributors.nameOf(id)}`}
+                                  className="grid size-5 shrink-0 cursor-pointer place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              ) : null}
+                            </span>
+                          ))}
+
+                          {readOnly && rowDistributors.ids.length === 0 ? (
+                            <span className="text-xs text-muted-foreground">
+                              None named
+                            </span>
+                          ) : null}
+
+                          {/* Required, not optional: a bucket the master flags
+                              and that names nobody is refused for the whole
+                              month with `ACTIVITY_DISTRIBUTORS_REQUIRED`, so the
+                              row says so before the Save does. */}
+                          {!readOnly && rowDistributors.ids.length === 0 ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-destructive">
+                              <TriangleAlert className="size-3 shrink-0" />
+                              Pick at least one
+                            </span>
+                          ) : null}
+
+                          {!readOnly ? (
+                            // The picker holds no value of its own — it adds one
+                            // and resets, the same contract as the panel's adder.
+                            <AddDistributor
+                              options={rowDistributors.options.filter(
+                                (option) => !rowDistributors.ids.includes(option.value),
+                              )}
+                              disabled={busy}
+                              empty={rowDistributors.ids.length === 0}
+                              onAdd={(id, label) => {
+                                rowDistributors.remember(id, label)
+                                patch(row, {
+                                  distributorIds: [...rowDistributors.ids, id],
+                                })
+                              }}
+                            />
+                          ) : null}
+                        </div>
+                      </Field>
+                    ) : null}
+
+                    {/* Optional, and normally left alone: the dates are the sales
+                      incharge's to pick. This is for the days that are already
+                      fixed — the meeting that is on the 4th. Activity rows only;
+                      a distributor's days are his to date. */}
+                    {withDates && (!readOnly || (row.dates?.length ?? 0) > 0) ? (
+                      <Field label="Dates">
+                        <BucketDatePicker
+                          month={month}
+                          lockedDates={lockedDates}
+                          takenDates={datesTakenFrom(row)}
+                          dates={row.dates ?? []}
+                          max={row.daysCount}
+                          label={nameOf(row)}
+                          readOnly={readOnly}
+                          disabled={busy}
+                          onChange={(dates) => patch(row, { dates })}
                         />
-                      )}
-                    </div>
-                  ) : null}
-
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] tabular-nums text-muted-foreground">
-                    {meta && meta.beats != null && meta.beats > 0 ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Store className="size-2.5" />
-                        {meta.beats} beat{meta.beats === 1 ? '' : 's'}
-                        {meta.outlets ? ` · ${meta.outlets} outlets` : ''}
-                      </span>
+                      </Field>
                     ) : null}
-                    {meta?.city ? <span>{meta.city}</span> : null}
-                    {scheduled != null ? (
-                      <span className={cn(undercut && 'font-medium text-warning')}>
-                        {scheduled} scheduled
-                      </span>
-                    ) : null}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {/* Capped at the length of the month, and at nothing else: a
-                      single bucket bigger than the calendar is certainly a typo,
-                      but the TOTAL across buckets is free to exceed it, because a
-                      date can carry two entries. */}
-                  <DayCountInput
-                    value={row.daysCount}
-                    max={totalDays || undefined}
-                    disabled={readOnly || busy}
-                    ariaLabel={`Days for ${nameOf(row)}`}
-                    onChange={(daysCount) => patch(row, { daysCount })}
-                  />
-                  {!readOnly ? (
-                    <Hint label="Remove this bucket">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => remove(row)}
-                        aria-label={`Remove ${nameOf(row)}`}
-                        className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 dark:text-rose-400"
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    </Hint>
-                  ) : null}
-                </div>
+                  </dl>
+                ) : null}
               </li>
             )
           })}
@@ -553,13 +923,88 @@ function BucketPanel({
               options={addOptions}
               icon={Plus}
               placeholder={addPlaceholder}
-              searchable={addOptions.length > 8}
+              // Always searchable, both panels: a month's distributor list runs
+              // long and an activity master is tenant-editable, so neither is
+              // reliably short enough to scan.
+              searchable
+              searchPlaceholder={searchPlaceholder}
               disabled={busy}
               className="w-full"
             />
           )}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+/**
+ * The "+ distributor" control on a visit row.
+ *
+ * Its own component only so it can keep the reset key that clears the trigger
+ * text after each pick — the Combobox is a value-less adder here, not a select.
+ */
+function AddDistributor({
+  options,
+  disabled,
+  empty,
+  onAdd,
+}: {
+  options: ComboboxOption[]
+  disabled: boolean
+  /** Nothing picked yet, so the control carries the whole instruction. */
+  empty: boolean
+  onAdd: (id: string, label: string) => void
+}) {
+  const [key, setKey] = useState(0)
+
+  if (options.length === 0) {
+    return empty ? (
+      <span className="text-xs text-muted-foreground">None available.</span>
+    ) : null
+  }
+
+  return (
+    <Combobox
+      key={key}
+      value=""
+      onChange={(id) => {
+        if (!id) return
+        // The label comes from the list that is loaded right now — after the
+        // add, the row re-renders against a list that may not hold it.
+        onAdd(id, options.find((option) => option.value === id)?.label ?? id)
+        setKey((k) => k + 1)
+      }}
+      options={options}
+      icon={Plus}
+      placeholder={empty ? 'Add a distributor' : 'Add another'}
+      searchable
+      searchPlaceholder="Search distributors…"
+      disabled={disabled}
+      className="inline-flex w-auto max-w-full shrink-0"
+      // Shaped like the date chip beside it: both are optional adders sitting in
+      // a row of chips, and a field-shaped control among them reads as a blank
+      // someone forgot to fill in.
+      triggerClassName="h-8 w-auto gap-1.5 rounded-full border-dashed px-3 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground [&_svg]:size-3.5"
+    />
+  )
+}
+
+/**
+ * One labelled field inside a bucket card.
+ *
+ * A label column rather than a stack of bare controls: which fields a bucket
+ * carries changes from row to row — a search has a city, a visit has
+ * distributors, everything has dates — so an unlabelled control is a question
+ * the admin has to answer by recognising the placeholder.
+ */
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2">
+      <dt className="w-20 shrink-0 pt-2 text-xs leading-4 font-medium text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{children}</dd>
     </div>
   )
 }

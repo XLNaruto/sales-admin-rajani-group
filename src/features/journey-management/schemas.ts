@@ -136,6 +136,24 @@ export const activityAllocationSchema = z.object({
   activity_name: z.string().nullish(),
   city_id: optionalId,
   city_name: z.string().nullish(),
+  /**
+   * Distributors named on this bucket — a **set**, not an identity axis: one
+   * `distributor_visit` bucket says "four days across these three". Echoed with
+   * names where the server has them; the bare id list is accepted too, for a
+   * server that only stores the join.
+   */
+  distributors: z
+    .array(
+      z.object({
+        distributor_id: id,
+        distributor_name: z.string().nullish(),
+        city_id: optionalId,
+        city_name: z.string().nullish(),
+      }),
+    )
+    .nullish(),
+  /** Dates the ADMIN pinned on this bucket, `yyyy-MM-dd`. Optional, and usually empty. */
+  dates: z.array(z.string()).nullish(),
   days_count: int,
   days_scheduled: int,
 })
@@ -176,6 +194,19 @@ export const planDayActivitySchema = z.object({
   city_id: optionalId,
   city_name: z.string().nullish(),
   beats: z.array(planDayBeatSchema).nullish(),
+  /** Fixed by the ADMIN from an allocation's `dates` — the rep cannot touch it. */
+  pinned: z.boolean().nullish(),
+  /** Who this date calls on, **in intended order** — a visit entry only. */
+  distributors: z
+    .array(
+      z.object({
+        distributor_id: id,
+        distributor_name: z.string().nullish(),
+        city_id: optionalId,
+        city_name: z.string().nullish(),
+      }),
+    )
+    .nullish(),
   joint_working_sales_incharge_id: optionalId,
   joint_working_sales_incharge_name: z.string().nullish(),
   reason: z.string().nullish(),
@@ -250,6 +281,8 @@ export const allocationOptionsSchema = z.object({
         code: z.string(),
         name: z.string(),
         is_working_day: z.boolean().nullish(),
+        /** The bucket must name at least one distributor. Data, never a code check. */
+        requires_distributors: z.boolean().nullish(),
       }),
     )
     .nullish(),
@@ -302,6 +335,8 @@ export const activityListSchema = z.object({
       name: z.string(),
       sort_order: z.coerce.number().nullish(),
       requires_beat: z.boolean().nullish(),
+      /** The entry must name who it calls on — a distributor visit. */
+      requires_distributors: z.boolean().nullish(),
       is_working_day: z.boolean().nullish(),
       counts_toward_coverage: z.boolean().nullish(),
       company_id: optionalId,

@@ -29,7 +29,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { decryptParams, encryptParams } from '@/lib/crypto'
-import { toastsuccessmsg } from '@/lib/toast'
+import { toasterrormsg, toastsuccessmsg } from '@/lib/toast'
 import { toastApiError } from '@/lib/api-toast'
 import { useCan } from '@/features/permissions'
 import { useCitySelect } from '@/features/location'
@@ -45,14 +45,20 @@ import {
   useSaveSchedule,
 } from '../api/use-journey-plan-detail'
 import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
+import { takesCity } from '../lib/activities'
 import { isLocked, planIssues } from '../lib/plan-flags'
+import { planErrorHint } from '../lib/plan-errors'
 import {
   canEditAllocation,
   canEditSchedule,
   isApprovable,
   isPublishable,
 } from '../lib/plan-status'
-import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
+import {
+  bucketKey,
+  sameIdSet,
+  type BucketDraft,
+} from '../lib/allocation-buckets'
 import type { ScheduleDraftDay, ScheduleDraftEntry } from '../components/schedule-table'
 import type { JourneyPlanDetail, ScheduleDayInput } from '../types'
 
@@ -86,6 +92,9 @@ function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
     id: String(bucket.activityId),
     // Part of the bucket's identity, not a decoration — see `bucketKey`.
     cityId: bucket.cityId,
+    // A set the bucket carries, unlike the city — see `BucketDraft`.
+    distributorIds: bucket.distributors.map((row) => row.distributorId),
+    dates: bucket.dates,
     daysCount: bucket.daysCount,
   }))
 }
@@ -110,12 +119,20 @@ function serverSchedule(plan: JourneyPlanDetail): Map<string, ScheduleDraftDay> 
     plan.days.map((day) => [
       day.date,
       {
-        entries: day.activities.map((entry) => ({
-          activityId: entry.activityId,
-          distributorId: entry.distributorId,
-          cityId: entry.cityId,
-          beatIds: entry.beats.map((beat) => beat.beatId),
-        })),
+        entries: day.activities
+          // Pinned work is deliberately NOT in the draft. The admin fixed it
+          // from an allocation bucket's dates, the server keeps it whatever the
+          // body says, and sending it back is a 400 `JOURNEY_PLAN_ENTRY_PINNED`.
+          // Keeping it out of the draft is what makes both true by construction.
+          .filter((entry) => !entry.pinned)
+          .map((entry) => ({
+            activityId: entry.activityId,
+            distributorId: entry.distributorId,
+            cityId: entry.cityId,
+            beatIds: entry.beats.map((beat) => beat.beatId),
+            // Order is the instruction here, so it is read off the entry as-is.
+            distributorIds: entry.distributors.map((row) => row.distributorId),
+          })),
       },
     ]),
   )
@@ -124,8 +141,16 @@ function serverSchedule(plan: JourneyPlanDetail): Map<string, ScheduleDraftDay> 
 /** Same buckets, ignoring order. Keyed on the PAIR — see `bucketKey`. */
 function sameBuckets(a: BucketDraft[], b: BucketDraft[]): boolean {
   if (a.length !== b.length) return false
-  const map = new Map(b.map((bucket) => [bucketKey(bucket), bucket.daysCount]))
-  return a.every((bucket) => map.get(bucketKey(bucket)) === bucket.daysCount)
+  const map = new Map(b.map((bucket) => [bucketKey(bucket), bucket]))
+  return a.every((bucket) => {
+    const other = map.get(bucketKey(bucket))
+    return (
+      other != null &&
+      other.daysCount === bucket.daysCount &&
+      sameIdSet(other.distributorIds, bucket.distributorIds) &&
+      sameIdSet(other.dates, bucket.dates)
+    )
+  })
 }
 
 /** Same piece of work — same activity, same distributor, same city, same beats in order. */
@@ -134,7 +159,11 @@ function sameEntry(a: ScheduleDraftEntry, b: ScheduleDraftEntry): boolean {
   if ((a.distributorId ?? null) !== (b.distributorId ?? null)) return false
   if ((a.cityId ?? null) !== (b.cityId ?? null)) return false
   if (a.beatIds.length !== b.beatIds.length) return false
-  return a.beatIds.every((id, i) => id === b.beatIds[i])
+  if (!a.beatIds.every((id, i) => id === b.beatIds[i])) return false
+  // Ordered, unlike the allocation's set: on an entry the order IS the
+  // instruction, so a reshuffle is a real edit.
+  if (a.distributorIds.length !== b.distributorIds.length) return false
+  return a.distributorIds.every((id, i) => id === b.distributorIds[i])
 }
 
 /** Same calendar — same dates, each carrying the same work in the same order. */
@@ -216,7 +245,10 @@ export function useJourneyPlan(data?: string) {
    * it feeds is the editor.
    */
   const options = useAllocationOptions(inchargeId ?? plan?.inchargeId, month, {
-    enabled: allocationEditable,
+    // Also while only the SCHEDULE is editable: a visit entry may name any
+    // distributor his beats reach — not just the ones the admin allocated — and
+    // this is the only list that carries those with their names.
+    enabled: allocationEditable || scheduleEditable,
   })
 
   /**
@@ -298,15 +330,85 @@ export function useJourneyPlan(data?: string) {
     [editAllocation],
   )
 
-  /**
-   * Days the draft allocates. Reported, not enforced — nothing refuses on it,
-   * and it may legitimately exceed the length of the month.
-   */
+  /** Days the draft allocates, across both bucket sets. */
   const draftAllocatedDays = useMemo(
     () =>
       activityBuckets.reduce((sum, b) => sum + b.daysCount, 0) +
       distributorBuckets.reduce((sum, b) => sum + b.daysCount, 0),
     [activityBuckets, distributorBuckets],
+  )
+
+  /**
+   * Calendar days in the month. `allocation-options` is the source while the
+   * counts are editable; the plan's own progress covers the frozen months and the
+   * window before the options land.
+   */
+  const totalDays = options.data?.totalDays ?? plan?.progress.totalDays ?? 0
+
+  /**
+   * Days promised beyond the month — **the one hard stop on this screen.**
+   *
+   * Everything else here is advisory (a short month is normal, a mismatched
+   * schedule is a flag), but a month that promises more days than it holds cannot
+   * be worked as written, so neither the Save nor the Publish will take it.
+   */
+  const draftOverBy = totalDays > 0 ? Math.max(0, draftAllocatedDays - totalDays) : 0
+
+  /**
+   * The same excess on what the SERVER holds. Publish reads the saved plan, not
+   * the draft on screen, so it has to be gated on the saved figures.
+   */
+  const savedOverBy = Math.max(0, plan?.progress.allocationVariance ?? 0)
+
+  /**
+   * Which activities must name at least one distributor.
+   *
+   * Read off `requires_distributors`, **never off the code**: today only
+   * `distributor_visit` sets it, and the flag is the client's to move per
+   * activity. An id missing from the map is an activity the options never
+   * offered, and nothing requires distributors of it.
+   */
+  const requiresDistributors = useMemo(
+    () =>
+      new Set(
+        (options.data?.activities ?? [])
+          .filter((activity) => activity.requiresDistributors)
+          .map((activity) => String(activity.activityId)),
+      ),
+    [options.data?.activities],
+  )
+
+  /**
+   * Search buckets with no city.
+   *
+   * **A client-side rule, not the API's** — the server takes a city-less search
+   * happily. It is required here because "go and find a distributor, anywhere"
+   * is not an instruction anyone can act on: the city IS the search.
+   */
+  const bucketsMissingCity = useMemo(() => {
+    const codeOf = new Map<string, string>()
+    for (const activity of options.data?.activities ?? []) {
+      codeOf.set(String(activity.activityId), activity.code)
+    }
+    for (const bucket of plan?.activityAllocations ?? []) {
+      if (bucket.activityCode) codeOf.set(String(bucket.activityId), bucket.activityCode)
+    }
+    return activityBuckets.filter(
+      (bucket) => takesCity(codeOf.get(bucket.id)) && !bucket.cityId,
+    ).length
+  }, [activityBuckets, options.data?.activities, plan?.activityAllocations])
+
+  /**
+   * Visit buckets naming nobody — `JOURNEY_PLAN_ACTIVITY_DISTRIBUTORS_REQUIRED`.
+   * A hard stop like the over-allocation: the server refuses the whole save.
+   */
+  const bucketsMissingDistributors = useMemo(
+    () =>
+      activityBuckets.filter(
+        (bucket) =>
+          requiresDistributors.has(bucket.id) && !(bucket.distributorIds?.length ?? 0),
+      ).length,
+    [activityBuckets, requiresDistributors],
   )
 
   /* ── the schedule draft ──────────────────────────────────────────────────── */
@@ -380,7 +482,9 @@ export function useJourneyPlan(data?: string) {
           entries.splice(index, 1)
           return
         }
-        const takesBeats = activityById.get(activityId)?.requiresBeat ?? true
+        const activity = activityById.get(activityId)
+        const takesBeats = activity?.requiresBeat ?? true
+        const takesVisits = Boolean(activity?.requiresDistributors)
         const previous = entries[index]
         entries[index] = {
           activityId,
@@ -388,6 +492,9 @@ export function useJourneyPlan(data?: string) {
           // Derived server-side on a field entry, so there is nothing to keep.
           cityId: takesBeats ? null : (previous?.cityId ?? null),
           beatIds: takesBeats ? (previous?.beatIds ?? []) : [],
+          // Dropped the moment the work stops being a visit: the API refuses
+          // targets on an activity that takes none.
+          distributorIds: takesVisits ? (previous?.distributorIds ?? []) : [],
         }
       })
     },
@@ -406,6 +513,23 @@ export function useJourneyPlan(data?: string) {
         const previous = entries[index]
         if (!previous || previous.distributorId === distributorId) return
         entries[index] = { ...previous, distributorId, beatIds: [] }
+      })
+    },
+    [editEntry],
+  )
+
+  /**
+   * Who a visit entry calls on, in the order he means to.
+   *
+   * Order is stored, so this replaces the whole list rather than merging into a
+   * set the way the allocation bucket does.
+   */
+  const setEntryDistributors = useCallback(
+    (date: string, index: number, distributorIds: string[]) => {
+      editEntry(date, index, (entries) => {
+        const previous = entries[index]
+        if (!previous) return
+        entries[index] = { ...previous, distributorIds }
       })
     },
     [editEntry],
@@ -495,6 +619,20 @@ export function useJourneyPlan(data?: string) {
     [month, inchargeId, open],
   )
 
+  /**
+   * An activity id as the admin sees it, for the refusal hints — the options
+   * first, the plan's own buckets second, and the master last.
+   */
+  const activityNameOf = useCallback(
+    (activityId: number): string | undefined =>
+      options.data?.activities.find((activity) => activity.activityId === activityId)
+        ?.name ??
+      plan?.activityAllocations.find((bucket) => bucket.activityId === activityId)
+        ?.activityName ??
+      activities.data?.find((activity) => activity.id === activityId)?.name,
+    [options.data?.activities, plan?.activityAllocations, activities.data],
+  )
+
   /* ── the writes ──────────────────────────────────────────────────────────── */
 
   /**
@@ -508,12 +646,45 @@ export function useJourneyPlan(data?: string) {
   const submitAllocation = useCallback(() => {
     if (!plan || !planId || !allocationEditable || !allocationDirty) return
 
+    // Refused rather than warned: the counts cannot be worked as written, and a
+    // saved over-allocation is what would then block the publish.
+    if (draftOverBy > 0) {
+      toasterrormsg(
+        `The counts promise ${draftAllocatedDays} days in a ${totalDays}-day month. Remove ${draftOverBy} day${
+          draftOverBy === 1 ? '' : 's'
+        } before saving.`,
+      )
+      return
+    }
+
+    if (bucketsMissingCity > 0) {
+      toasterrormsg(
+        bucketsMissingCity === 1
+          ? 'One distributor search names no city. A search is a city — pick one, or remove the row.'
+          : `${bucketsMissingCity} distributor searches name no city. A search is a city — pick one on each, or remove the rows.`,
+      )
+      return
+    }
+
+    // The other hard stop: an activity flagged `requires_distributors` has to
+    // name at least one, or the save comes back a 400 for the whole month.
+    if (bucketsMissingDistributors > 0) {
+      toasterrormsg(
+        bucketsMissingDistributors === 1
+          ? 'One activity still names no distributor. Pick at least one, or remove the row.'
+          : `${bucketsMissingDistributors} activities still name no distributor. Pick at least one on each, or remove the rows.`,
+      )
+      return
+    }
+
     saveAllocation.mutate(
       {
         planId,
         activityAllocations: activityBuckets.map((bucket) => ({
           activityId: Number(bucket.id),
           cityId: bucket.cityId ?? null,
+          distributorIds: bucket.distributorIds ?? [],
+          dates: bucket.dates ?? [],
           daysCount: bucket.daysCount,
         })),
         distributorAllocations: distributorBuckets.map((bucket) => ({
@@ -539,9 +710,13 @@ export function useJourneyPlan(data?: string) {
           )
           toastsuccessmsg('Allocation saved.')
         },
-        // Every 400 here carries a message written to be shown verbatim — a
-        // distributor his beats do not reach, an activity that is not allocatable.
-        onError: (error) => toastApiError(error, 'Failed to save the allocation.'),
+        // The server's message states the rule; the hint names the row it is
+        // about, which is what a screen with thirty buckets on it actually needs.
+        onError: (error) => {
+          const hint = planErrorHint(error, activityNameOf)
+          if (hint) toasterrormsg(hint)
+          else toastApiError(error, 'Failed to save the allocation.')
+        },
       },
     )
   }, [
@@ -552,6 +727,12 @@ export function useJourneyPlan(data?: string) {
     activityBuckets,
     distributorBuckets,
     saveAllocation,
+    draftOverBy,
+    draftAllocatedDays,
+    totalDays,
+    bucketsMissingDistributors,
+    bucketsMissingCity,
+    activityNameOf,
   ])
 
   /**
@@ -581,6 +762,7 @@ export function useJourneyPlan(data?: string) {
             distributorId: entry.distributorId,
             cityId: entry.cityId,
             beatIds: entry.beatIds,
+            distributorIds: entry.distributorIds,
           })),
       }))
       // A date left with nothing on it is a cleared date, and a cleared date is
@@ -613,10 +795,22 @@ export function useJourneyPlan(data?: string) {
           )
           toastsuccessmsg('Schedule saved.')
         },
-        onError: (error) => toastApiError(error, 'Failed to save the schedule.'),
+        onError: (error) => {
+          const hint = planErrorHint(error, activityNameOf)
+          if (hint) toasterrormsg(hint)
+          else toastApiError(error, 'Failed to save the schedule.')
+        },
       },
     )
-  }, [plan, planId, scheduleEditable, scheduleDirty, schedule, saveSchedule])
+  }, [
+    plan,
+    planId,
+    scheduleEditable,
+    scheduleDirty,
+    schedule,
+    saveSchedule,
+    activityNameOf,
+  ])
 
   /**
    * Publish — `draft` → `published`, releasing the month to the sales incharge.
@@ -627,6 +821,14 @@ export function useJourneyPlan(data?: string) {
    */
   const submitPublish = useCallback(() => {
     if (!planId || !canTransition) return
+    if (savedOverBy > 0) {
+      toasterrormsg(
+        `This month allocates ${savedOverBy} day${
+          savedOverBy === 1 ? '' : 's'
+        } more than it holds. Bring the counts within the month before publishing.`,
+      )
+      return
+    }
     publish.mutate(planId, {
       onSuccess: (result) => {
         setNotice(null)
@@ -639,7 +841,7 @@ export function useJourneyPlan(data?: string) {
       // The 400 names the shortfall, and the 409 says it is not a draft.
       onError: (error) => toastApiError(error, 'Failed to publish the plan.'),
     })
-  }, [planId, canTransition, publish, month])
+  }, [planId, canTransition, publish, month, savedOverBy])
 
   /**
    * Approve — `submitted` → `approved`.
@@ -686,6 +888,26 @@ export function useJourneyPlan(data?: string) {
   )
 
   /**
+   * Who a VISIT entry may call on — every distributor his beats reach.
+   *
+   * Deliberately a different list from `distributorOptions` above: that one is
+   * the distributor BUCKETS, which is what a field day is charged to. A visit is
+   * an office call on anyone he can reach, allocated or not (see the schedule
+   * save's rules), so narrowing it to the buckets would hide most of them.
+   * Falls back to the buckets while the options are in flight.
+   */
+  const visitDistributorOptions = useMemo(() => {
+    const reachable = options.data?.distributors ?? []
+    if (reachable.length === 0) return distributorOptions
+    return reachable.map((distributor) => ({
+      value: distributor.distributorId,
+      label: distributor.distributorName ?? `Distributor ${distributor.distributorId}`,
+      badge: distributor.beatCount ? `${distributor.beatCount} beats` : undefined,
+      hint: distributor.cityName ?? undefined,
+    }))
+  }, [options.data?.distributors, distributorOptions])
+
+  /**
    * Every city id this plan already names, with the name the SERVER gave it.
    *
    * The picker below is paged and search-filtered, so a city already on the plan
@@ -695,12 +917,16 @@ export function useJourneyPlan(data?: string) {
    */
   const knownCityNames = useMemo(() => {
     const map = new Map<string, string>()
+    // Only where the server actually NAMED it. A `City 173` stand-in built from
+    // the id used to be merged in here, and being a real option it won every
+    // lookup — so a bucket whose `city_name` came back null rendered its primary
+    // key at the admin, in a field he had picked "Junagadh" in.
     for (const bucket of plan?.activityAllocations ?? []) {
-      if (bucket.cityId) map.set(bucket.cityId, bucket.cityName ?? `City ${bucket.cityId}`)
+      if (bucket.cityId && bucket.cityName) map.set(bucket.cityId, bucket.cityName)
     }
     for (const day of plan?.days ?? []) {
       for (const entry of day.activities) {
-        if (entry.cityId) map.set(entry.cityId, entry.cityName ?? `City ${entry.cityId}`)
+        if (entry.cityId && entry.cityName) map.set(entry.cityId, entry.cityName)
       }
     }
     return map
@@ -766,18 +992,40 @@ export function useJourneyPlan(data?: string) {
    */
   const distributorNames = useMemo(() => {
     const map = new Map<string, string>()
+    // The reachable master first, so a name exists for anyone pickable — the
+    // visit pickers offer far more than the plan itself ever names.
+    for (const distributor of options.data?.distributors ?? []) {
+      if (distributor.distributorName) {
+        map.set(distributor.distributorId, distributor.distributorName)
+      }
+    }
     for (const bucket of plan?.distributorAllocations ?? []) {
       if (bucket.distributorName) map.set(bucket.distributorId, bucket.distributorName)
+    }
+    // Visit targets, on the buckets and on the dated entries. These are the ones
+    // the master can lose — a distributor that has left his beats since.
+    for (const bucket of plan?.activityAllocations ?? []) {
+      for (const row of bucket.distributors) {
+        if (row.distributorName) map.set(row.distributorId, row.distributorName)
+      }
     }
     for (const day of plan?.days ?? []) {
       for (const entry of day.activities) {
         if (entry.distributorId && entry.distributorName) {
           map.set(entry.distributorId, entry.distributorName)
         }
+        for (const row of entry.distributors) {
+          if (row.distributorName) map.set(row.distributorId, row.distributorName)
+        }
       }
     }
     return map
-  }, [plan?.distributorAllocations, plan?.days])
+  }, [
+    options.data?.distributors,
+    plan?.distributorAllocations,
+    plan?.activityAllocations,
+    plan?.days,
+  ])
 
   /** Dates that survive the correction pass whatever is sent. */
   const lockedDates = useMemo(
@@ -842,6 +1090,17 @@ export function useJourneyPlan(data?: string) {
     setActivityBuckets,
     setDistributorBuckets,
     draftAllocatedDays,
+    totalDays,
+    /** Days the DRAFT promises beyond the month — blocks the allocation Save. */
+    draftOverBy,
+    /** The same excess on the SAVED plan — blocks the publish. */
+    savedOverBy,
+    /** Visit buckets naming nobody — also blocks the allocation Save. */
+    bucketsMissingDistributors,
+    /** Search buckets with no city — a client-side rule, also blocking. */
+    bucketsMissingCity,
+    /** Activity ids that must name a distributor, off the master's own flag. */
+    requiresDistributors,
     allocationDirty,
     allocationEditable,
     discardAllocation,
@@ -854,10 +1113,13 @@ export function useJourneyPlan(data?: string) {
     distributorNames,
     activities: activities.data ?? [],
     distributorOptions,
+    /** Who a visit may call on — every distributor his beats reach, named. */
+    visitDistributorOptions,
     /** The city picker — shared by both editors, and only offered on a search. */
     city,
     setEntryActivity,
     setEntryDistributor,
+    setEntryDistributors,
     setEntryCity,
     setEntryBeats,
     removeEntry,
@@ -878,7 +1140,7 @@ export function useJourneyPlan(data?: string) {
     showPublish: Boolean(status && isPublishable(status)),
     showApprove: Boolean(status && isApprovable(status)),
     /** The server's verdicts, never re-derived from the flags. */
-    canPublish: Boolean(plan?.canPublish),
+    canPublish: Boolean(plan?.canPublish) && savedOverBy === 0,
     canApprove: Boolean(plan?.canApprove),
     submitPublish,
     submitApprove,

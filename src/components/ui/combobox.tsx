@@ -8,8 +8,14 @@ import { popoverZ } from '@/lib/z-layers'
 const PANEL_MAX = 300
 const GAP = 4
 const VIEWPORT_PADDING = 8
-/** Minimum panel width when the trigger is an inline (text-width) one. */
-const INLINE_PANEL_MIN = 300
+/**
+ * Minimum panel width, whatever the trigger measures.
+ *
+ * A trigger that sizes to its own text — an inline one, or a chip-shaped adder —
+ * would otherwise hand the panel 90px to render labels, badges and a search box
+ * in. Only ever grows the panel: a trigger wider than this still sets the width.
+ */
+const PANEL_MIN = 300
 
 export interface ComboboxOption {
   label: string
@@ -47,6 +53,13 @@ interface ComboboxProps {
   align?: 'start' | 'center' | 'end'
   /** Width utility for the trigger (e.g. "lg:w-44"). */
   className?: string
+  /**
+   * Classes on the trigger BUTTON itself, applied last so they win over its
+   * defaults — for the callers that need the control to read as something other
+   * than a form field (a chip-shaped adder, say). `className` styles the
+   * wrapper and cannot reach the button.
+   */
+  triggerClassName?: string
   /**
    * Called when the option list is scrolled near its end — use to fetch the
    * next page for lazy-loaded / infinite dropdowns.
@@ -121,6 +134,7 @@ export function Combobox({
   clearable = false,
   variant = 'input',
   withAvatars = false,
+  triggerClassName,
   disabled = false,
   fallbackLabel,
   'aria-label': ariaLabel,
@@ -128,6 +142,7 @@ export function Combobox({
   const inline = variant === 'inline'
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [chosen, setChosen] = useState<ComboboxOption | null>(null)
   const [coords, setCoords] = useState<PanelCoords | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -143,14 +158,20 @@ export function Combobox({
       const rect = wrap.getBoundingClientRect()
       const spaceBelow = window.innerHeight - rect.bottom
       const dropUp = spaceBelow < PANEL_MAX && rect.top > spaceBelow
-      // An inline trigger is only as wide as its label, so give the panel a
-      // usable minimum rather than matching the text width.
-      const width = inline ? Math.max(rect.width, INLINE_PANEL_MIN) : rect.width
+      // Never narrower than the minimum, and never wider than the viewport
+      // allows — a narrow trigger gets a readable panel, a wide one still rules.
+      const width = Math.min(
+        Math.max(rect.width, PANEL_MIN),
+        window.innerWidth - VIEWPORT_PADDING * 2,
+      )
       let left = rect.left
       if (align === 'end') left = rect.right - width
       else if (align === 'center') left = rect.left + rect.width / 2 - width / 2
       const maxLeft = window.innerWidth - width - VIEWPORT_PADDING
-      left = Math.min(Math.max(VIEWPORT_PADDING, left), Math.max(VIEWPORT_PADDING, maxLeft))
+      left = Math.min(
+        Math.max(VIEWPORT_PADDING, left),
+        Math.max(VIEWPORT_PADDING, maxLeft),
+      )
       const top = dropUp ? rect.top - GAP : rect.bottom + GAP
       setCoords({ left, top, width, dropUp })
     }
@@ -182,7 +203,17 @@ export function Combobox({
     }
   }, [open])
 
-  const selected = options.find((o) => o.value === value)
+  /**
+   * The option that was picked HERE, remembered.
+   *
+   * A server-searched list is the page matching the query, and choosing clears
+   * the query — so the row just picked is usually gone from `options` by the
+   * next render. Without this the trigger falls back to the placeholder and the
+   * selection reads as having been instantly undone.
+   */
+  const selected =
+    options.find((o) => o.value === value) ??
+    (chosen?.value === value ? chosen : undefined)
   const label = selected?.label ?? (value ? fallbackLabel : undefined)
   // With server-side search the parent already returns the matching page, so
   // show options verbatim; otherwise filter the loaded options locally.
@@ -197,6 +228,8 @@ export function Combobox({
   }
 
   const choose = (v: string) => {
+    // Captured before the list moves under us — see `selected`.
+    setChosen(options.find((o) => o.value === v) ?? null)
     onChange(v)
     setOpen(false)
     setQuery('')
@@ -254,6 +287,7 @@ export function Combobox({
                 // can't be clipped, so one clean 1px accent line it is.
                 open && (inline ? 'bg-accent/60' : 'border-ring'),
               ),
+          triggerClassName,
         )}
       >
         {Icon ? <Icon className="size-4 shrink-0 text-muted-foreground" /> : null}
@@ -332,7 +366,9 @@ export function Combobox({
                 onScroll={handleScroll}
               >
                 {filtered.length === 0 && !loading ? (
-                  <li className="px-2 py-2 text-center text-sm text-muted-foreground">No results</li>
+                  <li className="px-2 py-2 text-center text-sm text-muted-foreground">
+                    No results
+                  </li>
                 ) : (
                   filtered.map((o) => {
                     const active = o.value === value
@@ -378,7 +414,9 @@ export function Combobox({
                             ) : null}
                           </span>
 
-                          {active ? <Check className="size-4 shrink-0 text-primary" /> : null}
+                          {active ? (
+                            <Check className="size-4 shrink-0 text-primary" />
+                          ) : null}
                         </button>
                       </li>
                     )

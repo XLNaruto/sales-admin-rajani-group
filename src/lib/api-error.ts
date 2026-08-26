@@ -15,12 +15,21 @@ interface ApiErrorBody {
 export class ApiError extends Error {
   readonly status?: number
   readonly details?: unknown
+  /**
+   * The body's machine-readable `error` code (e.g. `JOURNEY_PLAN_DAY_LOCKED`).
+   *
+   * Kept beside the message because the message is for the user and the code is
+   * for the UI: which field to point at, whether to refetch, whether this is the
+   * one 400 a screen knows how to explain better than the server can.
+   */
+  readonly code?: string
 
-  constructor(message: string, status?: number, details?: unknown) {
+  constructor(message: string, status?: number, details?: unknown, code?: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.details = details
+    this.code = code
   }
 }
 
@@ -44,8 +53,23 @@ export function getApiErrorMessage(
  */
 export function asApiError(error: unknown, fallback?: string): ApiError {
   const response = error instanceof AxiosError ? error.response : undefined
-  const details = (response?.data as ApiErrorBody | undefined)?.details
-  return new ApiError(getApiErrorMessage(error, fallback), response?.status, details)
+  const body = response?.data as ApiErrorBody | undefined
+  return new ApiError(
+    getApiErrorMessage(error, fallback),
+    response?.status,
+    body?.details,
+    body?.error,
+  )
+}
+
+/** The body's `error` code, if the error carries one. */
+export function errorCode(error: unknown): string | undefined {
+  if (error instanceof ApiError) return error.code
+  if (error instanceof AxiosError) {
+    const body = error.response?.data as ApiErrorBody | undefined
+    return body?.error
+  }
+  return undefined
 }
 
 /** The HTTP status carried by an error, if any (ApiError or raw AxiosError). */

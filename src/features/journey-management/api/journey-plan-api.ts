@@ -52,6 +52,7 @@ import type {
   SaveAllocationInput,
   SaveScheduleInput,
   TransitionResult,
+  VisitDistributor,
 } from '../types'
 
 /** Ids travel as numbers where the API takes numbers; a non-numeric id passes through. */
@@ -210,6 +211,30 @@ export async function fetchQueue(params: QueueParams): Promise<QueueResult> {
   }
 }
 
+/**
+ * The shared visit-target shape. **Names may be null** — the distributor has left
+ * the sales incharge's beats since the month was drafted, and that is the honest
+ * answer rather than a gap to paper over.
+ */
+function toVisitDistributors(
+  rows:
+    | {
+        distributor_id: string
+        distributor_name?: string | null
+        city_id?: string | null
+        city_name?: string | null
+      }[]
+    | null
+    | undefined,
+): VisitDistributor[] {
+  return (rows ?? []).map((row) => ({
+    distributorId: row.distributor_id,
+    distributorName: row.distributor_name ?? null,
+    cityId: row.city_id ?? null,
+    cityName: row.city_name ?? null,
+  }))
+}
+
 /** `manual` | `import` — anything unrecognised reads as `manual`. */
 function toSource(value: string | null | undefined): PlanSource {
   return value === 'import' ? 'import' : 'manual'
@@ -242,6 +267,10 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
         distributorName: entry.distributor_name ?? null,
         cityId: entry.city_id ?? null,
         cityName: entry.city_name ?? null,
+        pinned: Boolean(entry.pinned),
+        // Order matters here and nowhere else: on an entry it is the order he
+        // means to call on them in, and the API returns it that way.
+        distributors: toVisitDistributors(entry.distributors),
         beats: [...(entry.beats ?? [])]
           .sort((a, b) => a.sequence - b.sequence)
           .map((beat) => ({
@@ -279,6 +308,10 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
       activityName: bucket.activity_name ?? null,
       cityId: bucket.city_id ?? null,
       cityName: bucket.city_name ?? null,
+      // A set on the bucket, returned ascending by id — non-empty only on a
+      // visit. The ORDER a date calls on them in lives on the entry, not here.
+      distributors: toVisitDistributors(bucket.distributors),
+      dates: bucket.dates ?? [],
       daysCount: bucket.days_count,
       daysScheduled: bucket.days_scheduled,
     })),
@@ -372,6 +405,14 @@ export async function saveAllocation(
               // Sent only where it exists: `null` and absent both mean
               // "anywhere", and the bucket's key is the pair either way.
               ...(bucket.cityId ? { city_id: toApiId(bucket.cityId) } : {}),
+              // Same rule as the city: sent only where the activity has one to
+              // send, so a weekly-off bucket keeps the shape it always had.
+              ...(bucket.distributorIds?.length
+                ? { distributor_ids: bucket.distributorIds.map(toApiId) }
+                : {}),
+              // Pinned dates, when the admin pinned any. Absent and empty mean
+              // the same thing: the dates are the sales incharge's to pick.
+              ...(bucket.dates?.length ? { dates: bucket.dates } : {}),
               days_count: bucket.daysCount,
             })),
           }
@@ -411,6 +452,11 @@ export async function saveSchedule(
         date: day.date,
         entries: day.entries.map((entry) => ({
           activity_id: entry.activityId,
+          // The visit targets, in order. Sent only where there are any: the API
+          // refuses a non-empty list on an activity that takes none.
+          ...(entry.distributorIds?.length
+            ? { distributor_ids: entry.distributorIds.map(toApiId) }
+            : {}),
           // Each key is sent only where it exists. A beat-taking activity must
           // carry a distributor and beats; one without must carry neither, and
           // an explicit null is not the same as an absent key to a schema that
@@ -540,6 +586,7 @@ export async function fetchAllocationOptions(
         code: activity.code,
         name: activity.name,
         isWorkingDay: Boolean(activity.is_working_day),
+        requiresDistributors: Boolean(activity.requires_distributors),
       })),
       distributors: (res.distributors ?? []).map((distributor) => ({
         distributorId: distributor.distributor_id,
@@ -573,6 +620,7 @@ export async function fetchActivities(): Promise<ActivityDef[]> {
       code: row.code,
       name: row.name,
       requiresBeat: Boolean(row.requires_beat),
+      requiresDistributors: Boolean(row.requires_distributors),
       working: Boolean(row.is_working_day),
       coverage: Boolean(row.counts_toward_coverage),
       // `company_id: null` marks the seeded platform rows — read-only for tenants.

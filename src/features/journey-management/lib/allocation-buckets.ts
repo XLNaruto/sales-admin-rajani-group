@@ -18,7 +18,25 @@ export interface BucketDraft {
   id: string
   /** Only meaningful on an activity bucket; absent means "anywhere". */
   cityId?: string | null
+  /**
+   * Distributors named on a **distributor-visit** activity bucket. A set the
+   * bucket carries, NOT part of its identity the way `cityId` is: adding a
+   * distributor edits this bucket rather than splitting it into two.
+   */
+  distributorIds?: string[]
+  /**
+   * Dates the admin PINNED on this bucket, `yyyy-MM-dd` — optional, and capped
+   * at `daysCount`. Empty is the ordinary case: the dates are his to pick.
+   */
+  dates?: string[]
   daysCount: number
+}
+
+/** Same set of ids (or dates) on a bucket, order disregarded. */
+export function sameIdSet(a?: string[] | null, b?: string[] | null): boolean {
+  const left = [...(a ?? [])].sort()
+  const right = [...(b ?? [])].sort()
+  return left.length === right.length && left.every((id, i) => id === right[i])
 }
 
 /**

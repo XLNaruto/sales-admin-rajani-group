@@ -12,6 +12,8 @@ import {
   Map,
   Tags,
   HandCoins,
+  Repeat2,
+  UserPen,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -118,6 +120,23 @@ export const navGroups: NavGroup[] = [
         to: '/journey/live-map',
         icon: Map,
         permission: 'live-day:read',
+      },
+    ],
+  },
+  {
+    title: 'Field Requests',
+    items: [
+      {
+        label: 'Beat Changes',
+        to: '/requests/beat-changes',
+        icon: Repeat2,
+        permission: 'beat-change:list',
+      },
+      {
+        label: 'Profile Edit Requests',
+        to: '/requests/profile-edits',
+        icon: UserPen,
+        permission: 'profile-edit-request:list',
       },
     ],
   },

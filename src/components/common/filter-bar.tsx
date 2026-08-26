@@ -23,6 +23,22 @@ export interface FilterFacet {
   searchPlaceholder?: string
   /** Value that means "no filter applied" (default "all"). */
   clearValue?: string
+  /**
+   * Delegate filtering to the caller (server-side search) — the typed query is
+   * forwarded here and `options` are shown as-is instead of being filtered in
+   * place. Pair with {@link FilterFacet.valueLabel}: a server-searched list only
+   * holds the pages loaded so far, so the selected option may not be among them.
+   */
+  onSearchChange?: (query: string) => void
+  /** Called when the option list is scrolled near its end (lazy/paged facets). */
+  onScrollEnd?: () => void
+  /** Show a loading row at the bottom of the option list. */
+  loading?: boolean
+  /**
+   * Label for the active chip, when the selected option may not be in
+   * `options`. Falls back to the matching option, then to the raw value.
+   */
+  valueLabel?: string
 }
 
 interface FilterSearch {
@@ -54,7 +70,11 @@ interface PanelCoords {
 
 /** Label shown on a facet's active chip (falls back to the raw value). */
 function facetChipLabel(facet: FilterFacet): string {
-  return facet.options.find((o) => o.value === facet.value)?.label ?? facet.value
+  return (
+    facet.valueLabel ??
+    facet.options.find((o) => o.value === facet.value)?.label ??
+    facet.value
+  )
 }
 
 /**
@@ -244,6 +264,10 @@ export function FilterBar({
                       options={facet.options}
                       searchable={facet.searchable}
                       searchPlaceholder={facet.searchPlaceholder}
+                      onSearchChange={facet.onSearchChange}
+                      onScrollEnd={facet.onScrollEnd}
+                      loading={facet.loading}
+                      fallbackLabel={facet.valueLabel}
                     />
                   </div>
                 ))}

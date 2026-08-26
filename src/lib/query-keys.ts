@@ -211,6 +211,30 @@ export const queryKeys = {
     liveDay: (inchargeId: string, date: string) =>
       [...queryKeys.journey.all, 'live-day', inchargeId, date] as const,
   },
+  /**
+   * Field requests — the two work queues raised from the sales incharge's app
+   * (beat changes on a planned day, and profile corrections). Both default to
+   * `pending`, so the whole filter set is carried in the key: switching tab is
+   * a new cache entry rather than a refetch of the same one.
+   */
+  fieldRequests: {
+    all: ['field-requests'] as const,
+    /** GET /beat-changes — one page of the beat-change queue. */
+    beatChanges: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'beat-changes', filters ?? {}] as const,
+    /** Infinite ("All") variant of the beat-change queue. */
+    beatChangesInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'beat-changes-infinite', filters ?? {}] as const,
+    /** GET /profile-edit-requests — one page of the profile-edit queue. */
+    profileEdits: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'profile-edits', filters ?? {}] as const,
+    /** Infinite ("All") variant of the profile-edit queue. */
+    profileEditsInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'profile-edits-infinite', filters ?? {}] as const,
+    /** GET /profile-edit-requests/{id} — one request in full. */
+    profileEdit: (id: number) =>
+      [...queryKeys.fieldRequests.all, 'profile-edit', id] as const,
+  },
   notifications: {
     all: ['notifications'] as const,
     list: () => [...queryKeys.notifications.all, 'list'] as const,

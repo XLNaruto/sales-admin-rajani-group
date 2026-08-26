@@ -75,6 +75,11 @@ export interface ActivityDef {
   name: string
   /** The day is meaningless without beats — such a day needs a city AND beats. */
   requiresBeat: boolean
+  /**
+   * The work must name the distributors it calls on — a **visit**, which takes
+   * no beat and no `distributorId`. Data, never a code check.
+   */
+  requiresDistributors: boolean
   /** Counts as a working day (leave / holiday / weekly off do not). */
   working: boolean
   /** Visits on this day count towards beat progress. */
@@ -299,6 +304,20 @@ export interface QueueResult {
  * activity in two cities is two buckets, and matching a bucket on `activityId`
  * alone will silently merge them.
  */
+/**
+ * A distributor named on a visit — on the allocation bucket, and on the entry.
+ *
+ * **Every name here may be `null`**, and that is the honest answer rather than a
+ * gap: the distributor has left the sales incharge's beat allocation since the
+ * month was drafted. Render the id or a placeholder; never assume a name.
+ */
+export interface VisitDistributor {
+  distributorId: string
+  distributorName: string | null
+  cityId: string | null
+  cityName: string | null
+}
+
 export interface ActivityAllocation {
   activityId: number
   activityCode: ActivityCode | null
@@ -306,6 +325,21 @@ export interface ActivityAllocation {
   /** Where this work is to happen. Null on everything but a search-style activity. */
   cityId: string | null
   cityName: string | null
+  /**
+   * Distributors this bucket's days are to be spent on — only a
+   * **distributor visit** carries any, and it may carry several. Unlike the
+   * city, this is a set on ONE bucket rather than part of its identity: "four
+   * days of distributor visit, across these three distributors".
+   */
+  distributors: VisitDistributor[]
+  /**
+   * Dates the admin PINNED on this bucket, `yyyy-MM-dd`.
+   *
+   * Optional, and normally empty: the model is that the admin allocates counts
+   * and the sales incharge dates them. A date here is the exception — a meeting
+   * that is on the 4th — and never more than `daysCount` of them.
+   */
+  dates: string[]
   /** Days the admin promised to this bucket. */
   daysCount: number
   /** Entries the sales incharge has actually put against it. */
@@ -355,6 +389,12 @@ export interface AllocationOptions {
     code: ActivityCode
     name: string
     isWorkingDay: boolean
+    /**
+     * The bucket must name at least one distributor. **Data, not a code check**
+     * — today only `distributor_visit` sets it, and that is the client's to
+     * change per activity, so never branch on the code.
+     */
+    requiresDistributors: boolean
   }[]
   /**
    * The field-allocation axis, derived from the beats **currently** allocated to
@@ -393,6 +433,10 @@ export interface SaveAllocationInput {
   activityAllocations?: {
     activityId: number
     cityId?: string | null
+    /** Only a distributor-visit bucket carries any; omitted where empty. */
+    distributorIds?: string[]
+    /** Pinned dates, `yyyy-MM-dd`. Optional; omitted where empty. */
+    dates?: string[]
     daysCount: number
   }[]
   distributorAllocations?: { distributorId: string; daysCount: number }[]
@@ -444,6 +488,17 @@ export interface PlanDayEntry {
   cityId: string | null
   cityName: string | null
   beats: PlanDayBeat[]
+  /**
+   * Fixed to this date by the ADMIN, from an allocation bucket's `dates`.
+   *
+   * **Not editable from the schedule screen, and never sent back in a schedule
+   * save** — the server keeps it whatever the body says, and sending it is a
+   * `JOURNEY_PLAN_ENTRY_PINNED` 400. To move one, edit the owning bucket's dates
+   * on the allocation.
+   */
+  pinned: boolean
+  /** Who this date calls on, in intended order. A visit entry only. */
+  distributors: VisitDistributor[]
   jointWorkingInchargeId: string | null
   jointWorkingInchargeName: string | null
   /** Free-text note (holiday name, leave reason, venue). */
@@ -497,6 +552,13 @@ export interface ScheduleEntryInput {
   distributorId?: string | null
   cityId?: string | null
   beatIds?: string[]
+  /**
+   * Who this date calls on, **in intended order** — required on a visit entry
+   * (`requiresDistributors`) and refused on every other activity. Distinct from
+   * `distributorId`, which names the distributor BUCKET a field day is charged
+   * to and stays null on a visit.
+   */
+  distributorIds?: string[]
   jointWorkingInchargeId?: string | null
   reason?: string | null
 }
