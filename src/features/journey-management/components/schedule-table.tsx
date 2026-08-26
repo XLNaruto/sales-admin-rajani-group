@@ -104,6 +104,14 @@ export function ScheduleTable({
   distributorOptions,
   /** Who a VISIT may call on — every distributor his beats reach, not just the buckets. */
   visitDistributorOptions,
+  /**
+   * Activity ids that name distributors, from `allocation-options`.
+   *
+   * The activity master would be the natural home for this, but it does not
+   * carry the flag yet — so the allocation's own list is the reliable source,
+   * and without it a visit entry renders as "not applicable".
+   */
+  visitActivityIds,
   /** The city master — offered on a distributor-search entry and nowhere else. */
   city,
   /** The draft calendar by date; absent means the date carries no work. */
@@ -131,6 +139,7 @@ export function ScheduleTable({
   activities: ActivityDef[]
   distributorOptions: ComboboxOption[]
   visitDistributorOptions: ComboboxOption[]
+  visitActivityIds: Set<string>
   city: CitySelect
   draft: Map<string, ScheduleDraftDay>
   beatNames: Map<string, string>
@@ -268,6 +277,7 @@ export function ScheduleTable({
                 activityById={activityById}
                 distributorOptions={distributorOptions}
                 visitDistributorOptions={visitDistributorOptions}
+                visitActivityIds={visitActivityIds}
                 city={city}
                 beatNames={beatNames}
                 distributorNames={distributorNames}
@@ -316,6 +326,7 @@ function DayRows({
   activityById,
   distributorOptions,
   visitDistributorOptions,
+  visitActivityIds,
   city,
   beatNames,
   distributorNames,
@@ -338,6 +349,7 @@ function DayRows({
   activityById: Map<number, ActivityDef>
   distributorOptions: ComboboxOption[]
   visitDistributorOptions: ComboboxOption[]
+  visitActivityIds: Set<string>
   city: CitySelect
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
@@ -457,23 +469,34 @@ function DayRows({
          * A visit — off the master's flag, falling back to the saved entry
          * already naming targets while the master is in flight.
          */
-        const takesVisits = activity
-          ? activity.requiresDistributors
-          : isPlaceholder
-            ? false
-            : entry.distributorIds.length > 0 || (saved?.distributors.length ?? 0) > 0
+        const takesVisits =
+          !isPlaceholder &&
+          (activity?.requiresDistributors ||
+            // The allocation's flag, for as long as `/activities` does not carry
+            // one — without it a visit reads as "not applicable" and there is no
+            // way to name who the day calls on.
+            visitActivityIds.has(String(entry.activityId)) ||
+            entry.distributorIds.length > 0 ||
+            (saved?.distributors.length ?? 0) > 0)
 
-        const takesBeats = activity
-          ? activity.requiresBeat
-          : isPlaceholder
-            ? false
-            : entry.distributorId !== null || Boolean(saved?.distributorId)
+        // A visit takes no beat and no bucket — the two are mutually exclusive,
+        // and the API refuses an entry that carries both.
+        const takesBeats = takesVisits
+          ? false
+          : activity
+            ? activity.requiresBeat
+            : isPlaceholder
+              ? false
+              : entry.distributorId !== null || Boolean(saved?.distributorId)
 
         return (
           <tr
             key={index}
             id={first ? dayRowId(stripDay.day) : undefined}
-            className={cn(rowClass, !last && 'border-b-transparent')}
+            // Dashed within a date, solid between them: a date carrying three
+            // pieces of work is three rows, and with no rule at all they read as
+            // one cell's worth of wrapped text.
+            className={cn(rowClass, !last && 'border-dashed border-border/30')}
           >
             {first ? (
               <>
@@ -605,7 +628,11 @@ function PinnedRow({
   return (
     <tr
       id={first ? dayRowId(stripDay.day) : undefined}
-      className={cn(rowClass, !last && 'border-b-transparent', 'bg-primary/[0.04]')}
+      className={cn(
+        rowClass,
+        !last && 'border-dashed border-border/30',
+        'bg-primary/[0.04]',
+      )}
     >
       {first ? (
         <>

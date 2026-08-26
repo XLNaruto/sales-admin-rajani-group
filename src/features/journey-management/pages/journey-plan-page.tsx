@@ -142,6 +142,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     activities,
     distributorOptions,
     visitDistributorOptions,
+    requiresDistributors,
     city,
     setEntryActivity,
     setEntryDistributor,
@@ -435,6 +436,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           activities={activities}
           distributorOptions={distributorOptions}
           visitDistributorOptions={visitDistributorOptions}
+          visitActivityIds={requiresDistributors}
           city={city}
           draft={schedule}
           beatNames={beatNames}
