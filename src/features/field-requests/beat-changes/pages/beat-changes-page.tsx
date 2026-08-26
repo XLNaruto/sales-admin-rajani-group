@@ -86,6 +86,7 @@ export function BeatChangesPage() {
         id: 'index',
         header: '#',
         enableSorting: false,
+        meta: { className: 'w-px whitespace-nowrap' },
         cell: ({ row, table }) => {
           const { pageIndex, pageSize } = table.getState().pagination
           return (
@@ -103,6 +104,7 @@ export function BeatChangesPage() {
               id: 'actions',
               header: 'Actions',
               enableSorting: false,
+              meta: { className: 'w-px whitespace-nowrap' },
               cell: ({ row }) => {
                 const request = row.original
                 // Only an open request can be answered; a locked day can no
@@ -152,6 +154,9 @@ export function BeatChangesPage() {
         id: 'salesIncharge',
         header: 'Sales Incharge',
         enableSorting: false,
+        // Headers here are multi-word; without a floor the browser hands each
+        // column its content width and breaks the label over two lines.
+        meta: { className: 'min-w-56 whitespace-nowrap' },
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
@@ -168,6 +173,7 @@ export function BeatChangesPage() {
         id: 'planDate',
         header: 'Day being changed',
         enableSorting: false,
+        meta: { className: 'min-w-48 whitespace-nowrap' },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground tabular-nums">
@@ -187,20 +193,22 @@ export function BeatChangesPage() {
         id: 'change',
         header: 'Beat change',
         enableSorting: false,
+        // Two beat chips and an arrow — the widest thing on the row.
+        meta: { className: 'min-w-96 whitespace-nowrap' },
         cell: ({ row }) => {
           const { fromBeatName, fromBeatId, toBeatName, toBeatId } = row.original
           return (
             <div className="flex items-center gap-2 text-sm">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 font-medium text-rose-600 dark:text-rose-400">
                 <Route className="size-3.5 shrink-0" />
-                <span className="max-w-40 truncate">
+                <span className="max-w-48 truncate">
                   {fromBeatName ?? `Beat #${fromBeatId}`}
                 </span>
               </span>
               <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
               <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/10 px-2.5 py-1 font-medium text-emerald-600 dark:text-emerald-400">
                 <Route className="size-3.5 shrink-0" />
-                <span className="max-w-40 truncate">
+                <span className="max-w-48 truncate">
                   {toBeatName ?? `Beat #${toBeatId}`}
                 </span>
               </span>
@@ -212,9 +220,10 @@ export function BeatChangesPage() {
         accessorKey: 'reason',
         header: "Rep's reason",
         enableSorting: false,
+        meta: { className: 'min-w-72 whitespace-nowrap' },
         cell: ({ row }) => (
           <Hint label={row.original.reason}>
-            <p className="max-w-72 truncate text-sm text-muted-foreground">
+            <p className="max-w-80 truncate text-sm text-muted-foreground">
               {row.original.reason}
             </p>
           </Hint>
@@ -224,6 +233,7 @@ export function BeatChangesPage() {
         accessorKey: 'status',
         header: 'Status',
         enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
         cell: ({ row }) => {
           const { status, rejectionReason, reviewedAt } = row.original
           const badge = <StatusBadge status={status} />
@@ -243,8 +253,9 @@ export function BeatChangesPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Requested" />
         ),
+        meta: { className: 'whitespace-nowrap' },
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+          <span className="text-sm text-muted-foreground tabular-nums">
             {stampLabel(row.original.requestedAt)}
           </span>
         ),

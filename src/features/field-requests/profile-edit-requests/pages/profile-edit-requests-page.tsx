@@ -81,6 +81,7 @@ export function ProfileEditRequestsPage() {
         id: 'index',
         header: '#',
         enableSorting: false,
+        meta: { className: 'w-px whitespace-nowrap' },
         cell: ({ row, table }) => {
           const { pageIndex, pageSize } = table.getState().pagination
           return (
@@ -94,6 +95,7 @@ export function ProfileEditRequestsPage() {
         id: 'actions',
         header: 'Actions',
         enableSorting: false,
+        meta: { className: 'w-px whitespace-nowrap' },
         cell: ({ row }) => {
           const request = row.original
           return (
@@ -141,6 +143,9 @@ export function ProfileEditRequestsPage() {
         id: 'salesIncharge',
         header: 'Sales Incharge',
         enableSorting: false,
+        // Headers here are multi-word; without a floor the browser hands each
+        // column its content width and breaks the label over two lines.
+        meta: { className: 'min-w-64 whitespace-nowrap' },
         cell: ({ row }) => {
           const { salesInchargeName, employeeCode, salesInchargePhone } = row.original
           return (
@@ -175,9 +180,11 @@ export function ProfileEditRequestsPage() {
         accessorKey: 'message',
         header: 'What he asked for',
         enableSorting: false,
+        // The widest thing on the row — the ask is the point of the screen.
+        meta: { className: 'min-w-96 whitespace-nowrap' },
         cell: ({ row }) => (
           <Hint label={row.original.message}>
-            <p className="max-w-96 truncate text-sm text-muted-foreground">
+            <p className="max-w-120 truncate text-sm text-muted-foreground">
               {row.original.message}
             </p>
           </Hint>
@@ -187,6 +194,7 @@ export function ProfileEditRequestsPage() {
         accessorKey: 'status',
         header: 'Status',
         enableSorting: false,
+        meta: { className: 'whitespace-nowrap' },
         cell: ({ row }) => {
           const { status, reviewReason, reviewedAt } = row.original
           const badge = <StatusBadge status={status} />
@@ -204,8 +212,9 @@ export function ProfileEditRequestsPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Requested" />
         ),
+        meta: { className: 'whitespace-nowrap' },
         cell: ({ row }) => (
-          <span className="whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+          <span className="text-sm text-muted-foreground tabular-nums">
             {stampLabel(row.original.requestedAt)}
           </span>
         ),
