@@ -18,7 +18,6 @@ import { Hint } from '@/components/common/hint'
 import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import { RouteError } from '@/features/error'
-import { useRedirectOnCompanySwitch } from '@/features/company'
 import { AgentPanel } from '../components/agent-panel'
 import { AllocationEditor } from '../components/allocation-editor'
 import { DayBeatDialog } from '../components/day-beat-dialog'
@@ -105,10 +104,6 @@ interface JourneyPlanPageProps {
  * backwards: there is no reject, no send-back, no unpublish, no unsubmit.
  */
 export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
-  // The plan id in `?data=` belongs to the company that was active when the row
-  // was opened — back to the list, freshly loaded for the new one.
-  useRedirectOnCompanySwitch('/journey/plans')
-
   const {
     plan,
     planId,
