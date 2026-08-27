@@ -1,3 +1,4 @@
+import { useRedirectOnCompanySwitch } from '@/features/company'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
@@ -38,6 +39,10 @@ interface LiveDayPageProps {
  * shown with no line and the reason is spelled out.
  */
 export function LiveDayPage({ data }: LiveDayPageProps) {
+  // Opened from a day card on the live map, for an incharge of the company that
+  // was active then — back to the map when the tenant changes.
+  useRedirectOnCompanySwitch('/journey/live-map')
+
   const {
     day,
     isLoading,

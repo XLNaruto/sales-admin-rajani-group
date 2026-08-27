@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Hint } from "@/components/common/hint";
+import { PreviewTrigger } from "@/components/common/file-preview-lightbox";
 import { cn } from "@/lib/utils";
 import { useSalesInchargeDetail } from "../api/use-sales-incharge";
 import type { SalesInchargeStatus } from "../types";
@@ -132,11 +133,17 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
             {/* Profile header */}
             <div className="flex items-center gap-4">
               {data.profilePhotoUrl ? (
-                <img
-                  src={data.profilePhotoUrl}
-                  alt={data.displayName}
-                  className="size-16 shrink-0 rounded-full object-cover"
-                />
+                <PreviewTrigger
+                  files={[{ src: data.profilePhotoUrl, name: data.displayName }]}
+                  label="Preview profile photo"
+                  className="shrink-0"
+                >
+                  <img
+                    src={data.profilePhotoUrl}
+                    alt={data.displayName}
+                    className="size-16 rounded-full object-cover"
+                  />
+                </PreviewTrigger>
               ) : (
                 <span className="grid size-16 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
                   <UserRound className="size-7" />
@@ -208,44 +215,34 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
             </dl>
             {(data.aadharFrontUrl || data.aadharBackUrl) && (
               <div className="mt-4 grid grid-cols-2 gap-4">
-                {data.aadharFrontUrl && (
-                  <a
-                    href={data.aadharFrontUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block"
-                  >
-                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Aadhar Front
-                    </span>
-                    <img
-                      src={data.aadharFrontUrl}
-                      alt="Aadhar front"
-                      loading="lazy"
-                      decoding="async"
-                      className="h-28 w-full rounded-lg border border-border object-cover"
-                    />
-                  </a>
-                )}
-                {data.aadharBackUrl && (
-                  <a
-                    href={data.aadharBackUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block"
-                  >
-                    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Aadhar Back
-                    </span>
-                    <img
-                      src={data.aadharBackUrl}
-                      alt="Aadhar back"
-                      loading="lazy"
-                      decoding="async"
-                      className="h-28 w-full rounded-lg border border-border object-cover"
-                    />
-                  </a>
-                )}
+                {/* Front and back share one gallery, so the lightbox can flip
+                    between the two sides of the card. */}
+                {[
+                  { url: data.aadharFrontUrl, label: "Aadhar Front" },
+                  { url: data.aadharBackUrl, label: "Aadhar Back" },
+                ]
+                  .filter((d) => Boolean(d.url))
+                  .map((doc, i, docs) => (
+                    <div key={doc.label}>
+                      <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {doc.label}
+                      </span>
+                      <PreviewTrigger
+                        files={docs.map((d) => ({ src: d.url!, name: d.label }))}
+                        index={i}
+                        label={`Preview ${doc.label}`}
+                        className="block w-full"
+                      >
+                        <img
+                          src={doc.url!}
+                          alt={doc.label}
+                          loading="lazy"
+                          decoding="async"
+                          className="h-28 w-full rounded-lg border border-border object-cover"
+                        />
+                      </PreviewTrigger>
+                    </div>
+                  ))}
               </div>
             )}
           </div>

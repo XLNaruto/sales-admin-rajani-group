@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
 import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
+import { useOnCompanySwitch } from "@/features/company";
 import {
   useDistributors,
   useDistributorsInfinite,
@@ -133,6 +134,17 @@ export function useDistributorsList() {
   );
   const [pendingReject, setPendingReject] = useState<Distributor | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+
+  // Switching the active company invalidates every row on screen: let go of any
+  // record-pinned dialog target (its id belongs to the old tenant) and reset the
+  // filters, whose option ids are tenant-scoped too.
+  useOnCompanySwitch(() => {
+    setPendingDelete(null);
+    setPendingApprove(null);
+    setPendingReject(null);
+    setRejectReason("");
+    resetFilters();
+  });
 
   // Inline status change from the list toggle — PATCH the record's status.
   const changeStatus = (id: string, status: DistributorLifecycleStatus) => {

@@ -13,7 +13,7 @@ import { FileInput } from "@/components/common/file-input";
 import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
-import { useCompanies } from "@/features/company";
+import { useCompanies, useRedirectOnCompanySwitch } from "@/features/company";
 import {
   useRoutes,
   usePaymentConditions,
@@ -48,6 +48,10 @@ interface DistributorCreatePageProps {
 }
 
 export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
+  // Every option list and the record itself are tenant-scoped — switching the
+  // active company mid-form leaves the list behind, not a half-migrated draft.
+  useRedirectOnCompanySwitch("/distributors");
+
   // Decrypt the params from the URL; missing/malformed → create mode.
   const params = data
     ? decryptParams<{ id?: string | number; draftId?: string }>(data)
@@ -277,26 +281,6 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
-          {/* Every owner/partner of the firm — managed in its own modal since a
-              firm can have up to 20, each with contact + greeting dates. */}
-          <Controller
-            control={control}
-            name="owners"
-            render={({ field }) => (
-              <OwnerPartnersField
-                value={field.value ?? []}
-                onChange={field.onChange}
-                error={
-                  errors.owners?.message ??
-                  errors.owners?.root?.message ??
-                  (Array.isArray(errors.owners)
-                    ? "Some partner details are incomplete. Open “Manage Partners” to fix them."
-                    : undefined)
-                }
-              />
-            )}
-          />
-
           <Field
             label="Communication Mobile Number"
             optional
@@ -336,13 +320,6 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             <Input type="email" placeholder="E-mail Id" {...register("email")} />
           </Field>
 
-          <Field label="Distributor Code" optional error={errors.code?.message}>
-            <Input
-              placeholder="Auto-generated if left blank"
-              {...register("code")}
-            />
-          </Field>
-
           <Field
             label="Company"
             hint="A distributor can be attached to more than one company"
@@ -366,6 +343,26 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
               )}
             />
           </Field>
+
+          {/* Every owner/partner of the firm — managed in its own modal since a
+              firm can have up to 20, each with contact + greeting dates. */}
+          <Controller
+            control={control}
+            name="owners"
+            render={({ field }) => (
+              <OwnerPartnersField
+                value={field.value ?? []}
+                onChange={field.onChange}
+                error={
+                  errors.owners?.message ??
+                  errors.owners?.root?.message ??
+                  (Array.isArray(errors.owners)
+                    ? "Some partner details are incomplete. Open “Manage Partners” to fix them."
+                    : undefined)
+                }
+              />
+            )}
+          />
 
           {/* --------------------- Location & coverage -------------------- */}
           <FormSection

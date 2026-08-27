@@ -3,7 +3,7 @@ import { ArrowLeft, User, Landmark, IdCard } from "lucide-react";
 import { decryptParams } from "@/lib/crypto";
 import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
 import { mediaUrl } from "@/lib/media";
-import { useCompanies } from "@/features/company";
+import { useCompanies, useRedirectOnCompanySwitch } from "@/features/company";
 import { PageHeader } from "@/components/common/page-header";
 import { DraftsButton } from "@/components/common/drafts-button";
 import { FormSection } from "@/components/common/form-section";
@@ -35,6 +35,10 @@ interface SalesInchargeCreatePageProps {
 export function SalesInchargeCreatePage({
   data,
 }: SalesInchargeCreatePageProps) {
+  // Every option list and the record itself are tenant-scoped — switching the
+  // active company mid-form leaves the list behind, not a half-migrated draft.
+  useRedirectOnCompanySwitch("/sales-incharge");
+
   // Decrypt the params from the URL; missing/malformed → create mode.
   const params = data
     ? decryptParams<{ id?: string | number; draftId?: string }>(data)

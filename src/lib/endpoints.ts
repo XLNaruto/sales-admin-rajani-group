@@ -282,6 +282,24 @@ export const endpoints = {
       `/sales-incharge-admin/beat-changes/${id}/status`,
   },
   /**
+   * Day change requests — what the reps want to do instead of, or in addition
+   * to, the day they were given. Read-only apart from the review PATCH: the
+   * request itself is raised from the field app, never here.
+   */
+  DAY_CHANGE: {
+    /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
+    LIST: '/sales-incharge-admin/day-changes',
+    /**
+     * PATCH { status: 'approved' } | { status: 'rejected', rejection_reason }.
+     * Approving is WHAT WRITES THE DAY, and the only thing that does — on an
+     * `update` the date's un-worked entries are replaced, on a `create` the
+     * proposed ones are appended. Entries already visited against are never
+     * removed. Every precondition is re-checked here, so a proposal that has
+     * gone stale is refused with its reason rather than applied.
+     */
+    STATUS: (id: string | number) => `/sales-incharge-admin/day-changes/${id}/status`,
+  },
+  /**
    * Profile edit requests — a rep asking for his own record to be corrected.
    * The ask is prose, so approving records the intent; the correction itself is
    * still made through `PATCH /sales-incharges/:id`.

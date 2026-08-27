@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { encryptParams } from '@/lib/crypto'
 import { errorStatus, getApiErrorMessage } from '@/lib/api-error'
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
+import { useOnCompanySwitch } from '@/features/company'
 import {
   useRetailers,
   useRetailersInfinite,
@@ -228,6 +229,17 @@ export function useRetailersList() {
   // carrying a `draftId` instead of a record id.
   const goToDraft = (draftId: string) =>
     navigate({ to: '/retailers/create', search: { data: encryptParams({ draftId }) } })
+
+
+  // Switching the active company invalidates every row on screen: let go of any
+  // record-pinned dialog target (its id belongs to the old tenant) and reset the
+  // filters, whose option ids are tenant-scoped too.
+  useOnCompanySwitch(() => {
+    setPendingDelete(null)
+    setPendingApprove(null)
+    setPendingReject(null)
+    resetFilters()
+  })
 
   return {
     filters,

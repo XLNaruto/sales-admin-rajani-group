@@ -85,7 +85,6 @@ export const distributorSchema = z.object({
     .refine((v) => !v || /^\d{10}$/.test(v), 'Enter a valid 10-digit mobile number'),
   multipleLogin: optEnum(['yes', 'no'], 'Choose Yes or No'),
   email: z.string().email('Enter a valid email address'),
-  code: z.string().optional(),
   // API accepts only these three (see /sales-incharge-admin/docs → POST /distributors).
   status: z.enum(['active', 'inactive', 'suspended'], {
     message: 'Select the distributor status',
@@ -175,7 +174,6 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   owners: [],
   communicationMobile: '',
   email: '',
-  code: '',
   status: 'active',
   companyIds: [],
   officeAddress: '',

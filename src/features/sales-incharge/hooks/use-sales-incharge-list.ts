@@ -8,6 +8,7 @@ import type {
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
+import { useOnCompanySwitch } from "@/features/company";
 import {
   useDeleteSalesIncharge,
   useSalesIncharges,
@@ -169,6 +170,15 @@ export function useSalesInchargeList() {
       onError: () => toast.error("Couldn't remove the sales incharge."),
     });
   };
+
+
+  // Switching the active company invalidates every row on screen: let go of any
+  // record-pinned dialog target (its id belongs to the old tenant) and reset the
+  // filters, whose option ids are tenant-scoped too.
+  useOnCompanySwitch(() => {
+    setPendingDelete(null);
+    resetFilters();
+  });
 
   return {
     filters,

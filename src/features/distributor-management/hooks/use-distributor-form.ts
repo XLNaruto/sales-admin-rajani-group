@@ -111,7 +111,6 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     communicationMobile: str(values.communicationMobile),
     multipleLogin: optValue(values.multipleLogin),
     email: values.email,
-    code: values.code ?? "",
     status: values.status,
     companyIds: values.companyIds ?? [],
     // Location & coverage

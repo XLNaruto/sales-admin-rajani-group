@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
 import { format, parseISO } from "date-fns";
 import { SalesInchargeDetailDialog } from "../components/sales-incharge-detail-dialog";
+import { useOnCompanySwitch } from "@/features/company";
 import { SALES_INCHARGE_DRAFT_KEY } from "../lib/incharge-form";
 import { SalesmanToolbar } from "../components/salesman-toolbar";
 import { useSalesInchargeList } from "../hooks/use-sales-incharge-list";
@@ -69,6 +70,12 @@ export function SalesInchargePage() {
   } = useSalesInchargeList();
 
   const [viewId, setViewId] = useState<number | null>(null);
+
+  // An open detail dialog is pinned to one tenant's record — close it (and any
+  // side dialog) the moment the active company changes underneath it.
+  useOnCompanySwitch(() => {
+    setViewId(null);
+  });
   const { can } = useCan();
 
   const columns = useMemo<ColumnDef<SalesIncharge>[]>(

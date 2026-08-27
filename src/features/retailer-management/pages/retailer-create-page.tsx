@@ -1,6 +1,7 @@
 import { Controller } from 'react-hook-form'
 import { ArrowLeft, MapPin, Store, Tag } from 'lucide-react'
 import { decryptParams } from '@/lib/crypto'
+import { useRedirectOnCompanySwitch } from '@/features/company'
 import { PageHeader } from '@/components/common/page-header'
 import { DraftsButton } from '@/components/common/drafts-button'
 import { FormSection } from '@/components/common/form-section'
@@ -44,6 +45,10 @@ interface RetailerCreatePageProps {
 }
 
 export function RetailerCreatePage({ data }: RetailerCreatePageProps) {
+  // Every option list and the record itself are tenant-scoped — switching the
+  // active company mid-form leaves the list behind, not a half-migrated draft.
+  useRedirectOnCompanySwitch('/retailers')
+
   // Decrypt the params from the URL; missing/malformed → create mode.
   const params = data
     ? decryptParams<{ id?: string | number; draftId?: string }>(data)

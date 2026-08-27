@@ -233,7 +233,6 @@ const mergePath = (existing: string | undefined, fresh: string[]): string | unde
  */
 function buildScalarBody(input: DistributorCreateInput) {
   return {
-    distributor_code: str(input.code),
     status: input.status,
     // Companies (tenants) the distributor belongs to — several are allowed, and
     // the array replaces whatever was attached before.
@@ -348,7 +347,6 @@ export async function fetchDistributor(id: string): Promise<{
       communicationMobile: r.communication_mobile ?? '',
       multipleLogin: r.multiple_login_allowed == null ? undefined : r.multiple_login_allowed ? 'yes' : 'no',
       email: r.email ?? '',
-      code: r.distributor_code ?? '',
       status: r.status as DistributorFormValues['status'],
       companyIds: (r.company_id ?? []).map(String),
       officeAddress: r.office_address ?? '',

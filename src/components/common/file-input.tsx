@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileUploader } from 'react-drag-drop-files'
 import { UploadCloud, FileText, X } from 'lucide-react'
 import { Hint } from '@/components/common/hint'
+import { useFilePreview } from '@/components/common/file-preview-lightbox'
 import { mediaUrl } from '@/lib/media'
 
 /** Does a storage path/filename point at a previewable image? */
@@ -21,6 +22,9 @@ const baseName = (p: string) => p.split('/').pop() || p
  * an object-URL preview, everything else a generic file icon. Each thumbnail has
  * its own close icon to remove that single file. In `multiple` mode new picks
  * are appended; otherwise they replace the current selection.
+ *
+ * Clicking a thumbnail opens the attachment in a lightbox (see
+ * `useFilePreview`) which pages across every thumbnail in the field.
  *
  * In edit mode, `existing` holds storage paths already saved on the record;
  * they render as thumbnails (resolved to full URLs via `mediaUrl`) ahead of any
@@ -52,7 +56,7 @@ export function FileInput({
   const formatHint = types ? types.join(', ') : undefined
 
   // Object-URL previews, one per picked file — created for EVERY file (not just
-  // images) so any thumbnail can open its preview in a new tab. Regenerated and
+  // images) so any thumbnail can be opened in the lightbox. Regenerated and
   // revoked whenever the selection changes so we never leak blob URLs.
   const [previews, setPreviews] = useState<string[]>([])
 
@@ -80,6 +84,13 @@ export function FileInput({
   // thumbnail steps aside while one is selected instead of sitting next to it.
   // Display-only — dropping the new pick brings the saved one straight back.
   const shownExisting = !multiple && value.length > 0 ? [] : existing
+
+  // Lightbox slides in the same order the thumbnails render, so a thumbnail's
+  // position IS its slide index.
+  const preview = useFilePreview([
+    ...shownExisting.map((path) => ({ src: path, name: baseName(path) })),
+    ...value.map((file, i) => ({ src: previews[i] ?? '', name: file.name, file })),
+  ])
 
   return (
     <div className="space-y-2">
@@ -124,83 +135,83 @@ export function FileInput({
       {(shownExisting.length > 0 || value.length > 0) && (
         <div className="flex flex-wrap gap-2">
           {shownExisting.map((path, i) => (
-            <a
+            <div
               key={`existing-${path}-${i}`}
-              href={mediaUrl(path)}
-              target="_blank"
-              rel="noopener noreferrer"
               className="group/thumb relative size-10 shrink-0 overflow-hidden rounded-md border border-primary/30 bg-muted/30"
             >
-              {/* The hint sits on the thumbnail, not the anchor: the remove button
-                  below carries its own, and nesting the two would open both. */}
               <Hint label={baseName(path)}>
-                {isImagePath(path) ? (
-                  <img
-                    src={mediaUrl(path)}
-                    alt={baseName(path)}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="flex size-full items-center justify-center text-primary">
-                    <FileText className="size-4" />
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => preview.open(i)}
+                  className="size-full cursor-zoom-in"
+                >
+                  {isImagePath(path) ? (
+                    <img
+                      src={mediaUrl(path)}
+                      alt={baseName(path)}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-full items-center justify-center text-primary">
+                      <FileText className="size-4" />
+                    </span>
+                  )}
+                </button>
               </Hint>
 
               {onRemoveExisting && (
                 <Hint label="Remove">
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      onRemoveExisting(i)
-                    }}
+                    onClick={() => onRemoveExisting(i)}
                     className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
                   >
                     <X className="size-3" />
                   </button>
                 </Hint>
               )}
-            </a>
+            </div>
           ))}
           {value.map((file, i) => (
-            <a
+            <div
               key={`${file.name}-${i}`}
-              href={previews[i]}
-              target="_blank"
-              rel="noopener noreferrer"
               className="group/thumb relative size-10 shrink-0 overflow-hidden rounded-md border border-primary/30 bg-muted/30"
             >
               <Hint label={file.name}>
-                {file.type.startsWith('image/') && previews[i] ? (
-                  <img
-                    src={previews[i]}
-                    alt={file.name}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="flex size-full items-center justify-center text-primary">
-                    <FileText className="size-4" />
-                  </span>
-                )}
+                <button
+                  type="button"
+                  onClick={() => preview.open(shownExisting.length + i)}
+                  className="size-full cursor-zoom-in"
+                >
+                  {file.type.startsWith('image/') && previews[i] ? (
+                    <img
+                      src={previews[i]}
+                      alt={file.name}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex size-full items-center justify-center text-primary">
+                      <FileText className="size-4" />
+                    </span>
+                  )}
+                </button>
               </Hint>
 
               <Hint label="Remove">
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    removeAt(i)
-                  }}
+                  onClick={() => removeAt(i)}
                   className="absolute top-0 right-0 grid size-4 cursor-pointer place-items-center rounded-bl-md rounded-tr-md bg-background/80 text-muted-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-destructive hover:text-white"
                 >
                   <X className="size-3" />
                 </button>
               </Hint>
-            </a>
+            </div>
           ))}
         </div>
       )}
+
+      {preview.lightbox}
     </div>
   )
 }

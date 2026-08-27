@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Z } from '@/lib/z-layers'
+import { escapeClaimed } from '@/lib/overlay-stack'
 import { dismissHints } from '@/lib/hint-bus'
 
 interface SheetProps {
@@ -26,7 +27,9 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
     // stay pinned above the overlay — close any open hint.
     dismissHints()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onOpenChange(false)
+      // An overlay opened from inside this sheet (the attachment lightbox) owns
+      // the Escape key while it is up, so one press never dismisses both.
+      if (e.key === 'Escape' && !escapeClaimed()) onOpenChange(false)
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow

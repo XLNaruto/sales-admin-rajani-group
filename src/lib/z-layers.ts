@@ -8,6 +8,7 @@
  *   sidebar (80/90) mobile drawer covers the topbar
  *   modal   (100) dialogs & sheets cover the whole shell
  *   popoverInModal (110) a popover opened inside a modal still has to clear it
+ *   lightbox (130) the attachment viewer covers every app layer above
  */
 export const Z = {
   popover: 'z-60',
@@ -16,9 +17,17 @@ export const Z = {
   sidebar: 'z-90',
   modal: 'z-100',
   popoverInModal: 'z-[110]',
+  /** Image/document lightbox — over every app layer, under tooltips. */
+  lightbox: 'z-[130]',
   /** Tooltips are transient and never occlude anything — always on top. */
-  tooltip: 'z-[120]',
+  tooltip: 'z-[140]',
 } as const
+
+/**
+ * Numeric twin of `Z.lightbox`, for `yet-another-react-lightbox` — it takes its
+ * stacking order as a CSS variable rather than a class.
+ */
+export const LIGHTBOX_Z = 130
 
 /**
  * Which layer a body-portalled popover belongs on, decided by where its anchor

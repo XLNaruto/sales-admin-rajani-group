@@ -1,45 +1,33 @@
 import { useState } from 'react'
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
-import { format, parseISO } from 'date-fns'
 import { toast } from 'sonner'
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
 import { useOnCompanySwitch } from '@/features/company'
-import { useBeatChangeList, useBeatChangesInfinite, useReviewBeatChange } from '../api/use-beat-changes'
-import type { BeatChangeFilters } from '../components/beat-change-toolbar'
+import { useDayChangeList, useDayChangesInfinite, useReviewDayChange } from '../api/use-day-changes'
+import type { DayChangeFilters } from '../components/day-change-toolbar'
 import { planDateBounds } from '../../lib/plan-date-window'
-import type { BeatChange } from '../types'
+import type { DayChange } from '../types'
 
 /**
  * Empty filter state — also what Reset returns to. `pending` rather than blank:
- * the endpoint defaults to it, and a queue that opens on last month's answers
- * is a queue nobody trusts.
+ * the endpoint defaults to it, and these requests are usually about TODAY, so a
+ * first page led by last week's decisions is a queue nobody can work.
  */
-/**
- * A `yyyy-MM-dd` plan date as `dd-MM-yyyy` for the toast. Parsed date-only, so
- * `parseISO` builds a local midnight — the day cannot slip.
- */
-function toastDateLabel(date: string): string {
-  try {
-    return format(parseISO(date), 'dd-MM-yyyy')
-  } catch {
-    return date
-  }
-}
-
-const INITIAL_FILTERS: BeatChangeFilters = {
+const INITIAL_FILTERS: DayChangeFilters = {
   status: 'pending',
+  operation: 'all',
   salesInchargeId: 'all',
   salesInchargeName: '',
   window: 'all',
 }
 
 /**
- * Orchestrates the beat-change queue: filter/pagination/sort state, the live
- * list query, and the approve/reject flow. The page consumes this and only
- * renders.
+ * Orchestrates the day-change queue: filter/pagination/sort state, the live
+ * list query, the detail dialog and the approve/reject flow. The page consumes
+ * this and only renders.
  */
-export function useBeatChangesList() {
-  const [filters, setFilters] = useState<BeatChangeFilters>(INITIAL_FILTERS)
+export function useDayChangesList() {
+  const [filters, setFilters] = useState<DayChangeFilters>(INITIAL_FILTERS)
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 10,
@@ -47,7 +35,7 @@ export function useBeatChangesList() {
   const [sorting, setSorting] = useState<SortingState>([])
 
   // Any filter/sort change resets to the first page.
-  const patchFilters = (patch: Partial<BeatChangeFilters>) => {
+  const patchFilters = (patch: Partial<DayChangeFilters>) => {
     setFilters((f) => ({ ...f, ...patch }))
     setPagination((p) => ({ ...p, pageIndex: 0 }))
   }
@@ -70,6 +58,7 @@ export function useBeatChangesList() {
 
   const baseParams = {
     status: filters.status,
+    operation: filters.operation === 'all' ? undefined : filters.operation,
     salesInchargeId:
       filters.salesInchargeId === 'all' ? undefined : Number(filters.salesInchargeId),
     ...planDateBounds(filters.window),
@@ -78,7 +67,7 @@ export function useBeatChangesList() {
 
   // Only one of the two queries is enabled at a time (based on `isAll`).
   const { data, isLoading, isError, error, refetch, dataUpdatedAt, isFetching } =
-    useBeatChangeList(
+    useDayChangeList(
       {
         ...baseParams,
         page: pagination.pageIndex + 1,
@@ -87,7 +76,7 @@ export function useBeatChangesList() {
       { enabled: !isAll },
     )
 
-  const infinite = useBeatChangesInfinite(
+  const infinite = useDayChangesInfinite(
     { ...baseParams, pageSize: INFINITE_BATCH_SIZE },
     { enabled: isAll },
   )
@@ -110,15 +99,17 @@ export function useBeatChangesList() {
 
   const hasActiveFilters =
     filters.status !== 'pending' ||
+    filters.operation !== 'all' ||
     filters.salesInchargeId !== 'all' ||
     filters.window !== 'all'
 
   // --- Review flow --------------------------------------------------------
   // Approve and reject are separate confirmations: only one of them takes a
   // reason, and only that one may be blocked on it being filled in.
-  const review = useReviewBeatChange()
-  const [pendingApprove, setPendingApprove] = useState<BeatChange | null>(null)
-  const [pendingReject, setPendingReject] = useState<BeatChange | null>(null)
+  const review = useReviewDayChange()
+  const [detail, setDetail] = useState<DayChange | null>(null)
+  const [pendingApprove, setPendingApprove] = useState<DayChange | null>(null)
+  const [pendingReject, setPendingReject] = useState<DayChange | null>(null)
   const [rejectReason, setRejectReason] = useState('')
 
   const closeReject = () => {
@@ -128,22 +119,27 @@ export function useBeatChangesList() {
 
   const confirmApprove = () => {
     if (!pendingApprove) return
-    const target = pendingApprove
     review.mutate(
-      { id: target.id, review: { status: 'approved' } },
+      { id: pendingApprove.id, review: { status: 'approved' } },
       {
-        onSuccess: () => {
+        onSuccess: ({ applied }) => {
+          // The API answers with what it actually wrote — reported back rather
+          // than assumed, because entries already visited against are kept and
+          // the count the admin saw proposed is not the count that landed.
           toast.success(
-            `Beat change approved — ${target.toBeatName ?? 'the new beat'} now runs on ${toastDateLabel(target.planDate)}.`,
+            applied
+              ? `Day change approved — ${applied.entriesAdded} added, ${applied.entriesRemoved} removed, ${applied.entriesKept} kept.`
+              : 'Day change approved.',
           )
           setPendingApprove(null)
+          setDetail(null)
         },
-        // The API re-checks every precondition at review time, so a refusal here
-        // ("the day has locked", "that beat is no longer allocated") is the real
+        // Every precondition is re-checked at review time, so a refusal here
+        // ("that beat is no longer allocated", "the date has gone") is the real
         // answer and is surfaced verbatim rather than replaced with a generic one.
         onError: (e) =>
           toast.error(
-            e instanceof Error ? e.message : "Couldn't approve the beat change.",
+            e instanceof Error ? e.message : "Couldn't approve the day change.",
           ),
       },
     )
@@ -151,18 +147,18 @@ export function useBeatChangesList() {
 
   const confirmReject = () => {
     if (!pendingReject || rejectReason.trim() === '') return
-    const target = pendingReject
     review.mutate(
-      { id: target.id, review: { status: 'rejected', rejectionReason: rejectReason } },
+      { id: pendingReject.id, review: { status: 'rejected', rejectionReason: rejectReason } },
       {
         onSuccess: () => {
-          toast.success('Beat change rejected — the rep can read your reason in the app.')
+          toast.success(
+            'Day change rejected — the day you allocated stands, and the rep reads your reason in the app.',
+          )
           closeReject()
+          setDetail(null)
         },
         onError: (e) =>
-          toast.error(
-            e instanceof Error ? e.message : "Couldn't reject the beat change.",
-          ),
+          toast.error(e instanceof Error ? e.message : "Couldn't reject the day change."),
       },
     )
   }
@@ -172,6 +168,7 @@ export function useBeatChangesList() {
   // record-pinned dialog target (its id belongs to the old tenant) and reset the
   // filters, whose option ids are tenant-scoped too.
   useOnCompanySwitch(() => {
+    setDetail(null)
     setPendingApprove(null)
     setPendingReject(null)
     setRejectReason('')
@@ -198,6 +195,8 @@ export function useBeatChangesList() {
     hasMore: isAll ? infinite.hasNextPage : false,
     isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     hasActiveFilters,
+    detail,
+    setDetail,
     pendingApprove,
     setPendingApprove,
     pendingReject,

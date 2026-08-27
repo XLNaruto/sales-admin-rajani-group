@@ -315,10 +315,10 @@ function OwnerPartnersDialog({
                       <TableHead className="w-12">#</TableHead>
                       <TableHead className="w-24">Actions</TableHead>
                       <TableHead className="min-w-56">Name</TableHead>
-                      <TableHead>Mobile</TableHead>
-                      <TableHead>E-mail</TableHead>
-                      <TableHead>Birth Date</TableHead>
-                      <TableHead>Anniversary</TableHead>
+                      <TableHead className="min-w-40">Mobile</TableHead>
+                      <TableHead className="min-w-64">E-mail</TableHead>
+                      <TableHead className="min-w-36">Birth Date</TableHead>
+                      <TableHead className="min-w-36">Anniversary</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -361,29 +361,45 @@ function OwnerPartnersDialog({
                         <TableCell className="font-medium">
                           {owner.name}
                         </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5 tabular-nums">
-                            <Phone className="size-3.5 text-muted-foreground" />
-                            {owner.mobile}
-                          </span>
+                        <TableCell className="whitespace-nowrap">
+                          {owner.mobile ? (
+                            <span className="flex items-center gap-1.5 tabular-nums">
+                              <Phone className="size-3.5 text-muted-foreground" />
+                              {owner.mobile}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5">
-                            <Mail className="size-3.5 text-muted-foreground" />
-                            {owner.email || "—"}
-                          </span>
+                        <TableCell className="whitespace-nowrap">
+                          {owner.email ? (
+                            <span className="flex items-center gap-1.5">
+                              <Mail className="size-3.5 text-muted-foreground" />
+                              {owner.email}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5 tabular-nums">
-                            <Cake className="size-3.5 text-muted-foreground" />
-                            {formatDate(owner.birthDate) || "—"}
-                          </span>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDate(owner.birthDate) ? (
+                            <span className="flex items-center gap-1.5 tabular-nums">
+                              <Cake className="size-3.5 text-muted-foreground" />
+                              {formatDate(owner.birthDate)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1.5 tabular-nums">
-                            <Heart className="size-3.5 text-muted-foreground" />
-                            {formatDate(owner.anniversaryDate) || "—"}
-                          </span>
+                        <TableCell className="whitespace-nowrap">
+                          {formatDate(owner.anniversaryDate) ? (
+                            <span className="flex items-center gap-1.5 tabular-nums">
+                              <Heart className="size-3.5 text-muted-foreground" />
+                              {formatDate(owner.anniversaryDate)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

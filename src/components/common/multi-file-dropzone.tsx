@@ -4,6 +4,7 @@ import { Hint } from '@/components/common/hint'
 import { cn } from '@/lib/utils'
 import { toasterrormsg } from '@/lib/toast'
 import { mediaUrl } from '@/lib/media'
+import { useFilePreview } from '@/components/common/file-preview-lightbox'
 import { ImageWithFallback } from './image-with-fallback'
 import type { DropzoneFile } from './file-dropzone'
 
@@ -30,16 +31,6 @@ function readAsDataUrl(file: File): Promise<string> {
 const isImage = (f: DropzoneFile) =>
   f.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(f.name)
 
-// Open a file preview in a new tab. Freshly-picked files have a `data:` URL,
-// which browsers refuse to open as a top-level tab (it just lands on
-// about:blank) — so for those we open a short-lived object (blob:) URL from the
-// raw File instead. Already-stored files open at their resolved media URL.
-function openFilePreview(f: DropzoneFile, resolvedUrl: string) {
-  const url = f.file ? URL.createObjectURL(f.file) : resolvedUrl
-  window.open(url, '_blank', 'noopener,noreferrer')
-  if (f.file) setTimeout(() => URL.revokeObjectURL(url), 60_000)
-}
-
 /**
  * Translate an `accept` mime/extension string into the uppercase extension list
  * `react-drag-drop-files` expects (e.g. `image/*` → JPG/PNG/…). Returns
@@ -60,7 +51,8 @@ function acceptToTypes(accept?: string): string[] | undefined {
 /**
  * Multi-file drag-and-drop field built on `react-drag-drop-files`. Picked files
  * are surfaced as {@link DropzoneFile}s; images render as square thumbnails and
- * other files as full-width document bars, each removable. Respects `maxFiles`.
+ * other files as full-width document bars, each removable. Clicking either one
+ * opens it in a lightbox that pages across the whole field. Respects `maxFiles`.
  */
 export function MultiFileDropzone({
   value,
@@ -73,6 +65,11 @@ export function MultiFileDropzone({
   className,
 }: MultiFileDropzoneProps) {
   const types = acceptToTypes(accept)
+
+  // Slides mirror `value` one-for-one, so a tile's position is its slide index.
+  const preview = useFilePreview(
+    value.map((f) => ({ src: f.url, name: f.name, file: f.file })),
+  )
 
   const take = async (fileList: File[]) => {
     const incoming = fileList
@@ -171,18 +168,26 @@ export function MultiFileDropzone({
               )}
             >
               {image ? (
-                <ImageWithFallback
-                  src={mediaUrl(file.url)}
-                  alt={file.name}
-                  wrapperClassName="size-full"
-                  className="object-cover"
-                />
+                <Hint label={file.name}>
+                  <button
+                    type="button"
+                    onClick={() => preview.open(i)}
+                    className="size-full cursor-zoom-in"
+                  >
+                    <ImageWithFallback
+                      src={mediaUrl(file.url)}
+                      alt={file.name}
+                      wrapperClassName="size-full"
+                      className="object-cover"
+                    />
+                  </button>
+                </Hint>
               ) : (
                 <Hint label={file.name}>
                   <button
                     type="button"
-                    onClick={() => openFilePreview(file, mediaUrl(file.url))}
-                    className="flex size-full items-center gap-3 p-3 text-left text-primary"
+                    onClick={() => preview.open(i)}
+                    className="flex size-full cursor-zoom-in items-center gap-3 p-3 text-left text-primary"
                   >
                     <FileText className="size-6 shrink-0" />
                     <span className="min-w-0 flex-1 truncate pr-6 text-xs font-medium text-foreground">
@@ -214,6 +219,8 @@ export function MultiFileDropzone({
       </div>
 
       {hint ? <p className="mt-2 text-xs text-muted-foreground">{hint}</p> : null}
+
+      {preview.lightbox}
     </div>
   )
 }

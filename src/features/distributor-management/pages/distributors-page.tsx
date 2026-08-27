@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
 import { DistributorCompanyMappingDialog } from "../components/distributor-company-mapping-dialog";
 import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
+import { useOnCompanySwitch } from "@/features/company";
 import { DistributorToolbar } from "../components/distributor-toolbar";
 import { useDistributorsList } from "../hooks/use-distributors-list";
 import { labelFor } from "../lib/distributor-reference";
@@ -80,6 +81,13 @@ export function DistributorsPage() {
 
   const [viewId, setViewId] = useState<string | null>(null);
   const [mappingRow, setMappingRow] = useState<Distributor | null>(null);
+
+  // An open detail dialog is pinned to one tenant's record — close it (and any
+  // side dialog) the moment the active company changes underneath it.
+  useOnCompanySwitch(() => {
+    setViewId(null);
+    setMappingRow(null);
+  });
   const { can } = useCan();
 
   const columns = useMemo<ColumnDef<Distributor>[]>(

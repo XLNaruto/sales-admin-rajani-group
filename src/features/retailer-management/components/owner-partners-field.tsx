@@ -359,28 +359,34 @@ function OwnerPartnersDialog({
                           </span>
                         </TableCell>
                         <TableCell>
-                          <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
-                            <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
-                            {owner.alternateMobile || (
-                              <span className="text-muted-foreground">N/A</span>
-                            )}
-                          </span>
+                          {owner.alternateMobile ? (
+                            <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+                              <Smartphone className="size-3.5 shrink-0 text-muted-foreground" />
+                              {owner.alternateMobile}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
-                            <Cake className="size-3.5 shrink-0 text-muted-foreground" />
-                            {formatDate(owner.birthDate) || (
-                              <span className="text-muted-foreground">N/A</span>
-                            )}
-                          </span>
+                          {formatDate(owner.birthDate) ? (
+                            <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+                              <Cake className="size-3.5 shrink-0 text-muted-foreground" />
+                              {formatDate(owner.birthDate)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                         <TableCell>
-                          <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
-                            <Heart className="size-3.5 shrink-0 text-muted-foreground" />
-                            {formatDate(owner.anniversaryDate) || (
-                              <span className="text-muted-foreground">N/A</span>
-                            )}
-                          </span>
+                          {formatDate(owner.anniversaryDate) ? (
+                            <span className="flex items-center gap-1.5 whitespace-nowrap tabular-nums">
+                              <Heart className="size-3.5 shrink-0 text-muted-foreground" />
+                              {formatDate(owner.anniversaryDate)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">N/A</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

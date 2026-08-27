@@ -1,12 +1,14 @@
-import { CalendarRange, CircleDot, UserRound } from 'lucide-react'
+import { CalendarRange, CircleDot, Replace, UserRound } from 'lucide-react'
 import { FilterBar, type FilterFacet } from '@/components/common/filter-bar'
 import type { RefreshState } from '@/components/common/refresh-control'
 import { useSalesInchargeSelect } from '@/features/sales-incharge'
 import { PLAN_DATE_WINDOWS, type PlanDateWindow } from '../../lib/plan-date-window'
-import type { BeatChangeStatus } from '../types'
+import type { DayChangeOperation, DayChangeStatus } from '../types'
 
-export interface BeatChangeFilters {
-  status: BeatChangeStatus
+export interface DayChangeFilters {
+  status: DayChangeStatus
+  /** `'all'` means both kinds of ask — the endpoint's default is to omit it. */
+  operation: DayChangeOperation | 'all'
   /** `'all'` means every rep; otherwise the id, stringified for the Combobox. */
   salesInchargeId: string
   /**
@@ -18,35 +20,41 @@ export interface BeatChangeFilters {
   window: PlanDateWindow
 }
 
-const STATUSES: { label: string; value: BeatChangeStatus }[] = [
+const STATUSES: { label: string; value: DayChangeStatus }[] = [
   { label: 'Pending', value: 'pending' },
   { label: 'Approved', value: 'approved' },
   { label: 'Rejected', value: 'rejected' },
   { label: 'Cancelled', value: 'cancelled' },
 ]
 
-interface BeatChangeToolbarProps {
-  filters: BeatChangeFilters
-  onChange: (patch: Partial<BeatChangeFilters>) => void
+const OPERATIONS: { label: string; value: DayChangeOperation | 'all' }[] = [
+  { label: 'Any ask', value: 'all' },
+  { label: 'Replaces the day', value: 'update' },
+  { label: 'Adds to the day', value: 'create' },
+]
+
+interface DayChangeToolbarProps {
+  filters: DayChangeFilters
+  onChange: (patch: Partial<DayChangeFilters>) => void
   onReset: () => void
   /** Refresh button + "Fetched x ago" shown in the filter card. */
   refresh?: RefreshState
 }
 
 /**
- * Filter card above the beat-change queue.
+ * Filter card above the day-change queue.
  *
- * No search box: the endpoint has no free-text search, and there is nothing on
- * a row a name would find that the rep facet doesn't already reach. Status has
- * no "all" option because the API's enum has none — omitting `status` means
- * `pending`, so `pending` is the facet's clear value rather than a fifth choice.
+ * No search box: the endpoint has no free-text search. Status has no "all"
+ * option because the API's enum has none — omitting `status` means `pending`,
+ * so `pending` is the facet's clear value rather than a fifth choice. Operation
+ * DOES have one, because there omitting the param genuinely means both.
  */
-export function BeatChangeToolbar({
+export function DayChangeToolbar({
   filters,
   onChange,
   onReset,
   refresh,
-}: BeatChangeToolbarProps) {
+}: DayChangeToolbarProps) {
   const incharge = useSalesInchargeSelect()
 
   const facets: FilterFacet[] = [
@@ -57,8 +65,17 @@ export function BeatChangeToolbar({
       value: filters.status,
       // The queue is a work list; clearing returns to the open items.
       clearValue: 'pending',
-      onChange: (v) => onChange({ status: v as BeatChangeStatus }),
+      onChange: (v) => onChange({ status: v as DayChangeStatus }),
       options: STATUSES,
+    },
+    {
+      key: 'operation',
+      label: 'Ask',
+      icon: Replace,
+      value: filters.operation,
+      clearValue: 'all',
+      onChange: (v) => onChange({ operation: v as DayChangeOperation | 'all' }),
+      options: OPERATIONS,
     },
     {
       key: 'sales-incharge',
@@ -83,7 +100,7 @@ export function BeatChangeToolbar({
     },
     {
       key: 'window',
-      label: 'Day being changed',
+      label: 'Day being re-planned',
       icon: CalendarRange,
       value: filters.window,
       clearValue: 'all',

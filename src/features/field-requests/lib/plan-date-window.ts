@@ -1,6 +1,7 @@
 /**
- * The `from_date`/`to_date` presets behind the queue's "Day being changed"
- * filter.
+ * The `from_date`/`to_date` presets behind the field-request queues' date
+ * filter — shared by Beat Changes ("Day being changed") and Day Changes ("Day
+ * being re-planned"), which bound the same thing.
  *
  * The endpoint bounds the DAY BEING CHANGED rather than when the request was
  * raised, so the useful question is "what is being asked about next week" — a

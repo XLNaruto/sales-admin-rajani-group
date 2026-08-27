@@ -127,7 +127,6 @@ export interface DistributorCreateInput {
   communicationMobile?: string
   multipleLogin?: YesNo
   email: string
-  code?: string
   status: DistributorStatus
   /**
    * Selected company (tenant) ids — a distributor can belong to several. Held

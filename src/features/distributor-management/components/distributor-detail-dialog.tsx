@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PreviewTrigger } from "@/components/common/file-preview-lightbox";
 import { GeoLocationValue } from "@/components/maps/geo-location-value";
 import { cn } from "@/lib/utils";
 import { useDistributorDetail } from "../api/use-distributors";
@@ -75,10 +76,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** A labelled block of clickable image thumbnails (opens full-size in a new tab). */
+/** A labelled block of thumbnails; clicking one opens the gallery in a lightbox. */
 function ImageGrid({ label, urls }: { label: string; urls: string[] }) {
   const shown = urls.filter(Boolean);
   if (shown.length === 0) return null;
+  const files = shown.map((url) => ({ src: url }));
   return (
     <div>
       <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -87,12 +89,12 @@ function ImageGrid({ label, urls }: { label: string; urls: string[] }) {
       {/* Each frame hugs its own image: capped in both directions and shown at
           its natural aspect ratio, never cropped and never padded. */}
       <div className="flex flex-wrap gap-3">
-        {shown.map((url) => (
-          <a
+        {shown.map((url, i) => (
+          <PreviewTrigger
             key={url}
-            href={url}
-            target="_blank"
-            rel="noreferrer"
+            files={files}
+            index={i}
+            label={`Preview ${label}`}
             className="block w-fit max-w-full overflow-hidden rounded-lg border border-border"
           >
             <img
@@ -102,7 +104,7 @@ function ImageGrid({ label, urls }: { label: string; urls: string[] }) {
               decoding="async"
               className="max-h-40 w-auto max-w-64 object-contain"
             />
-          </a>
+          </PreviewTrigger>
         ))}
       </div>
     </div>

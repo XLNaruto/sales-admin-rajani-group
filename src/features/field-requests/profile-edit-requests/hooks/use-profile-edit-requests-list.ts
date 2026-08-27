@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
+import { useOnCompanySwitch } from '@/features/company'
 import {
   useProfileEditRequestList,
   useProfileEditRequestsInfinite,
@@ -176,6 +177,18 @@ export function useProfileEditRequestsList() {
       },
     )
   }
+
+
+  // Switching the active company invalidates every row on screen: let go of any
+  // record-pinned dialog target (its id belongs to the old tenant) and reset the
+  // filters, whose option ids are tenant-scoped too.
+  useOnCompanySwitch(() => {
+    setDetailRow(null)
+    setPendingApprove(null)
+    setPendingReject(null)
+    setReviewNote('')
+    resetFilters()
+  })
 
   return {
     filters,

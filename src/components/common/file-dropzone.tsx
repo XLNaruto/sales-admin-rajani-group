@@ -3,6 +3,7 @@ import { FileText, Upload, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toasterrormsg } from '@/lib/toast'
 import { mediaUrl } from '@/lib/media'
+import { useFilePreview } from '@/components/common/file-preview-lightbox'
 import { ImageWithFallback } from './image-with-fallback'
 
 export interface DropzoneFile {
@@ -54,7 +55,8 @@ function acceptToTypes(accept?: string): string[] | undefined {
 /**
  * Single-file drag-and-drop field built on `react-drag-drop-files`. Picked
  * files are surfaced as a {@link DropzoneFile} (name + data-URL + raw `File`).
- * Images preview as a cover thumbnail; other files show a document tile.
+ * Images preview as a cover thumbnail; other files show a document tile. Either
+ * one opens full-screen in a lightbox when clicked.
  */
 export function FileDropzone({
   value,
@@ -66,6 +68,10 @@ export function FileDropzone({
   className,
 }: FileDropzoneProps) {
   const types = acceptToTypes(accept)
+
+  const preview = useFilePreview(
+    value ? [{ src: value.url, name: value.name, file: value.file }] : [],
+  )
 
   const take = async (file: File) => {
     onChange({ name: file.name, url: await readAsDataUrl(file), file })
@@ -83,28 +89,35 @@ export function FileDropzone({
           className,
         )}
       >
-        {isImage(value) ? (
-          <>
-            <ImageWithFallback
-              src={mediaUrl(value.url)}
-              alt={value.name}
-              wrapperClassName="absolute inset-0 h-full w-full"
-              className="object-contain"
-            />
-            <span className="absolute inset-x-0 bottom-0 truncate bg-linear-to-t from-black/70 to-transparent px-3 py-2 pr-10 text-left text-xs font-medium text-white">
-              {value.name}
+        <button
+          type="button"
+          onClick={() => preview.open(0)}
+          aria-label={`Preview ${value.name}`}
+          className="absolute inset-0 size-full cursor-zoom-in"
+        >
+          {isImage(value) ? (
+            <>
+              <ImageWithFallback
+                src={mediaUrl(value.url)}
+                alt={value.name}
+                wrapperClassName="absolute inset-0 h-full w-full"
+                className="object-contain"
+              />
+              <span className="absolute inset-x-0 bottom-0 truncate bg-linear-to-t from-black/70 to-transparent px-3 py-2 pr-10 text-left text-xs font-medium text-white">
+                {value.name}
+              </span>
+            </>
+          ) : (
+            <span className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 py-6 text-center">
+              <span className="flex size-11 items-center justify-center rounded-lg border border-border bg-background text-primary">
+                <FileText className="size-6" />
+              </span>
+              <span className="max-w-full truncate text-sm font-medium text-foreground">
+                {value.name}
+              </span>
             </span>
-          </>
-        ) : (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 py-6 text-center">
-            <span className="flex size-11 items-center justify-center rounded-lg border border-border bg-background text-primary">
-              <FileText className="size-6" />
-            </span>
-            <span className="max-w-full truncate text-sm font-medium text-foreground">
-              {value.name}
-            </span>
-          </div>
-        )}
+          )}
+        </button>
         <button
           type="button"
           onClick={() => onChange(null)}
@@ -113,6 +126,8 @@ export function FileDropzone({
         >
           <X className="size-4" />
         </button>
+
+        {preview.lightbox}
       </div>
     )
   }

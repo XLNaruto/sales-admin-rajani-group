@@ -952,3 +952,47 @@
   display: none;
 }
 
+
+/* yet-another-react-lightbox — framing for the attachment viewer.
+   The chrome itself is ours (see `file-preview-lightbox.tsx`); these rules
+   handle the parts the library paints: the artwork, the top band it sits on and
+   the thumbnail strip. */
+.sa-lightbox .yarl__slide_image {
+  border-radius: 0.75rem;
+  box-shadow: 0 1.5rem 3.5rem rgb(0 0 0 / 0.55);
+}
+/* A band behind the title/toolbar row so both stay readable over a light
+   image — the slide is inset far enough that it never reaches under it. */
+.sa-lightbox .yarl__container::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4rem;
+  /* Above the backdrop, below the toolbar and slides (both later in the DOM). */
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 0.55),
+    rgb(0 0 0 / 0.25) 60%,
+    transparent
+  );
+}
+.sa-lightbox .yarl__thumbnails_container {
+  border-top: 1px solid rgb(255 255 255 / 0.08);
+}
+.sa-lightbox .yarl__thumbnails_thumbnail {
+  border-radius: 0.5rem;
+  background: rgb(255 255 255 / 0.06);
+  opacity: 0.55;
+  transition:
+    opacity 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.sa-lightbox .yarl__thumbnails_thumbnail:hover {
+  opacity: 0.85;
+}
+.sa-lightbox .yarl__thumbnails_thumbnail_active {
+  opacity: 1;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}

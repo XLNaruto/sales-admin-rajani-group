@@ -225,6 +225,12 @@ export const queryKeys = {
     /** Infinite ("All") variant of the beat-change queue. */
     beatChangesInfinite: (filters?: Record<string, unknown>) =>
       [...queryKeys.fieldRequests.all, 'beat-changes-infinite', filters ?? {}] as const,
+    /** GET /day-changes — one page of the day-change queue. */
+    dayChanges: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'day-changes', filters ?? {}] as const,
+    /** Infinite ("All") variant of the day-change queue. */
+    dayChangesInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'day-changes-infinite', filters ?? {}] as const,
     /** GET /profile-edit-requests — one page of the profile-edit queue. */
     profileEdits: (filters?: Record<string, unknown>) =>
       [...queryKeys.fieldRequests.all, 'profile-edits', filters ?? {}] as const,

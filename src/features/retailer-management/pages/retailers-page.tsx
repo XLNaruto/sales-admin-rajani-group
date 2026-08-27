@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import { Forbidden } from '@/features/error'
 import { RetailerBeatDialog } from '../components/retailer-beat-dialog'
 import { RetailerDetailDialog } from '../components/retailer-detail-dialog'
+import { useOnCompanySwitch } from '@/features/company'
 import { RetailerToolbar } from '../components/retailer-toolbar'
 import { useRetailersList } from '../hooks/use-retailers-list'
 import { RETAILER_DRAFT_KEY } from '../lib/retailer-form'
@@ -67,6 +68,13 @@ export function RetailersPage() {
   const [viewId, setViewId] = useState<string | null>(null)
   // Row whose beat mapping is being edited (null → modal closed).
   const [beatTarget, setBeatTarget] = useState<Retailer | null>(null)
+
+  // An open detail dialog is pinned to one tenant's record — close it (and any
+  // side dialog) the moment the active company changes underneath it.
+  useOnCompanySwitch(() => {
+    setViewId(null)
+    setBeatTarget(null)
+  })
   const { can } = useCan()
 
   const columns = useMemo<ColumnDef<Retailer>[]>(

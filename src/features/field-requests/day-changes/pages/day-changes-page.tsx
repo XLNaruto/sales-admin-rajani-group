@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { format, parseISO } from 'date-fns'
-import { ArrowRight, Check, Lock, Route, UserRound, X } from 'lucide-react'
+import { CalendarSync, Check, Eye, Lock, Plus, Replace, UserRound, X } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
@@ -10,11 +10,12 @@ import { DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { isForbiddenError } from '@/lib/api-error'
 import { Forbidden } from '@/features/error'
 import { useCan } from '@/features/permissions'
-import { BeatChangeToolbar } from '../components/beat-change-toolbar'
-import { useBeatChangesList } from '../hooks/use-beat-changes-list'
-import type { BeatChange } from '../types'
+import { DayChangeDetailDialog } from '../components/day-change-detail-dialog'
+import { DayChangeToolbar } from '../components/day-change-toolbar'
+import { useDayChangesList } from '../hooks/use-day-changes-list'
+import type { DayChange } from '../types'
 
-/** A `yyyy-MM-dd` plan date as "Tue, 04 Aug" (falls back to the raw value). */
+/** A `yyyy-MM-dd` plan date as "Tue, 04 Aug 2026" (falls back to the raw value). */
 function planDateLabel(date: string): string {
   try {
     // Parsed date-only, so `parseISO` builds a local midnight — no UTC shift.
@@ -34,19 +35,30 @@ function stampLabel(iso: string | null): string {
   }
 }
 
+/** The first few proposed activities, as a one-line summary of the ask. */
+function entrySummary(request: DayChange): string {
+  if (request.entries.length === 0) return 'Nothing — clears the day'
+  const names = request.entries.map(
+    (e) => e.activityName ?? `Activity #${e.activityId}`,
+  )
+  const head = names.slice(0, 2).join(', ')
+  return names.length > 2 ? `${head} +${names.length - 2} more` : head
+}
+
 /**
- * Field Requests → Beat Change Requests.
+ * Field Requests → Journey Day Change Requests.
  *
- * The work queue for what the reps have asked to swap on a planned day. Every
- * row carries the day, the beat coming off, the beat going on and the rep's own
- * reason, because that is the whole of what the decision needs — opening the
- * plan to answer one of these would be the screen failing at its job.
+ * The work queue for what the reps want to do INSTEAD OF — or IN ADDITION TO —
+ * the day they were given. Every row carries the date, which of the two asks it
+ * is, the rep's reason and the proposed work with names already resolved, so the
+ * decision never needs the plan opened.
  *
- * Approving MOVES THE DAY: the replacement beat takes the outgoing one's place
- * in the walk. The API re-checks every precondition at that moment, so a request
- * that has gone stale is refused with its reason rather than quietly applied.
+ * Nothing is written while a request is pending: the rep's app, his beats and
+ * every counter still show the allocated day. Approving is the only thing that
+ * changes that — and the API re-checks every precondition at that moment, so a
+ * proposal that has gone stale is refused with its reason rather than applied.
  */
-export function BeatChangesPage() {
+export function DayChangesPage() {
   const {
     filters,
     patchFilters,
@@ -65,6 +77,8 @@ export function BeatChangesPage() {
     hasMore,
     isFetchingMore,
     hasActiveFilters,
+    detail,
+    setDetail,
     pendingApprove,
     setPendingApprove,
     pendingReject,
@@ -75,12 +89,12 @@ export function BeatChangesPage() {
     confirmApprove,
     confirmReject,
     isReviewing,
-  } = useBeatChangesList()
+  } = useDayChangesList()
 
   const { can } = useCan()
-  const canApprove = can('beat-change:approve')
+  const canApprove = can('day-change:approve')
 
-  const columns = useMemo<ColumnDef<BeatChange>[]>(
+  const columns = useMemo<ColumnDef<DayChange>[]>(
     () => [
       {
         id: 'index',
@@ -96,60 +110,56 @@ export function BeatChangesPage() {
           )
         },
       },
-      // Dropped outright for a read-only user rather than leaving an empty
-      // "Actions" header on every row.
-      ...(canApprove
-        ? [
-            {
-              id: 'actions',
-              header: 'Actions',
-              enableSorting: false,
-              meta: { className: 'w-px whitespace-nowrap' },
-              cell: ({ row }) => {
-                const request = row.original
-                // Only an open request can be answered; a locked day can no
-                // longer be changed at all, and the API would refuse it.
-                if (request.status !== 'pending') {
-                  return <span className="text-sm text-muted-foreground">—</span>
-                }
-                if (request.dayLocked) {
-                  return (
-                    <Hint label="A visit has landed on this day — it can no longer be changed.">
-                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
-                        <Lock className="size-3.5" />
-                        Day locked
-                      </span>
-                    </Hint>
-                  )
-                }
-                return (
-                  <div className="flex items-center gap-2">
-                    <Hint label="Approve">
-                      <button
-                        type="button"
-                        onClick={() => setPendingApprove(request)}
-                        disabled={isReviewing}
-                        className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-600/10 text-emerald-600 transition-colors hover:bg-emerald-600/20 disabled:opacity-50 dark:text-emerald-400"
-                      >
-                        <Check className="size-4" />
-                      </button>
-                    </Hint>
-                    <Hint label="Reject">
-                      <button
-                        type="button"
-                        onClick={() => setPendingReject(request)}
-                        disabled={isReviewing}
-                        className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    </Hint>
-                  </div>
-                )
-              },
-            } satisfies ColumnDef<BeatChange>,
-          ]
-        : []),
+      {
+        id: 'actions',
+        header: 'Actions',
+        enableSorting: false,
+        meta: { className: 'w-px whitespace-nowrap' },
+        cell: ({ row }) => {
+          const request = row.original
+          return (
+            <div className="flex items-center gap-2">
+              <Hint label="View the proposed day">
+                <button
+                  type="button"
+                  onClick={() => setDetail(request)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+                >
+                  <Eye className="size-4" />
+                </button>
+              </Hint>
+              {/* Only an open request can be answered — the API refuses a
+                  second answer with a 409. A locked day is NOT a refusal here:
+                  the request exists for the day already being worked, and the
+                  entries visited against are kept either way. */}
+              {canApprove && request.status === 'pending' ? (
+                <>
+                  <Hint label="Approve">
+                    <button
+                      type="button"
+                      onClick={() => setPendingApprove(request)}
+                      disabled={isReviewing}
+                      className="grid size-8 cursor-pointer place-items-center rounded-lg bg-emerald-600/10 text-emerald-600 transition-colors hover:bg-emerald-600/20 disabled:opacity-50 dark:text-emerald-400"
+                    >
+                      <Check className="size-4" />
+                    </button>
+                  </Hint>
+                  <Hint label="Reject">
+                    <button
+                      type="button"
+                      onClick={() => setPendingReject(request)}
+                      disabled={isReviewing}
+                      className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </Hint>
+                </>
+              ) : null}
+            </div>
+          )
+        },
+      },
       {
         id: 'salesIncharge',
         header: 'Sales Incharge',
@@ -170,17 +180,17 @@ export function BeatChangesPage() {
         ),
       },
       {
-        id: 'planDate',
-        header: 'Day being changed',
+        id: 'date',
+        header: 'Day being re-planned',
         enableSorting: false,
         meta: { className: 'min-w-48 whitespace-nowrap' },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-foreground tabular-nums">
-              {planDateLabel(row.original.planDate)}
+              {planDateLabel(row.original.date)}
             </span>
             {row.original.dayLocked ? (
-              <Hint label="A visit has landed on this day — it can no longer be changed.">
+              <Hint label="A visit has already landed on this day — what he has visited against is kept whichever way you answer.">
                 <span className="grid size-6 place-items-center rounded-md bg-muted text-muted-foreground">
                   <Lock className="size-3.5" />
                 </span>
@@ -190,40 +200,62 @@ export function BeatChangesPage() {
         ),
       },
       {
-        id: 'change',
-        header: 'Beat change',
+        id: 'operation',
+        header: 'Ask',
         enableSorting: false,
-        // Two beat chips and an arrow — the widest thing on the row.
-        meta: { className: 'min-w-96 whitespace-nowrap' },
+        meta: { className: 'min-w-40 whitespace-nowrap' },
         cell: ({ row }) => {
-          const { fromBeatName, fromBeatId, toBeatName, toBeatId } = row.original
+          const replaces = row.original.operation === 'update'
           return (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 font-medium text-rose-600 dark:text-rose-400">
-                <Route className="size-3.5 shrink-0" />
-                <span className="max-w-48 truncate">
-                  {fromBeatName ?? `Beat #${fromBeatId}`}
-                </span>
+            <Hint
+              label={
+                replaces
+                  ? "Approving drops the day's un-worked entries and puts these in their place."
+                  : 'Approving adds these beside what is already on the day.'
+              }
+            >
+              <span
+                className={
+                  replaces
+                    ? 'inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-400'
+                    : 'inline-flex items-center gap-1.5 rounded-full bg-emerald-600/10 px-2.5 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400'
+                }
+              >
+                {replaces ? (
+                  <Replace className="size-3.5" />
+                ) : (
+                  <Plus className="size-3.5" />
+                )}
+                {replaces ? 'Replaces the day' : 'Adds to the day'}
               </span>
-              <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600/10 px-2.5 py-1 font-medium text-emerald-600 dark:text-emerald-400">
-                <Route className="size-3.5 shrink-0" />
-                <span className="max-w-48 truncate">
-                  {toBeatName ?? `Beat #${toBeatId}`}
-                </span>
-              </span>
-            </div>
+            </Hint>
           )
         },
+      },
+      {
+        id: 'entries',
+        header: 'Proposed work',
+        enableSorting: false,
+        meta: { className: 'min-w-72 whitespace-nowrap' },
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+              {row.original.entries.length}
+            </span>
+            <span className="max-w-64 truncate text-sm text-foreground">
+              {entrySummary(row.original)}
+            </span>
+          </div>
+        ),
       },
       {
         accessorKey: 'reason',
         header: "Rep's reason",
         enableSorting: false,
-        meta: { className: 'min-w-72 whitespace-nowrap' },
+        meta: { className: 'min-w-64 whitespace-nowrap' },
         cell: ({ row }) => (
           <Hint label={row.original.reason}>
-            <p className="max-w-80 truncate text-sm text-muted-foreground">
+            <p className="max-w-72 truncate text-sm text-muted-foreground">
               {row.original.reason}
             </p>
           </Hint>
@@ -272,14 +304,14 @@ export function BeatChangesPage() {
   return (
     <div>
       <PageHeader
-        title="Beat Change Requests"
-        description="What the reps have asked to swap on a planned day. Approving moves the day — the new beat takes the old one's place in the walk."
+        title="Journey Day Change Requests"
+        description="What the reps want to do instead of — or in addition to — the day they were given. Nothing moves until you approve; that is what writes the day."
       />
       <DataTable
         columns={columns}
         data={rows}
         isLoading={isLoading}
-        itemName="beat change requests"
+        itemName="day change requests"
         maxHeight="70vh"
         pageSize={pagination.pageSize}
         pageSizeOptions={[10, 25, 50]}
@@ -294,7 +326,7 @@ export function BeatChangesPage() {
         hasMore={hasMore}
         isFetchingMore={isFetchingMore}
         toolbar={
-          <BeatChangeToolbar
+          <DayChangeToolbar
             filters={filters}
             onChange={patchFilters}
             onReset={resetFilters}
@@ -304,42 +336,55 @@ export function BeatChangesPage() {
         emptyState={
           <div className="flex flex-col items-center gap-3 py-14 text-center">
             <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
-              <Route className="size-6" />
+              <CalendarSync className="size-6" />
             </span>
             <div>
               <p className="font-medium text-foreground">
-                {isError ? "Couldn't load beat change requests" : 'Nothing to answer'}
+                {isError ? "Couldn't load day change requests" : 'Nothing to answer'}
               </p>
               <p className="text-sm text-muted-foreground">
                 {isError
                   ? 'Something went wrong. Please try again.'
                   : hasActiveFilters
                     ? 'Try adjusting your filters.'
-                    : 'No beat change requests are waiting on you.'}
+                    : 'No day change requests are waiting on you.'}
               </p>
             </div>
           </div>
         }
       />
 
+      <DayChangeDetailDialog
+        request={detail}
+        onClose={() => setDetail(null)}
+        onApprove={setPendingApprove}
+        onReject={setPendingReject}
+        canApprove={canApprove}
+      />
+
       <ConfirmDialog
         open={pendingApprove !== null}
         onOpenChange={(open) => !open && setPendingApprove(null)}
         icon={Check}
-        title="Approve this beat change?"
+        title="Approve this day change?"
         description={
           pendingApprove ? (
-            <>
-              <span className="font-medium text-foreground">
-                {pendingApprove.toBeatName ?? `Beat #${pendingApprove.toBeatId}`}
-              </span>{' '}
-              will take the place of{' '}
-              <span className="font-medium text-foreground">
-                {pendingApprove.fromBeatName ?? `Beat #${pendingApprove.fromBeatId}`}
-              </span>{' '}
-              on {planDateLabel(pendingApprove.planDate)}. The old beat's planned stops
-              go with it.
-            </>
+            pendingApprove.operation === 'update' ? (
+              <>
+                The {pendingApprove.entries.length} proposed{' '}
+                {pendingApprove.entries.length === 1 ? 'entry' : 'entries'} will REPLACE
+                what {pendingApprove.salesInchargeName ?? 'the rep'} was allocated on{' '}
+                {planDateLabel(pendingApprove.date)}. Anything he has already visited
+                against is kept.
+              </>
+            ) : (
+              <>
+                The {pendingApprove.entries.length} proposed{' '}
+                {pendingApprove.entries.length === 1 ? 'entry' : 'entries'} will be ADDED
+                to {planDateLabel(pendingApprove.date)}. Nothing already on the day is
+                touched.
+              </>
+            )
           ) : undefined
         }
         confirmLabel="Yes, approve"
@@ -354,15 +399,12 @@ export function BeatChangesPage() {
         onOpenChange={(open) => !open && closeReject()}
         variant="destructive"
         icon={X}
-        title="Reject this beat change?"
+        title="Reject this day change?"
         description={
           pendingReject ? (
             <>
-              The day stays on{' '}
-              <span className="font-medium text-foreground">
-                {pendingReject.fromBeatName ?? `Beat #${pendingReject.fromBeatId}`}
-              </span>
-              . Your reason is what the rep reads back in the app.
+              {planDateLabel(pendingReject.date)} stays exactly as you allocated it. Your
+              reason is what the rep reads back in the app.
             </>
           ) : undefined
         }
@@ -375,18 +417,18 @@ export function BeatChangesPage() {
       >
         <div className="text-left">
           <label
-            htmlFor="beat-change-reject-reason"
+            htmlFor="day-change-reject-reason"
             className="mb-1.5 block text-sm font-medium text-foreground"
           >
             Reason <span className="text-destructive">*</span>
           </label>
           <textarea
-            id="beat-change-reject-reason"
+            id="day-change-reject-reason"
             autoFocus
             maxLength={1000}
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Why can't this beat be swapped?"
+            placeholder="Why can't the day be re-planned this way?"
             className="h-24 w-full resize-none overflow-auto rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
           />
         </div>

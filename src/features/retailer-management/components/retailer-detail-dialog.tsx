@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { PreviewTrigger } from '@/components/common/file-preview-lightbox'
 import { GeoLocationValue } from '@/components/maps/geo-location-value'
 import { cn } from '@/lib/utils'
 import { useRetailerDetail } from '../api/use-retailers'
@@ -252,10 +253,9 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
                   <SectionTitle>Shop Photo</SectionTitle>
                   {/* Chat-app style preview: the whole photo stays visible inside a
                       capped box, letterboxed on whichever axis is short. */}
-                  <a
-                    href={data.shopPhotoUrl}
-                    target="_blank"
-                    rel="noreferrer"
+                  <PreviewTrigger
+                    files={[{ src: data.shopPhotoUrl, name: 'Shop photo' }]}
+                    label="Preview shop photo"
                     className="block w-fit max-w-full overflow-hidden rounded-lg border border-border"
                   >
                     <img
@@ -265,7 +265,7 @@ export function RetailerDetailDialog({ id, onClose }: Props) {
                       decoding="async"
                       className="max-h-40 w-auto max-w-64 object-contain"
                     />
-                  </a>
+                  </PreviewTrigger>
                 </>
               )}
             </div>

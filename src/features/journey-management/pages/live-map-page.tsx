@@ -6,6 +6,7 @@ import {
   ShieldAlert,
   type LucideIcon,
 } from 'lucide-react'
+import { useResetDataOnCompanySwitch } from '@/features/company'
 import { EmptyState } from '@/components/common/empty-state'
 import { Hint } from '@/components/common/hint'
 import { Combobox } from '@/components/ui/combobox'
@@ -61,6 +62,10 @@ interface LiveMapPageProps {
  * `totals`, computed over the whole range.
  */
 export function LiveMapPage({ data }: LiveMapPageProps) {
+  // Its own nav destination, so stay put and drop the `?data=` token: the
+  // incharge dropdown then re-resolves to the new company's first one.
+  useResetDataOnCompanySwitch()
+
   const {
     inchargeId,
     incharge,

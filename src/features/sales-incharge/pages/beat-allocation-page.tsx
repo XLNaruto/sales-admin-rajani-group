@@ -13,6 +13,7 @@ import { isForbiddenError } from "@/lib/api-error";
 import { decryptParams } from "@/lib/crypto";
 import { cn } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
+import { useRedirectOnCompanySwitch } from "@/features/company";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -64,6 +65,10 @@ function HeaderChip({
 }
 
 export function BeatAllocationPage({ data }: BeatAllocationPageProps) {
+  // The incharge in `?data=` belongs to the company that was active when the row
+  // was opened — back to the module's main list on a switch.
+  useRedirectOnCompanySwitch("/sales-incharge");
+
   // Decrypt the id from the URL token; missing/malformed → empty (no queries).
   const id = data
     ? String(decryptParams<{ id?: string | number }>(data)?.id ?? "")

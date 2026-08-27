@@ -13,6 +13,7 @@ import {
   Tags,
   HandCoins,
   Repeat2,
+  CalendarSync,
   UserPen,
 } from 'lucide-react'
 
@@ -127,10 +128,16 @@ export const navGroups: NavGroup[] = [
     title: 'Field Requests',
     items: [
       {
-        label: 'Beat Changes',
+        label: 'Beat Change Requests',
         to: '/requests/beat-changes',
         icon: Repeat2,
         permission: 'beat-change:list',
+      },
+      {
+        label: 'Journey Day Change Requests',
+        to: '/requests/day-changes',
+        icon: CalendarSync,
+        permission: 'day-change:list',
       },
       {
         label: 'Profile Edit Requests',
