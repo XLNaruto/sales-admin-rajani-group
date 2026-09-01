@@ -264,6 +264,22 @@ export const endpoints = {
     DETAIL: '/sales-incharge-admin/live-day/detail',
   },
   /**
+   * Location tracking — the append-only GPS breadcrumb ledger the sales
+   * incharge's handset writes. Read-only here: nothing on this surface creates,
+   * updates or deletes a fix.
+   *
+   * A different feature from LIVE_DAY: that one is plan vs. actual (what the rep
+   * *reported doing*, with a reconstructed route), this one is where the handset
+   * physically was, minute by minute. They will disagree, and that is expected.
+   * Gated on its own key, `sales-incharge-location:read`.
+   */
+  LOCATION_TRACKING: {
+    /** GET ?tracked_date&page&page_size&… — every rep with their latest fix. */
+    LIVE: '/sales-incharge-admin/locations/live',
+    /** GET ?sales_incharge_id&tracked_date — one rep's whole day, unpaginated. */
+    TRAIL: '/sales-incharge-admin/locations/trail',
+  },
+  /**
    * Beat change requests — what the reps have asked to swap on a planned day,
    * and the admin's answer. Read-only apart from the review PATCH: the request
    * itself is raised from the field app, never here.

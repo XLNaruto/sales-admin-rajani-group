@@ -15,7 +15,8 @@ import { cn } from '@/lib/utils'
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
 /**
- * Date pager for the day trail.
+ * Date pager for a single-day screen — the live-day trail and the GPS trail
+ * both step a day at a time.
  *
  * The chevrons step one day, which is how a trail is actually reviewed — you walk
  * forward through a week looking for the day that went wrong. The label opens a

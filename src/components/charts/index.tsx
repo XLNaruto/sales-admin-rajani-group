@@ -15,6 +15,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { formatCompact } from '@/lib/utils'
 
 const CHART_COLORS = [
   'var(--color-chart-1)',
@@ -29,6 +30,17 @@ const axisProps = {
   fontSize: 12,
   tickLine: false,
   axisLine: false,
+} as const
+
+/**
+ * Y ticks are compacted (1.2L / 12K) so large currency values never outgrow the
+ * gutter — a negative left margin used to clip them mid-digit.
+ */
+const yAxisProps = {
+  ...axisProps,
+  width: 48,
+  tickFormatter: (value: number) =>
+    typeof value === 'number' ? formatCompact(value) : String(value),
 } as const
 
 const tooltipStyle = {
@@ -57,7 +69,7 @@ interface SeriesChartProps {
 export function TrendAreaChart({ data, xKey, series, height = 280 }: SeriesChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <AreaChart data={data} margin={{ left: -12, right: 8, top: 8 }}>
+      <AreaChart data={data} margin={{ left: 0, right: 8, top: 8 }}>
         <defs>
           {series.map((s, i) => (
             <linearGradient key={s.key} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -68,7 +80,7 @@ export function TrendAreaChart({ data, xKey, series, height = 280 }: SeriesChart
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
         <XAxis dataKey={xKey} {...axisProps} />
-        <YAxis {...axisProps} />
+        <YAxis {...yAxisProps} />
         <Tooltip {...tooltipStyle} />
         {series.map((s, i) => (
           <Area
@@ -89,10 +101,10 @@ export function TrendAreaChart({ data, xKey, series, height = 280 }: SeriesChart
 export function ComparisonBarChart({ data, xKey, series, height = 280 }: SeriesChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ left: -12, right: 8, top: 8 }}>
+      <BarChart data={data} margin={{ left: 0, right: 8, top: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
         <XAxis dataKey={xKey} {...axisProps} />
-        <YAxis {...axisProps} />
+        <YAxis {...yAxisProps} />
         <Tooltip {...tooltipStyle} cursor={{ fill: 'var(--color-muted)', opacity: 0.4 }} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {series.map((s, i) => (
@@ -112,10 +124,10 @@ export function ComparisonBarChart({ data, xKey, series, height = 280 }: SeriesC
 export function TrendLineChart({ data, xKey, series, height = 280 }: SeriesChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data} margin={{ left: -12, right: 8, top: 8 }}>
+      <LineChart data={data} margin={{ left: 0, right: 8, top: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
         <XAxis dataKey={xKey} {...axisProps} />
-        <YAxis {...axisProps} />
+        <YAxis {...yAxisProps} />
         <Tooltip {...tooltipStyle} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
         {series.map((s, i) => (

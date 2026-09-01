@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  // BarChart3,
+  BarChart3,
   LayoutDashboard,
   UserCog,
   Building2,
@@ -15,6 +15,7 @@ import {
   Repeat2,
   CalendarSync,
   UserPen,
+  SatelliteDish,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -82,12 +83,12 @@ export const navGroups: NavGroup[] = [
         // not stay highlighted while the analytics screen is open.
         exact: true,
       },
-      // {
-      //   label: 'Retailer Analytics',
-      //   to: '/retailers/analytics',
-      //   icon: BarChart3,
-      //   permission: 'retailer-master:list',
-      // },
+      {
+        label: 'Retailer Analytics',
+        to: '/retailers/analytics',
+        icon: BarChart3,
+        permission: 'retailer-master:list',
+      },
     ],
   },
   {
@@ -121,6 +122,23 @@ export const navGroups: NavGroup[] = [
         to: '/journey/live-map',
         icon: Map,
         permission: 'live-day:read',
+      },
+    ],
+  },
+  {
+    title: 'Location Tracking',
+    items: [
+      {
+        label: 'Location Tracking',
+        to: '/tracking/live',
+        icon: SatelliteDish,
+        // The one exception to this panel's `:list`-drives-the-sidebar rule,
+        // following the `live-day:read` precedent: there is no
+        // `sales-incharge-location:list`, so the `:read` code IS the menu grant.
+        // It covers the trail screen too, and is gated independently of
+        // `live-day:read` — the Journey Management Live Map is a different
+        // feature answering a different question.
+        permission: 'sales-incharge-location:read',
       },
     ],
   },
@@ -168,6 +186,9 @@ export const navGroups: NavGroup[] = [
 const extraTitles: Record<string, string> = {
   // Opened from a day card on the Live Map, so it has no sidebar item of its own.
   '/journey/live-day': 'Day Trail',
+  // Opened from a row on the fleet map (and from a rep's record), so it has no
+  // sidebar item of its own.
+  '/tracking/trail': 'Rep Day Trail',
   '/profile': 'My Profile',
   '/login': 'Login',
   '/forgot-password': 'Forgot Password',

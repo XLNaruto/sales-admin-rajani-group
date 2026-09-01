@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { format } from "date-fns";
 import type {
   OnChangeFn,
   PaginationState,
@@ -135,6 +136,24 @@ export function useSalesInchargeList() {
       to: "/sales-incharge/create",
       search: { data: encryptParams({ draftId }) },
     });
+  // The rep's recorded GPS trail, opened on today. The permission key and the
+  // date format are written out rather than imported from
+  // `@/features/location-tracking`: that feature already imports this one's
+  // sales-incharge picker, and pulling its barrel in here would close the loop
+  // between the two.
+  const goToLocationTrail = (id: number) =>
+    navigate({
+      to: "/tracking/trail",
+      search: {
+        data: encryptParams({
+          id: String(id),
+          // Local getters — `tracked_date` is an IST calendar day, and a UTC
+          // round-trip would hand back yesterday.
+          date: format(new Date(), "yyyy-MM-dd"),
+        }),
+      },
+    });
+
   // Beat allocation reuses the same encrypted-id token pattern as edit.
   const goToBeatAllocation = (id: number) =>
     navigate({
@@ -203,6 +222,7 @@ export function useSalesInchargeList() {
     goToDraft,
     goToEdit,
     goToBeatAllocation,
+    goToLocationTrail,
     changeStatus,
     isSettingStatus: setStatus.isPending,
     pendingDelete,

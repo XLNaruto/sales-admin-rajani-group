@@ -241,6 +241,33 @@ export const queryKeys = {
     profileEdit: (id: number) =>
       [...queryKeys.fieldRequests.all, 'profile-edit', id] as const,
   },
+  /**
+   * Location tracking — the GPS ledger reads. Separate from `journey` on
+   * purpose: the live-day keys answer "what did he report doing", these answer
+   * "where was the handset".
+   */
+  locationTracking: {
+    all: ['location-tracking'] as const,
+    /** GET /locations/live — one page of the fleet's latest fixes. */
+    fleet: (filters?: Record<string, unknown>) =>
+      [...queryKeys.locationTracking.all, 'fleet', filters ?? {}] as const,
+    /** GET /locations/trail — one rep's whole day of fixes. */
+    trail: (inchargeId: string, trackedDate: string) =>
+      [...queryKeys.locationTracking.all, 'trail', inchargeId, trackedDate] as const,
+  },
+  /**
+   * Google Places lookups (see `features/places`). Server state like any other,
+   * just someone else's server — and cached hard: what a shop is called, and
+   * where it is, does not change between two clicks on a map pin.
+   */
+  places: {
+    all: ['places'] as const,
+    /** The place nearest a coordinate — keyed on the coordinate strings. */
+    near: (latitude: string, longitude: string) =>
+      [...queryKeys.places.all, 'near', latitude, longitude] as const,
+    /** GET /places/{id} — one place in full. */
+    details: (placeId: string) => [...queryKeys.places.all, 'details', placeId] as const,
+  },
   notifications: {
     all: ['notifications'] as const,
     list: () => [...queryKeys.notifications.all, 'list'] as const,

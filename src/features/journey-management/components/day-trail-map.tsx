@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Flag, Goal, Loader2, MapPinOff } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/use-google-maps'
 import { useRoadRoute } from '../hooks/use-road-route'
-import { markerBadge } from '../lib/marker-icon'
+import { markerBadge } from '@/components/maps/marker-icon'
 import { TRAIL_END_ID, TRAIL_START_ID } from '../lib/trail-selection'
-import { MapLayersControl } from './map-layers-control'
+import { MapLayersControl } from '@/components/maps/map-layers-control'
 import {
   kindLabel,
   kindStyle,

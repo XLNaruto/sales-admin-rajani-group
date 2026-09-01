@@ -14,12 +14,18 @@ import {
 import { cn } from '@/lib/utils'
 import { useCompanies } from '../api/use-companies'
 import { useSelectCompany } from '../api/use-select-company'
+import { useCompanyPickerStore } from '../hooks/use-company-picker'
 
 /**
  * Post-login company gate. When the admin belongs to more than one company and
  * hasn't picked one (`requires_selection`), this blocks the app with a
  * non-dismissable modal until a company is chosen. Single-company admins (and
  * anyone who's already selected) never see it — `requires_selection` is false.
+ *
+ * It also opens when a screen forces it — a tenant-scoped request answering
+ * `403 COMPANY_NOT_SELECTED` means the session lost its company, which is a
+ * missing selection rather than a missing permission, so the picker is the
+ * answer and an access-denied page would be a dead end.
  *
  * Selection is two-step: pick a company to highlight it, then Confirm. A Log out
  * escape hatch is offered for anyone who reached the wrong account.
@@ -32,15 +38,32 @@ export function CompanySelectGate() {
   const selectCompany = useSelectCompany()
   const logout = useLogout()
   const navigate = useNavigate()
+  const forced = useCompanyPickerStore((s) => s.forced)
+  const clearForced = useCompanyPickerStore((s) => s.clear)
   const [selectedId, setSelectedId] = useState<number | null>(null)
 
   // Mirror the topbar's sign-out: clear the session, then send the user to the
   // login screen. Without the explicit navigate the modal stays put after the
   // auth state clears.
   const handleLogout = () =>
-    logout.mutate(undefined, { onSettled: () => navigate({ to: '/login' }) })
+    logout.mutate(undefined, {
+      onSettled: () => {
+        clearForced()
+        navigate({ to: '/login' })
+      },
+    })
 
-  if (!data?.requiresSelection) return null
+  // A forced open outlives the mutation: `useSelectCompany` refetches everything
+  // for the new tenant, and dropping the flag here is what lets the modal close
+  // once a company is actually chosen.
+  const confirm = (companyId: number) =>
+    selectCompany.mutate(companyId, { onSuccess: clearForced })
+
+  if (!data?.requiresSelection && !forced) return null
+
+  // Forced open with nothing to choose from means `/me/companies` hasn't
+  // answered yet — render nothing rather than an empty picker.
+  if (!data?.companies.length) return null
 
   const busy = selectCompany.isPending || logout.isPending
 
@@ -126,7 +149,7 @@ export function CompanySelectGate() {
           </Button>
           <Button
             disabled={busy || selectedId == null}
-            onClick={() => selectedId != null && selectCompany.mutate(selectedId)}
+            onClick={() => selectedId != null && confirm(selectedId)}
             className="gap-2"
           >
             {selectCompany.isPending ? (

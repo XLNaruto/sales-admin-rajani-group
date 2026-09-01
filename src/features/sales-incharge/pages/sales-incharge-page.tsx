@@ -5,6 +5,7 @@ import {
   MapPinned,
   Pencil,
   Plus,
+  SatelliteDish,
   Trash2,
   UserRound,
   UsersRound,
@@ -61,6 +62,7 @@ export function SalesInchargePage() {
     goToDraft,
     goToEdit,
     goToBeatAllocation,
+    goToLocationTrail,
     changeStatus,
     isSettingStatus,
     pendingDelete,
@@ -117,6 +119,19 @@ export function SalesInchargePage() {
                 <Eye className="size-4" />
               </button>
             </Hint>
+            {/* One grant covers both Location Tracking screens; there is no
+                `sales-incharge-location:list`. */}
+            {can("sales-incharge-location:read") && (
+              <Hint label="GPS trail (today)">
+                <button
+                  type="button"
+                  onClick={() => goToLocationTrail(row.original.id)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-sky-500/10 text-sky-600 transition-colors hover:bg-sky-500/20 dark:text-sky-400"
+                >
+                  <SatelliteDish className="size-4" />
+                </button>
+              </Hint>
+            )}
             {can("beat:allocate") && (
               <Hint label="Beat allocation">
                 <button
