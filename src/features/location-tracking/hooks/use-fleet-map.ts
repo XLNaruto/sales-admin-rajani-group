@@ -38,6 +38,13 @@ const SORT_BY_COLUMN: Record<string, FleetSortBy> = {
 interface FleetParamsToken {
   /** `yyyy-MM-dd` — the IST calendar day being read. */
   date?: string
+  /**
+   * Whether the poll is running. In the URL rather than in state because a
+   * deliberate pause must survive a refresh: the whole point of pausing is to
+   * hold the figures still, and a reload that silently resumed polling would
+   * move them again.
+   */
+  live?: boolean
 }
 
 export function useFleetMap(data?: string) {
@@ -52,16 +59,34 @@ export function useFleetMap(data?: string) {
   const today = useMemo(() => todayTracked(), [])
   const trackedDate = token.date ?? today
 
+  // Absent means running: the screen arrives live, and only an explicit pause is
+  // ever written into the token.
+  const live = token.live !== false
+
   const [filters, setFilters] = useState<FleetFilters>(INITIAL_FILTERS)
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 20,
   })
   const [sorting, setSorting] = useState<SortingState>([])
-  /** Whether the poll is running. Paused is a deliberate, visible state. */
-  const [live, setLive] = useState(true)
   /** Which row the map has focused, so a list click pans the map. */
   const [focusedId, setFocusedId] = useState<string | null>(null)
+
+  /**
+   * Rewrite the `?data=` token, carrying everything not being changed. Always a
+   * `replace`: neither the day nor the poll state is a place in history to go
+   * back to, and a Back button that stepped through pauses would be nonsense.
+   */
+  const writeToken = useCallback(
+    (patch: FleetParamsToken) => {
+      navigate({
+        to: '/tracking/live',
+        search: { data: encryptParams({ date: trackedDate, live, ...patch }) },
+        replace: true,
+      })
+    },
+    [navigate, trackedDate, live],
+  )
 
   // Any filter/sort change goes back to the first page — otherwise you can sit
   // on a page that no longer exists for the narrower result set.
@@ -145,14 +170,13 @@ export function useFleetMap(data?: string) {
       // yesterday would otherwise carry over onto today.
       setPagination((p) => ({ ...p, pageIndex: 0 }))
       setFocusedId(null)
-      navigate({
-        to: '/tracking/live',
-        search: { data: encryptParams({ date: next }) },
-        replace: true,
-      })
+      writeToken({ date: next })
     },
-    [navigate, trackedDate],
+    [trackedDate, writeToken],
   )
+
+  /** Start or stop the poll — written to the URL so a refresh keeps it. */
+  const toggleLive = useCallback(() => writeToken({ live: !live }), [live, writeToken])
 
   /**
    * Open one rep's trail for the day currently on screen — the tracked date is
@@ -207,7 +231,7 @@ export function useFleetMap(data?: string) {
     error: fleet.error,
     /** Poll state, exposed so the header can say whether the feed is running. */
     live,
-    toggleLive: () => setLive((on) => !on),
+    toggleLive,
     pollMs: FLEET_POLL_MS,
     /** Refresh button + "Fetched x ago" — the screen's last-refreshed stamp. */
     refresh: {
