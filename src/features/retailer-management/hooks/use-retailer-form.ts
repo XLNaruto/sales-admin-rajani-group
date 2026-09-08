@@ -5,6 +5,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { reverseGeocode } from '@/lib/reverse-geocode'
 import { encryptParams } from '@/lib/crypto'
+import { toastMutationError } from '@/lib/api-toast'
 import { useFormDraft } from '@/hooks/use-form-drafts'
 import { useNearestBeat } from '@/features/beat-creation'
 import {
@@ -271,8 +272,11 @@ export function useRetailerForm(id?: string, draftId?: string) {
       toast.success(`${values.shopName} ${isEdit ? 'updated' : 'created'}`)
       navigate({ to: '/retailers' })
     }
-    const onError = () =>
-      toast.error(
+    // A 409 is a business-rule conflict the user can act on (a duplicate shop
+    // code, an outlet already onboarded) — show the API's own message verbatim.
+    const onError = (error: unknown) =>
+      toastMutationError(
+        error,
         `Couldn't ${isEdit ? 'update' : 'create'} the retailer. Please try again.`,
       )
 

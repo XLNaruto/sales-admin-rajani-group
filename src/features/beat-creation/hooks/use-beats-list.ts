@@ -5,6 +5,7 @@ import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
 import { useBeats, useBeatsInfinite, useDeleteBeat } from '../api/use-beats'
 import type { BeatFilters } from '../components/beat-toolbar'
 import type { Beat, BeatGrade, BeatSortBy } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /** Empty filter state — also used to reset the toolbar. */
 const INITIAL_FILTERS: BeatFilters = { search: '', grade: 'all' }
@@ -115,7 +116,7 @@ export function useBeatsList() {
         toast.success(`${target.beatName} removed`)
         setPendingDelete(null)
       },
-      onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't remove the beat."),
+      onError: (e) => toastApiError(e, "Couldn't remove the beat."),
     })
   }
 

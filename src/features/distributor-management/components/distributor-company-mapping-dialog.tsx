@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Field, MultiSelect } from "@/features/beat-creation";
 import { useCompanies } from "@/features/company";
 import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-toast";
 import { useUpdateDistributorCompanies } from "../api/use-distributors";
 import type { Distributor } from "../types";
 
@@ -89,15 +90,16 @@ export function DistributorCompanyMappingDialog({
           onClose();
         },
         onError: (error) => {
-          // A 404 means the distributor (or a company) has gone away since the
-          // row was listed — worth surfacing the server's reason.
+          // A 404/400 means the distributor (or a company) has gone away since
+          // the row was listed — worth surfacing the server's reason. A 409 is
+          // handled the same way by `toastMutationError`.
           if (errorStatus(error) === 404 || errorStatus(error) === 400) {
             toast.error("Couldn't update the company mapping", {
               description: getApiErrorMessage(error),
             });
             return;
           }
-          toast.error("Couldn't update the company mapping.");
+          toastMutationError(error, "Couldn't update the company mapping.");
         },
       },
     );

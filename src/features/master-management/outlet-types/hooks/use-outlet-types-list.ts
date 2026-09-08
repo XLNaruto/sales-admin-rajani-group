@@ -9,6 +9,7 @@ import {
 } from '../api/use-outlet-types'
 import type { OutletTypeFilters } from '../components/outlet-type-toolbar'
 import type { OutletType, OutletTypeSortBy } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /** Empty filter state — also used to reset the toolbar. */
 const INITIAL_FILTERS: OutletTypeFilters = { search: '' }
@@ -121,7 +122,7 @@ export function useOutletTypesList() {
         setPendingDelete(null)
       },
       onError: (e) =>
-        toast.error(e instanceof Error ? e.message : "Couldn't remove the outlet type."),
+        toastApiError(e, "Couldn't remove the outlet type."),
     })
   }
 

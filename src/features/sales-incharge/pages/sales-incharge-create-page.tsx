@@ -371,7 +371,7 @@ export function SalesInchargeCreatePage({
 
           <Field label="Salary — Basic (₹)" error={errors.basicSalary?.message}>
             <Input
-              inputMode="numeric"
+              inputMode="decimal"
               placeholder="e.g. 40000"
               {...register("basicSalary")}
             />
@@ -382,7 +382,7 @@ export function SalesInchargeCreatePage({
             error={errors.allowance?.message}
           >
             <Input
-              inputMode="numeric"
+              inputMode="decimal"
               placeholder="e.g. 10000"
               {...register("allowance")}
             />

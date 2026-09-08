@@ -8,6 +8,7 @@ import { useBeatChangeList, useBeatChangesInfinite, useReviewBeatChange } from '
 import type { BeatChangeFilters } from '../components/beat-change-toolbar'
 import { planDateBounds } from '../../lib/plan-date-window'
 import type { BeatChange } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /**
  * Empty filter state — also what Reset returns to. `pending` rather than blank:
@@ -142,9 +143,7 @@ export function useBeatChangesList() {
         // ("the day has locked", "that beat is no longer allocated") is the real
         // answer and is surfaced verbatim rather than replaced with a generic one.
         onError: (e) =>
-          toast.error(
-            e instanceof Error ? e.message : "Couldn't approve the beat change.",
-          ),
+          toastApiError(e, "Couldn't approve the beat change."),
       },
     )
   }
@@ -160,9 +159,7 @@ export function useBeatChangesList() {
           closeReject()
         },
         onError: (e) =>
-          toast.error(
-            e instanceof Error ? e.message : "Couldn't reject the beat change.",
-          ),
+          toastApiError(e, "Couldn't reject the beat change."),
       },
     )
   }

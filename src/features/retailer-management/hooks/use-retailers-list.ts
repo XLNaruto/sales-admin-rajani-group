@@ -3,7 +3,7 @@ import { useNavigate } from '@tanstack/react-router'
 import type { OnChangeFn, PaginationState, SortingState } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { encryptParams } from '@/lib/crypto'
-import { errorStatus, getApiErrorMessage } from '@/lib/api-error'
+import { toastMutationError } from '@/lib/api-toast'
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
 import { useOnCompanySwitch } from '@/features/company'
 import {
@@ -151,7 +151,7 @@ export function useRetailersList() {
       { id, status },
       {
         onSuccess: () => toast.success('Status updated'),
-        onError: () => toast.error("Couldn't update the status."),
+        onError: (error) => toastMutationError(error, "Couldn't update the status."),
       },
     )
   }
@@ -164,19 +164,11 @@ export function useRetailersList() {
         toast.success(`${r.shopName} removed`)
         setPendingDelete(null)
       },
-      onError: (error) => {
-        // A 409 means a business rule blocks the delete (e.g. the retailer is
-        // still mapped to a beat). Surface the server's explanation instead of
-        // a generic failure, and keep the dialog open so it stays visible next
-        // to the action.
-        if (errorStatus(error) === 409) {
-          toast.error(`Can't remove ${r.shopName}`, {
-            description: getApiErrorMessage(error),
-          })
-          return
-        }
-        toast.error("Couldn't remove the retailer.")
-      },
+      // A 409 means a business rule blocks the delete (e.g. the retailer is
+      // still mapped to a beat). The dialog stays open so the server's
+      // explanation sits next to the action.
+      onError: (error) =>
+        toastMutationError(error, "Couldn't remove the retailer.", `Can't remove ${r.shopName}`),
     })
   }
 
@@ -197,15 +189,12 @@ export function useRetailersList() {
           toast.success(`${retailer.shopName} ${action}d`)
           done()
         },
-        onError: (error) => {
-          if (errorStatus(error) === 409) {
-            toast.error(`Can't ${action} ${retailer.shopName}`, {
-              description: getApiErrorMessage(error),
-            })
-            return
-          }
-          toast.error(`Couldn't ${action} the retailer.`)
-        },
+        onError: (error) =>
+          toastMutationError(
+            error,
+            `Couldn't ${action} the retailer.`,
+            `Can't ${action} ${retailer.shopName}`,
+          ),
       },
     )
   }

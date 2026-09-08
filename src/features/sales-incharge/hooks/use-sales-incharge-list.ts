@@ -8,6 +8,7 @@ import type {
 } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
+import { toastMutationError } from "@/lib/api-toast";
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
 import { useOnCompanySwitch } from "@/features/company";
 import {
@@ -169,7 +170,7 @@ export function useSalesInchargeList() {
       { id, status },
       {
         onSuccess: () => toast.success("Status updated"),
-        onError: () => toast.error("Couldn't update the status."),
+        onError: (error) => toastMutationError(error, "Couldn't update the status."),
       },
     );
   };
@@ -186,7 +187,14 @@ export function useSalesInchargeList() {
         toast.success(`${target.displayName} removed`);
         setPendingDelete(null);
       },
-      onError: () => toast.error("Couldn't remove the sales incharge."),
+      // A 409 here is a business rule (e.g. the incharge still owns beats) —
+      // the server's wording is what the user needs, so it replaces the copy.
+      onError: (error) =>
+        toastMutationError(
+          error,
+          "Couldn't remove the sales incharge.",
+          `Can't remove ${target.displayName}`,
+        ),
     });
   };
 

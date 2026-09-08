@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { toast } from 'sonner'
 import { useBeat, useCreateBeat, useUpdateBeat } from '../api/use-beats'
 import { beatDefaults, beatSchema, type BeatFormValues } from '../lib/beat-form'
+import { toastApiError } from '@/lib/api-toast'
 
 interface UseBeatFormOptions {
   /** The beat id to edit, or null/undefined for create mode. */
@@ -49,7 +50,7 @@ export function useBeatForm({ id, onSaved }: UseBeatFormOptions) {
         onSaved()
       },
       onError: (e: unknown) =>
-        toast.error(e instanceof Error ? e.message : "Couldn't save the beat."),
+        toastApiError(e, "Couldn't save the beat."),
     }
 
     if (isEdit && id) updateBeat.mutate({ id, input }, handlers)

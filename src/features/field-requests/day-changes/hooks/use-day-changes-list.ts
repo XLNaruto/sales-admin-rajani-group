@@ -7,6 +7,7 @@ import { useDayChangeList, useDayChangesInfinite, useReviewDayChange } from '../
 import type { DayChangeFilters } from '../components/day-change-toolbar'
 import { planDateBounds } from '../../lib/plan-date-window'
 import type { DayChange } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /**
  * Empty filter state — also what Reset returns to. `pending` rather than blank:
@@ -138,9 +139,7 @@ export function useDayChangesList() {
         // ("that beat is no longer allocated", "the date has gone") is the real
         // answer and is surfaced verbatim rather than replaced with a generic one.
         onError: (e) =>
-          toast.error(
-            e instanceof Error ? e.message : "Couldn't approve the day change.",
-          ),
+          toastApiError(e, "Couldn't approve the day change."),
       },
     )
   }
@@ -158,7 +157,7 @@ export function useDayChangesList() {
           setDetail(null)
         },
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Couldn't reject the day change."),
+          toastApiError(e, "Couldn't reject the day change."),
       },
     )
   }

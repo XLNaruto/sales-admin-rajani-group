@@ -9,6 +9,7 @@ import {
 } from '../api/use-payment-conditions'
 import type { PaymentConditionFilters } from '../components/payment-condition-toolbar'
 import type { PaymentCondition, PaymentConditionSortBy } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /** Empty filter state — also used to reset the toolbar. */
 const INITIAL_FILTERS: PaymentConditionFilters = { search: '' }
@@ -124,9 +125,7 @@ export function usePaymentConditionsList() {
         setPendingDelete(null)
       },
       onError: (e) =>
-        toast.error(
-          e instanceof Error ? e.message : "Couldn't remove the payment condition.",
-        ),
+        toastApiError(e, "Couldn't remove the payment condition."),
     })
   }
 

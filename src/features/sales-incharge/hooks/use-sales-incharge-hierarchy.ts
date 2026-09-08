@@ -21,6 +21,7 @@ import {
   type HierarchyLevel,
   type StructureNode,
 } from '../lib/hierarchy'
+import { toastApiError } from '@/lib/api-toast'
 
 /** `add` nests under `parentId` (null → the National root); `edit` updates in place. */
 type DialogState =
@@ -191,7 +192,7 @@ export function useSalesInchargeHierarchyView() {
             toast.success('Hierarchy entry added')
             closeDialog()
           },
-          onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to add entry'),
+          onError: (e) => toastApiError(e, 'Failed to add entry'),
         },
       )
     } else {
@@ -202,7 +203,7 @@ export function useSalesInchargeHierarchyView() {
             toast.success('Hierarchy entry updated')
             closeDialog()
           },
-          onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to update entry'),
+          onError: (e) => toastApiError(e, 'Failed to update entry'),
         },
       )
     }
@@ -216,7 +217,7 @@ export function useSalesInchargeHierarchyView() {
         toast.success('Removed from the structure', {
           description: `"${node.designation || 'Entry'}" and everything under it were removed.`,
         }),
-      onError: (e) => toast.error(e instanceof Error ? e.message : 'Failed to remove entry'),
+      onError: (e) => toastApiError(e, 'Failed to remove entry'),
     })
   }
 

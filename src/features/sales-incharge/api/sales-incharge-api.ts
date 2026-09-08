@@ -192,13 +192,18 @@ const intId = (v?: string) => {
 }
 /** A money field ("40000" / "40000.00") passed through, or null when blank. */
 const money = (v?: string) => (v && v.trim() !== '' ? v.trim() : null)
-/** basic + allowance as the gross salary string, or null when either is blank. */
+/**
+ * basic + allowance as the gross salary string, or null when either is blank.
+ * Rounded to 2 decimals: the sum of two 2-decimal amounts can land on a binary
+ * float artefact (1000.1 + 2000.2 → 3000.3000000000002), which the API's
+ * amount column rejects.
+ */
 const grossSalary = (basic?: string, allowance?: string) => {
   const b = Number(basic)
   const a = Number(allowance)
   if (!Number.isFinite(b) || !Number.isFinite(a) || basic === '' || allowance === '')
     return null
-  return String(b + a)
+  return String(Math.round((b + a) * 100) / 100)
 }
 
 /**

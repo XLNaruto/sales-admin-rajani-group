@@ -9,6 +9,7 @@ import {
   type OutletTypeFormValues,
 } from '../lib/outlet-type-form'
 import type { OutletType } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 interface UseOutletTypeFormOptions {
   /**
@@ -51,7 +52,7 @@ export function useOutletTypeForm({ editRow, onSaved }: UseOutletTypeFormOptions
         onSaved()
       },
       onError: (e: unknown) =>
-        toast.error(e instanceof Error ? e.message : "Couldn't save the outlet type."),
+        toastApiError(e, "Couldn't save the outlet type."),
     }
 
     if (editRow) updateOutletType.mutate({ id: editRow.id, input: values }, handlers)

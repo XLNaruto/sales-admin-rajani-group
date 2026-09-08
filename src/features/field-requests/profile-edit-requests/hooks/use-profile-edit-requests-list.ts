@@ -10,6 +10,7 @@ import {
 } from '../api/use-profile-edit-requests'
 import type { ProfileEditRequestFilters } from '../components/profile-edit-request-toolbar'
 import type { ProfileEditRequest } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 /**
  * Empty filter state — also what Reset returns to. `pending` rather than blank:
@@ -157,7 +158,7 @@ export function useProfileEditRequestsList() {
         // A request answered by another admin in the meantime comes back `409`
         // with its own message — surfaced verbatim rather than replaced.
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Couldn't approve the request."),
+          toastApiError(e, "Couldn't approve the request."),
       },
     )
   }
@@ -173,7 +174,7 @@ export function useProfileEditRequestsList() {
           closeReject()
         },
         onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Couldn't reject the request."),
+          toastApiError(e, "Couldn't reject the request."),
       },
     )
   }

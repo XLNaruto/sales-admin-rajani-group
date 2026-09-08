@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { OnChangeFn, PaginationState, SortingState } from "@tanstack/react-table";
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
-import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-toast";
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from "@/components/data-table";
 import { useOnCompanySwitch } from "@/features/company";
 import {
@@ -152,7 +152,7 @@ export function useDistributorsList() {
       { id, status },
       {
         onSuccess: () => toast.success("Status updated"),
-        onError: () => toast.error("Couldn't update the status."),
+        onError: (error) => toastMutationError(error, "Couldn't update the status."),
       },
     );
   };
@@ -165,19 +165,15 @@ export function useDistributorsList() {
         toast.success(`${d.firmName} removed`);
         setPendingDelete(null);
       },
-      onError: (error) => {
-        // A 409 means a business rule blocks the delete — most commonly the
-        // distributor still owns beats (DISTRIBUTOR_HAS_ACTIVE_BEATS). Surface
-        // the server's explanation instead of a generic failure, and keep the
-        // dialog open so the message stays visible next to the action.
-        if (errorStatus(error) === 409) {
-          toast.error(`Can't remove ${d.firmName}`, {
-            description: getApiErrorMessage(error),
-          });
-          return;
-        }
-        toast.error("Couldn't remove the distributor.");
-      },
+      // A 409 means a business rule blocks the delete — most commonly the
+      // distributor still owns beats (DISTRIBUTOR_HAS_ACTIVE_BEATS). The
+      // dialog stays open so the server's explanation sits next to the action.
+      onError: (error) =>
+        toastMutationError(
+          error,
+          "Couldn't remove the distributor.",
+          `Can't remove ${d.firmName}`,
+        ),
     });
   };
 
@@ -191,7 +187,8 @@ export function useDistributorsList() {
           toast.success(`${d.firmName} approved`);
           setPendingApprove(null);
         },
-        onError: () => toast.error("Couldn't approve the distributor."),
+        onError: (error) =>
+          toastMutationError(error, "Couldn't approve the distributor.", `Can't approve ${d.firmName}`),
       },
     );
   };
@@ -209,7 +206,8 @@ export function useDistributorsList() {
           setPendingReject(null);
           setRejectReason("");
         },
-        onError: () => toast.error("Couldn't reject the distributor."),
+        onError: (error) =>
+          toastMutationError(error, "Couldn't reject the distributor.", `Can't reject ${d.firmName}`),
       },
     );
   };

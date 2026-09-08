@@ -4,6 +4,7 @@ import type { PaginationState } from '@tanstack/react-table'
 import { toast } from 'sonner'
 import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
 import { encryptParams } from '@/lib/crypto'
+import { toastApiError } from '@/lib/api-toast'
 import type { Beat } from '@/features/beat-creation'
 import { useSalesInchargeDetail } from '../api/use-sales-incharge'
 import { useSalesInchargeSelect } from './use-sales-incharge-select'
@@ -195,7 +196,7 @@ export function useBeatAllocation(urlInchargeId: string | undefined) {
     allocate.mutate(beat.id, {
       onSuccess: () => toast.success(`${beat.beatName} allocated`),
       onError: (e) =>
-        toast.error(e instanceof Error ? e.message : "Couldn't allocate the beat."),
+        toastApiError(e, "Couldn't allocate the beat."),
       onSettled: () => setPendingId(null),
     })
   }
@@ -214,7 +215,7 @@ export function useBeatAllocation(urlInchargeId: string | undefined) {
         setPendingRemove(null)
       },
       onError: (e) =>
-        toast.error(e instanceof Error ? e.message : "Couldn't remove the beat."),
+        toastApiError(e, "Couldn't remove the beat."),
       onSettled: () => setPendingId(null),
     })
   }

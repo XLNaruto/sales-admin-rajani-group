@@ -1,12 +1,5 @@
 import { z } from 'zod'
-
-// Numeric inputs stay strings so the schema's input and output types match
-// (react-hook-form types `useForm` against the resolver's input type).
-const reqNum = (msg = 'Enter a valid amount') =>
-  z
-    .string()
-    .min(1, msg)
-    .refine((v) => Number(v) >= 0 && v.trim() !== '', msg)
+import { requiredAmount } from '@/lib/validation'
 
 const phone = (msg = 'Enter a valid 10-digit number') => z.string().regex(/^\d{10}$/, msg)
 
@@ -32,8 +25,9 @@ export const salesInchargeSchema = z
     dateOfJoining: z.string().min(1, 'Select date of joining'),
     dateOfExit: z.string().optional(),
     email: z.string().email('Enter a valid email'),
-    basicSalary: reqNum('Enter the basic salary'),
-    allowance: reqNum('Enter the allowance'),
+    // Money fields carry the API's amount limit (12 figures, 2 after the point).
+    basicSalary: requiredAmount('Enter the basic salary'),
+    allowance: requiredAmount('Enter the allowance'),
     // Display-only: there's no designations master to resolve an id from, so a
     // selected value isn't sent; the record's existing designation is preserved.
     designation: z.string().optional(),

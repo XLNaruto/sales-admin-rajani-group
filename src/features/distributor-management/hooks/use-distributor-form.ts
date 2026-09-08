@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { errorStatus, getApiErrorMessage } from "@/lib/api-error";
+import { toastMutationError } from "@/lib/api-toast";
 import { encryptParams } from "@/lib/crypto";
 import { useFormDraft } from "@/hooks/use-form-drafts";
 import {
@@ -280,10 +280,9 @@ export function useDistributorForm(id?: string, draftId?: string) {
       // DISTRIBUTOR_CODE_TAKEN — so surface the API's own message verbatim
       // instead of the generic retry copy.
       const onError = (error: unknown) =>
-        toast.error(
-          errorStatus(error) === 409
-            ? getApiErrorMessage(error)
-            : `Couldn't ${isEdit ? "update" : "create"} the distributor. Please try again.`,
+        toastMutationError(
+          error,
+          `Couldn't ${isEdit ? "update" : "create"} the distributor. Please try again.`,
         );
 
       if (isEdit && id) {

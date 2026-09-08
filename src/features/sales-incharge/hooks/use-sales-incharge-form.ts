@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { encryptParams } from "@/lib/crypto";
+import { toastMutationError } from "@/lib/api-toast";
 import { useFormDraft } from "@/hooks/use-form-drafts";
 import {
   useCreateSalesIncharge,
@@ -141,8 +142,11 @@ export function useSalesInchargeForm(id?: string, draftId?: string) {
       toast.success(`${values.name} ${isEdit ? "updated" : "added to the sales team"}`);
       navigate({ to: "/sales-incharge" });
     };
-    const onError = () =>
-      toast.error(
+    // A 409 is a business-rule conflict the user can fix — most commonly
+    // SALES_INCHARGE_EMAIL_TAKEN — so the API's own message is shown verbatim.
+    const onError = (error: unknown) =>
+      toastMutationError(
+        error,
         `Couldn't ${isEdit ? "update" : "create"} the sales incharge. Please try again.`,
       );
 

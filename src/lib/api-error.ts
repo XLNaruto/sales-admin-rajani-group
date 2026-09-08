@@ -79,6 +79,16 @@ export function errorStatus(error: unknown): number | undefined {
   return undefined
 }
 
+/**
+ * True when an error represents an HTTP 409 (conflict) — a business rule the
+ * server states in words meant for the user: a duplicate email or code, a
+ * record already approved, a distributor that still owns beats. Its `message`
+ * is always worth showing verbatim.
+ */
+export function isConflictError(error: unknown): boolean {
+  return errorStatus(error) === 409
+}
+
 /** True when an error represents an HTTP 403 (forbidden / no permission). */
 export function isForbiddenError(error: unknown): boolean {
   return errorStatus(error) === 403

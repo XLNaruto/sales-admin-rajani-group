@@ -5,6 +5,9 @@ export function toastsuccessmsg(message: string, duration = 2000) {
   return toast.success(message, { duration })
 }
 
-export function toasterrormsg(message: string, duration = 4500) {
-  return toast.error(message, { duration })
+export function toasterrormsg(
+  message: string,
+  options?: { description?: string; duration?: number },
+) {
+  return toast.error(message, { duration: 4500, ...options })
 }

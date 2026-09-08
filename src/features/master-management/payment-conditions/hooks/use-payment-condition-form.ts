@@ -12,6 +12,7 @@ import {
   type PaymentConditionFormValues,
 } from '../lib/payment-condition-form'
 import type { PaymentCondition } from '../types'
+import { toastApiError } from '@/lib/api-toast'
 
 interface UsePaymentConditionFormOptions {
   /**
@@ -57,9 +58,7 @@ export function usePaymentConditionForm({
       },
       // A duplicate name comes back as a 409 — surface the API's own message.
       onError: (e: unknown) =>
-        toast.error(
-          e instanceof Error ? e.message : "Couldn't save the payment condition.",
-        ),
+        toastApiError(e, "Couldn't save the payment condition."),
     }
 
     if (editRow)

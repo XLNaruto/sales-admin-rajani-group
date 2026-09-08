@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { Field } from '@/features/beat-creation'
 import { errorStatus, getApiErrorMessage } from '@/lib/api-error'
+import { toastMutationError } from '@/lib/api-toast'
 import { useSetRetailerBeat } from '../api/use-retailers'
 import { useBeatOptions } from '../hooks/use-retailer-selects'
 import type { Retailer } from '../types'
@@ -78,14 +79,15 @@ export function RetailerBeatDialog({ retailer, onClose }: RetailerBeatDialogProp
           onClose()
         },
         onError: (error) => {
-          // A 404 means the outlet or the beat has gone away since it was listed.
+          // A 404 means the outlet or the beat has gone away since it was
+          // listed. A 409 is surfaced by `toastMutationError` the same way.
           if (errorStatus(error) === 404) {
             toast.error("Couldn't allocate the beat", {
               description: getApiErrorMessage(error),
             })
             return
           }
-          toast.error("Couldn't allocate the beat.")
+          toastMutationError(error, "Couldn't allocate the beat.")
         },
       },
     )
