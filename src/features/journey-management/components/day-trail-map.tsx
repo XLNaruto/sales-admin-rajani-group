@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Flag, Goal, Loader2, MapPinOff } from 'lucide-react'
 import { useGoogleMaps } from '@/hooks/use-google-maps'
 import { useRoadRoute } from '../hooks/use-road-route'
@@ -6,12 +7,11 @@ import { markerBadge } from '@/components/maps/marker-icon'
 import { TRAIL_END_ID, TRAIL_START_ID } from '../lib/trail-selection'
 import { MapLayersControl } from '@/components/maps/map-layers-control'
 import {
-  kindLabel,
   kindStyle,
   NOT_VISITED_STYLE,
   PRODUCTIVE_STYLE,
 } from '../lib/visit-kinds'
-import { durationLabel } from '../lib/journey-format'
+import { MissPopup, TrailEndPopup, VisitPopup } from './trail-popup'
 import type { GeoPoint, OutletMarker, VisitMarker } from '../types'
 
 /** Badge widths: the day's pins, and the one that is currently selected. */
@@ -179,44 +179,6 @@ function endIcon(isStart: boolean, selected: boolean): google.maps.Icon {
 }
 
 /**
- * Opens the shared info window on a marker.
- *
- * The heading goes in the window's own *header row*, not the body: Maps draws its
- * ✕ button absolutely in that row's top-right corner whether or not anything is
- * in it, so a bubble that put its title in the body had the button sitting on top
- * of the title text. With `headerContent` set, Maps lays the two out side by side
- * and sizes the window to fit both.
- */
-function openBubble(
-  map: google.maps.Map,
-  info: google.maps.InfoWindow,
-  marker: google.maps.Marker,
-  heading: string,
-  lines: (string | null | undefined)[],
-) {
-  const body = lines.filter((line): line is string => Boolean(line))
-  // Built as an element rather than a plain string so the title keeps the bubble's
-  // own type scale instead of Maps' default header size.
-  const title = document.createElement('span')
-  title.textContent = heading
-  title.style.cssText = 'font:600 13px/1.5 system-ui;color:#0f172a'
-  info.setHeaderContent(title)
-  info.setContent(
-    `<div style="font:400 13px/1.5 system-ui;max-width:15rem;color:#475569">` +
-      body.map((line) => escapeHtml(line)).join('<br>') +
-      `</div>`,
-  )
-  info.open({ map, anchor: marker })
-}
-
-/** Escape a value before it goes into the info window's HTML. */
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"]/g, (ch) =>
-    ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : '&quot;',
-  )
-}
-
-/**
  * The day's GPS trail on a Google map.
  *
  * Written against the Maps JS API directly (via the shared `useGoogleMaps`
@@ -271,6 +233,11 @@ export function DayTrailMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
   const infoRef = useRef<google.maps.InfoWindow | null>(null)
+  /** The info window's content node — the popup is portalled into it (below). */
+  const contentRef = useRef<HTMLDivElement | null>(null)
+  if (contentRef.current === null && typeof document !== 'undefined') {
+    contentRef.current = document.createElement('div')
+  }
   const overlaysRef = useRef<(google.maps.Marker | google.maps.Polyline)[]>([])
   /** Visit markers by id, so a selection can pan to and open one. */
   const markersRef = useRef<Map<string, google.maps.Marker>>(new Map())
@@ -313,11 +280,7 @@ export function DayTrailMap({
       clickableIcons: false,
       styles: TRAIL_MAP_STYLE,
     })
-    infoRef.current = new google.maps.InfoWindow({
-      // The heading lives in the header row (see `openBubble`); Maps only reserves
-      // room for it when the window is told it has one.
-      headerContent: '',
-    })
+    infoRef.current = new google.maps.InfoWindow()
     // Maps' own ✕ closes the window without telling us — clearing the selection
     // here is what lets the same pin be clicked open a second time.
     infoRef.current.addListener('closeclick', () => onSelect(null))
@@ -527,60 +490,40 @@ export function DayTrailMap({
       return
     }
 
-    // A punch marker: same pan-and-open as a call, with the punch bubble.
-    const trailEnd =
-      selectedId === TRAIL_START_ID ? start : selectedId === TRAIL_END_ID ? end : null
-    if (trailEnd) {
-      const marker = markersRef.current.get(selectedId)
-      if (!marker) return
-      map.panTo(trailEnd.point)
-      if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-      const isStart = selectedId === TRAIL_START_ID
-      if (infoRef.current) {
-        openBubble(map, infoRef.current, marker, isStart ? 'Day start' : 'Day end', [
-          trailEnd.at ? `Punched ${isStart ? 'in' : 'out'} at ${trailEnd.at}` : null,
-          trailEnd.address,
-        ])
-      }
-      return
-    }
+    // Every kind of pin opens the same way: pan, zoom in if we are further out
+    // than a street view of the stop, and hand the info window the node the
+    // popup is portalled into. Which popup that is, is decided in the render
+    // below — this effect only has to place the window.
+    const marker = markersRef.current.get(selectedId)
+    if (!marker) return
+    const point =
+      selectedId === TRAIL_START_ID
+        ? start?.point
+        : selectedId === TRAIL_END_ID
+          ? end?.point
+          : (misses.find((outlet) => outlet.id === selectedId)?.point ??
+            visits.find((visit) => visit.id === selectedId)?.point)
+    if (!point) return
 
-    // A roster miss: it has no punch time, so its bubble is name + beat only.
-    const miss = misses.find((outlet) => outlet.id === selectedId)
-    if (miss) {
-      const marker = markersRef.current.get(miss.id)
-      if (!marker) return
-      map.panTo(miss.point)
-      if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-      if (infoRef.current) {
-        openBubble(map, infoRef.current, marker, miss.name, [
-          `${miss.stopType} · not visited`,
-        ])
-      }
-      return
-    }
-
-    const visit = visits.find((v) => v.id === selectedId)
-    const marker = visit && markersRef.current.get(visit.id)
-    if (!visit || !marker) return
-
-    map.panTo(visit.point)
+    map.panTo(point)
     if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-    if (infoRef.current) {
-      openBubble(map, infoRef.current, marker, visit.outlet, [
-        [
-          visit.at ?? `#${visit.daySequence}`,
-          kindLabel(visit.kind),
-          visit.beatName,
-        ]
-          .filter(Boolean)
-          .join(' · '),
-        [visit.productive ? 'Productive' : 'No order', durationLabel(visit.dwellSeconds)]
-          .filter(Boolean)
-          .join(' · '),
-      ])
-    }
+    infoRef.current?.setContent(contentRef.current)
+    infoRef.current?.open({ map, anchor: marker })
   }, [selectedId, visits, misses, start, end])
+
+  /** Which popup the open bubble is showing. */
+  const popup = (() => {
+    if (!selectedId) return null
+    if (selectedId === TRAIL_START_ID || selectedId === TRAIL_END_ID) {
+      const isStart = selectedId === TRAIL_START_ID
+      const trailEnd = isStart ? start : end
+      return trailEnd ? <TrailEndPopup isStart={isStart} trailEnd={trailEnd} /> : null
+    }
+    const miss = misses.find((outlet) => outlet.id === selectedId)
+    if (miss) return <MissPopup outlet={miss} />
+    const visit = visits.find((v) => v.id === selectedId)
+    return visit ? <VisitPopup visit={visit} /> : null
+  })()
 
   return (
     <div className={className}>
@@ -598,6 +541,11 @@ export function DayTrailMap({
             </div>
           ) : null}
           <MapLayersControl map={map} />
+          {/* The popup lives in the React tree, portalled into the info window's
+              own node, so it can look the stop's place up and follow the theme. */}
+          {popup && contentRef.current
+            ? createPortal(popup, contentRef.current)
+            : null}
           {ready && routing ? (
             <div className="absolute left-3 top-3 flex items-center gap-2 rounded-md bg-background/90 px-2.5 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
               <Loader2 className="size-3.5 animate-spin" />
