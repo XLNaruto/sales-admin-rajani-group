@@ -7,6 +7,7 @@ export {
   useCreateSalesman,
   useDeleteSalesman,
   useSalesIncharges,
+  useSalesInchargeOptionsInfinite,
   useDeleteSalesIncharge,
 } from './api/use-sales-incharge'
 export { hierarchyTreeQueryOptions } from './api/use-hierarchy'
@@ -21,4 +22,7 @@ export type {
   SalesInchargeSortBy,
   SalesInchargeListParams,
   SalesInchargeListResult,
+  SalesInchargeOption,
+  SalesInchargeOptionsParams,
+  SalesInchargeOptionsResult,
 } from './types'

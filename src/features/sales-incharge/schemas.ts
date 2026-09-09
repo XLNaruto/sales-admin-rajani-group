@@ -192,3 +192,21 @@ export const inchargePresignResponseSchema = z.object({
     }),
   ),
 })
+
+/**
+ * GET /sales-incharge-admin/sales-incharges/options — the dropdown envelope.
+ * Rows carry `id` + `name` (the display name) only — no code, designation or
+ * photo — and the pagination fields match the full list endpoint's.
+ */
+export const salesInchargeOptionsResponseSchema = z.object({
+  sales_incharges: z.array(
+    z.object({
+      id: z.union([z.number(), z.string()]).transform(String),
+      name: z.string(),
+    }),
+  ),
+  total: z.number().optional(),
+  page: z.number().optional(),
+  page_size: z.number().optional(),
+  total_pages: z.number().optional(),
+})

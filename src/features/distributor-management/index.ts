@@ -3,6 +3,7 @@ export { DistributorCreatePage } from './pages/distributor-create-page'
 export {
   useDistributors,
   useDistributorsInfinite,
+  useDistributorOptionsInfinite,
   useDistributor,
   useCreateDistributor,
   useUpdateDistributor,
@@ -10,6 +11,9 @@ export {
 } from './api/use-distributors'
 export type {
   Distributor,
+  DistributorOption,
+  DistributorOptionsParams,
+  DistributorOptionsResult,
   DistributorInput,
   DistributorOwner,
   DistributorStatus,

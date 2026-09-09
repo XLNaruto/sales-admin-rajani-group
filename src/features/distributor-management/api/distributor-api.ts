@@ -7,6 +7,7 @@ import {
   distributorDetailSchema,
   distributorListResponseSchema,
   distributorCompaniesResponseSchema,
+  distributorOptionsResponseSchema,
   type DistributorOwnerRow,
   type DistributorRow,
 } from '../schemas'
@@ -23,6 +24,8 @@ import type {
   DistributorListResult,
   DistributorMarketType,
   DistributorOnboardingAction,
+  DistributorOptionsParams,
+  DistributorOptionsResult,
   DistributorOwner,
   DistributorStatus,
   DistributorUpdateInput,
@@ -571,5 +574,35 @@ export async function updateDistributorOnboarding(
     await http.patch<unknown>(endpoints.DISTRIBUTOR.ONBOARDING(id), body)
   } catch (error) {
     throw asApiError(error, 'Failed to update the onboarding status.')
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/distributors/options — one page of `id` + firm-name
+ * rows for a distributor dropdown on another screen (the beat form). Separate
+ * from `fetchDistributors` because this one only needs
+ * `distributor-master:lookup`, so a form can fill its distributor select
+ * without holding access to the Distributor Master screen.
+ */
+export async function fetchDistributorOptions(
+  params: DistributorOptionsParams = {},
+): Promise<DistributorOptionsResult> {
+  try {
+    const q: Record<string, string | number> = {}
+    if (params.page != null) q.page = params.page
+    if (params.pageSize != null) q.page_size = params.pageSize
+    if (params.search) q.search = params.search
+    if (params.status) q.status = params.status
+    const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.OPTIONS, { params: q })
+    const res = distributorOptionsResponseSchema.parse(raw)
+    return {
+      items: res.distributors,
+      total: res.total ?? res.distributors.length,
+      page: res.page ?? 1,
+      pageSize: res.page_size ?? res.distributors.length,
+      totalPages: res.total_pages ?? 1,
+    }
+  } catch (error) {
+    throw asApiError(error, 'Failed to load distributors.')
   }
 }

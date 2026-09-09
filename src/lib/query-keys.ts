@@ -39,6 +39,8 @@ export const queryKeys = {
       [...queryKeys.distributors.all, 'list', filters ?? {}] as const,
     listInfinite: (filters?: Record<string, unknown>) =>
       [...queryKeys.distributors.all, 'list-infinite', filters ?? {}] as const,
+    options: (filters?: Record<string, unknown>) =>
+      [...queryKeys.distributors.all, 'options', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.distributors.all, 'detail', id] as const,
     detailView: (id: string) =>
       [...queryKeys.distributors.all, 'detail-view', id] as const,
@@ -122,6 +124,8 @@ export const queryKeys = {
       [...queryKeys.salesIncharge.all, 'list-infinite', filters ?? {}] as const,
     salesmen: (filters?: Record<string, unknown>) =>
       [...queryKeys.salesIncharge.all, 'salesmen', filters ?? {}] as const,
+    options: (filters?: Record<string, unknown>) =>
+      [...queryKeys.salesIncharge.all, 'options', filters ?? {}] as const,
     detail: (id: string) => [...queryKeys.salesIncharge.all, 'detail', id] as const,
     detailView: (id: string) =>
       [...queryKeys.salesIncharge.all, 'detail-view', id] as const,

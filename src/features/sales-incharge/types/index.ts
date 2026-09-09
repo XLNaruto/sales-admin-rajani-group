@@ -173,3 +173,34 @@ export interface SalesInchargePreservedFields {
   territory: string | null
   salary: string | null
 }
+
+/**
+ * One row from the sales-incharge-options endpoint: just enough to render a
+ * dropdown entry and submit its value.
+ */
+export interface SalesInchargeOption {
+  id: string
+  name: string
+}
+
+/** Query params accepted by the sales-incharge-options endpoint (camelCase). */
+export interface SalesInchargeOptionsParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  /**
+   * Restrict the picker to one status. Omitted means no filter — right for a
+   * screen that FILTERS existing rows (a suspended rep's past requests still
+   * need to be findable); a form that ASSIGNS new work should pass `active`.
+   */
+  status?: SalesInchargeStatus
+}
+
+/** One page of sales-incharge options plus its pagination metadata. */
+export interface SalesInchargeOptionsResult {
+  items: SalesInchargeOption[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

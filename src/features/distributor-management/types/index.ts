@@ -321,3 +321,34 @@ export interface DistributorListResult {
   totalPages: number
 }
 
+
+/**
+ * One row from the distributor-options endpoint: just enough to render a
+ * dropdown entry and submit its value.
+ */
+export interface DistributorOption {
+  id: string
+  name: string
+}
+
+/** Query params accepted by the distributor-options endpoint (camelCase). */
+export interface DistributorOptionsParams {
+  page?: number
+  pageSize?: number
+  search?: string
+  /**
+   * Restrict the picker to one lifecycle status. Omitted means no filter — but
+   * a form that assigns new work should pass `active`, so a suspended or closed
+   * firm can't be picked up as a fresh commitment.
+   */
+  status?: DistributorLifecycleStatus
+}
+
+/** One page of distributor options plus its pagination metadata. */
+export interface DistributorOptionsResult {
+  items: DistributorOption[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}

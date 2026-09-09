@@ -13,6 +13,7 @@ import {
   fetchDesignations,
   fetchSalesIncharge,
   fetchSalesInchargeDetail,
+  fetchSalesInchargeOptions,
   fetchSalesIncharges,
   setSalesInchargeStatus,
   updateSalesIncharge,
@@ -24,6 +25,7 @@ import type {
   SalesmanInput,
   SalesInchargeExistingFiles,
   SalesInchargeListParams,
+  SalesInchargeOptionsParams,
   SalesInchargePreservedFields,
   SalesInchargeStatus,
 } from "../types";
@@ -406,5 +408,25 @@ export function useDeleteSalesman() {
     },
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all }),
+  });
+}
+
+/**
+ * GET /sales-incharge-admin/sales-incharges/options — scroll-lazy rep dropdown
+ * feed for forms on other screens. Always infinite: the select pages as it's
+ * scrolled, and the master outgrows one page.
+ */
+export function useSalesInchargeOptionsInfinite(
+  params: Omit<SalesInchargeOptionsParams, "page"> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.salesIncharge.options(params as Record<string, unknown>),
+    queryFn: ({ pageParam }) =>
+      fetchSalesInchargeOptions({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: options.enabled ?? true,
   });
 }

@@ -28,6 +28,13 @@ export const endpoints = {
   },
   SALES_INCHARGE: {
     LIST: '/sales-incharge-admin/sales-incharges',
+    /**
+     * Lightweight `id` + display-name feed for a rep dropdown on another screen
+     * (journey planning, beat allocation, the request toolbars). Needs only
+     * `sales-incharge:lookup`, so filling the dropdown never implies access to
+     * the Sales Incharge Master screen — use LIST for the full records.
+     */
+    OPTIONS: '/sales-incharge-admin/sales-incharges/options',
     CREATE: '/sales-incharge-admin/sales-incharges',
     GET: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
@@ -53,6 +60,13 @@ export const endpoints = {
   },
   DISTRIBUTOR: {
     LIST: '/sales-incharge-admin/distributors',
+    /**
+     * Lightweight `id` + firm-name feed for a distributor dropdown on another
+     * screen (the beat form's distributor field). Needs only
+     * `distributor-master:lookup`, so filling the dropdown never implies access
+     * to the Distributor Master screen — use LIST for the full records.
+     */
+    OPTIONS: '/sales-incharge-admin/distributors/options',
     CREATE: '/sales-incharge-admin/distributors',
     GET: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,
     UPDATE: (id: string | number) => `/sales-incharge-admin/distributors/${id}`,

@@ -11,6 +11,7 @@ import {
   deleteDistributor,
   fetchDistributor,
   fetchDistributorDetail,
+  fetchDistributorOptions,
   fetchDistributors,
   setDistributorStatus,
   updateDistributor,
@@ -22,6 +23,7 @@ import type {
   DistributorLifecycleStatus,
   DistributorListParams,
   DistributorOnboardingAction,
+  DistributorOptionsParams,
   DistributorUpdateInput,
 } from "../types";
 
@@ -167,5 +169,26 @@ export function useDeleteDistributor() {
     mutationFn: (id: string) => deleteDistributor(id),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: queryKeys.distributors.all }),
+  });
+}
+
+/**
+ * GET /sales-incharge-admin/distributors/options — scroll-lazy distributor
+ * dropdown feed for forms on other screens (the beat form's distributor field).
+ * Always infinite: the select pages as it's scrolled, and the master outgrows
+ * one page.
+ */
+export function useDistributorOptionsInfinite(
+  params: Omit<DistributorOptionsParams, "page"> = {},
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.distributors.options(params as Record<string, unknown>),
+    queryFn: ({ pageParam }) =>
+      fetchDistributorOptions({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: options.enabled ?? true,
   });
 }

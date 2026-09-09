@@ -7,6 +7,7 @@ import {
   inchargePresignResponseSchema,
   salesInchargeDetailSchema,
   salesInchargeListResponseSchema,
+  salesInchargeOptionsResponseSchema,
   type SalesInchargeRow,
 } from '../schemas'
 import type { SalesInchargeFormValues } from '../lib/incharge-form'
@@ -19,6 +20,8 @@ import type {
   SalesInchargeExistingFiles,
   SalesInchargeListParams,
   SalesInchargeListResult,
+  SalesInchargeOptionsParams,
+  SalesInchargeOptionsResult,
   SalesInchargePreservedFields,
   SalesInchargeStatus,
 } from '../types'
@@ -419,3 +422,34 @@ export async function setSalesInchargeStatus(
   }
 }
 
+/**
+ * GET /sales-incharge-admin/sales-incharges/options — one page of `id` +
+ * display-name rows for a rep dropdown on another screen. Separate from
+ * `fetchSalesIncharges` because this one only needs `sales-incharge:lookup`, so
+ * a form can fill its rep select without holding access to the Sales Incharge
+ * Master screen. It carries no code/designation/photo — read the detail
+ * endpoint when a screen needs those for the selected rep.
+ */
+export async function fetchSalesInchargeOptions(
+  params: SalesInchargeOptionsParams = {},
+): Promise<SalesInchargeOptionsResult> {
+  try {
+    const q: Record<string, string | number> = {}
+    if (params.page != null) q.page = params.page
+    if (params.pageSize != null) q.page_size = params.pageSize
+    if (params.search) q.search = params.search
+    if (params.status) q.status = params.status
+    const raw = await http.get<unknown>(endpoints.SALES_INCHARGE.OPTIONS, { params: q })
+    const res = salesInchargeOptionsResponseSchema.parse(raw)
+    const items = res.sales_incharges
+    return {
+      items,
+      total: res.total ?? items.length,
+      page: res.page ?? 1,
+      pageSize: res.page_size ?? items.length,
+      totalPages: res.total_pages ?? 1,
+    }
+  } catch (error) {
+    throw asApiError(error, 'Failed to load sales incharges.')
+  }
+}

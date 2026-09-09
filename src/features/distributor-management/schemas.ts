@@ -161,3 +161,21 @@ export const distributorCompaniesResponseSchema = z.object({
   company_id: z.array(z.union([z.number(), z.string()])).nullish(),
   company_names: z.array(z.string()).nullish(),
 })
+
+/**
+ * GET /sales-incharge-admin/distributors/options — the dropdown envelope. Rows
+ * carry `id` + `name` (the firm name) only; the pagination fields match the full
+ * list endpoint's.
+ */
+export const distributorOptionsResponseSchema = z.object({
+  distributors: z.array(
+    z.object({
+      id: z.union([z.number(), z.string()]).transform(String),
+      name: z.string(),
+    }),
+  ),
+  total: z.number().optional(),
+  page: z.number().optional(),
+  page_size: z.number().optional(),
+  total_pages: z.number().optional(),
+})
