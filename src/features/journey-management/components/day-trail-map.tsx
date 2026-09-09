@@ -178,20 +178,35 @@ function endIcon(isStart: boolean, selected: boolean): google.maps.Icon {
   })
 }
 
-/** The bubble for a punch-in or punch-out marker. */
-function endContent(isStart: boolean, trailEnd: TrailEnd): string {
-  const heading = isStart ? 'Day start' : 'Day end'
-  const time = trailEnd.at
-    ? `Punched ${isStart ? 'in' : 'out'} at ${escapeHtml(trailEnd.at)}`
-    : null
-  return (
-    `<div style="font:500 13px/1.5 system-ui;max-width:15rem"><strong>${heading}</strong>` +
-    (time ? `<br><span style="color:#64748b">${time}</span>` : '') +
-    (trailEnd.address
-      ? `<br><span style="color:#64748b">${escapeHtml(trailEnd.address)}</span>`
-      : '') +
-    `</div>`
+/**
+ * Opens the shared info window on a marker.
+ *
+ * The heading goes in the window's own *header row*, not the body: Maps draws its
+ * ✕ button absolutely in that row's top-right corner whether or not anything is
+ * in it, so a bubble that put its title in the body had the button sitting on top
+ * of the title text. With `headerContent` set, Maps lays the two out side by side
+ * and sizes the window to fit both.
+ */
+function openBubble(
+  map: google.maps.Map,
+  info: google.maps.InfoWindow,
+  marker: google.maps.Marker,
+  heading: string,
+  lines: (string | null | undefined)[],
+) {
+  const body = lines.filter((line): line is string => Boolean(line))
+  // Built as an element rather than a plain string so the title keeps the bubble's
+  // own type scale instead of Maps' default header size.
+  const title = document.createElement('span')
+  title.textContent = heading
+  title.style.cssText = 'font:600 13px/1.5 system-ui;color:#0f172a'
+  info.setHeaderContent(title)
+  info.setContent(
+    `<div style="font:400 13px/1.5 system-ui;max-width:15rem;color:#475569">` +
+      body.map((line) => escapeHtml(line)).join('<br>') +
+      `</div>`,
   )
+  info.open({ map, anchor: marker })
 }
 
 /** Escape a value before it goes into the info window's HTML. */
@@ -298,7 +313,14 @@ export function DayTrailMap({
       clickableIcons: false,
       styles: TRAIL_MAP_STYLE,
     })
-    infoRef.current = new google.maps.InfoWindow()
+    infoRef.current = new google.maps.InfoWindow({
+      // The heading lives in the header row (see `openBubble`); Maps only reserves
+      // room for it when the window is told it has one.
+      headerContent: '',
+    })
+    // Maps' own ✕ closes the window without telling us — clearing the selection
+    // here is what lets the same pin be clicked open a second time.
+    infoRef.current.addListener('closeclick', () => onSelect(null))
     mapRef.current.addListener('click', () => onSelect(null))
     // Published to state as well as the ref: the Layers panel is a React child
     // and needs the instance to re-render against.
@@ -513,8 +535,13 @@ export function DayTrailMap({
       if (!marker) return
       map.panTo(trailEnd.point)
       if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-      infoRef.current?.setContent(endContent(selectedId === TRAIL_START_ID, trailEnd))
-      infoRef.current?.open({ map, anchor: marker })
+      const isStart = selectedId === TRAIL_START_ID
+      if (infoRef.current) {
+        openBubble(map, infoRef.current, marker, isStart ? 'Day start' : 'Day end', [
+          trailEnd.at ? `Punched ${isStart ? 'in' : 'out'} at ${trailEnd.at}` : null,
+          trailEnd.address,
+        ])
+      }
       return
     }
 
@@ -525,11 +552,11 @@ export function DayTrailMap({
       if (!marker) return
       map.panTo(miss.point)
       if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-      infoRef.current?.setContent(
-        `<div style="font:500 13px/1.4 system-ui"><strong>${escapeHtml(miss.name)}</strong><br>` +
-          `<span style="color:#64748b">${escapeHtml(miss.stopType)} · not visited</span></div>`,
-      )
-      infoRef.current?.open({ map, anchor: marker })
+      if (infoRef.current) {
+        openBubble(map, infoRef.current, marker, miss.name, [
+          `${miss.stopType} · not visited`,
+        ])
+      }
       return
     }
 
@@ -539,17 +566,20 @@ export function DayTrailMap({
 
     map.panTo(visit.point)
     if ((map.getZoom() ?? 0) < FOCUS_ZOOM) map.setZoom(FOCUS_ZOOM)
-    infoRef.current?.setContent(
-      `<div style="font:500 13px/1.5 system-ui"><strong>${escapeHtml(visit.outlet)}</strong><br>` +
-        `<span style="color:#64748b">${escapeHtml(visit.at ?? `#${visit.daySequence}`)} · ${escapeHtml(kindLabel(visit.kind))}` +
-        `${visit.beatName ? ` · ${escapeHtml(visit.beatName)}` : ''}</span><br>` +
-        `<span style="color:#64748b">${visit.productive ? 'Productive' : 'No order'}${
-          durationLabel(visit.dwellSeconds)
-            ? ` · ${durationLabel(visit.dwellSeconds)}`
-            : ''
-        }</span></div>`,
-    )
-    infoRef.current?.open({ map, anchor: marker })
+    if (infoRef.current) {
+      openBubble(map, infoRef.current, marker, visit.outlet, [
+        [
+          visit.at ?? `#${visit.daySequence}`,
+          kindLabel(visit.kind),
+          visit.beatName,
+        ]
+          .filter(Boolean)
+          .join(' · '),
+        [visit.productive ? 'Productive' : 'No order', durationLabel(visit.dwellSeconds)]
+          .filter(Boolean)
+          .join(' · '),
+      ])
+    }
   }, [selectedId, visits, misses, start, end])
 
   return (
