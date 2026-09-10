@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Hint } from '@/components/common/hint'
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,10 @@ interface BadgeOverflowListProps {
  * Renders up to `max` badges inline; any remainder collapse into a `+N` badge
  * that opens a modal listing the complete set. Keeps dense table cells tidy
  * while still exposing every value on demand.
+ *
+ * Badges stay on a single line and truncate rather than wrapping, so every row
+ * in a table keeps the same height however long the labels are; the full text
+ * is always reachable through the hint or the modal.
  */
 export function BadgeOverflowList({
   items,
@@ -36,32 +41,40 @@ export function BadgeOverflowList({
   const [open, setOpen] = useState(false)
 
   const visible = items.slice(0, max)
-  const hiddenCount = items.length - visible.length
+  const hidden = items.slice(visible.length)
 
   return (
     <>
-      <div className={cn('flex flex-nowrap items-center gap-1', className)}>
+      <div className={cn('flex min-w-0 flex-nowrap items-center gap-1', className)}>
         {visible.map((name) => (
-          <Badge key={name} variant="outline" className="font-medium">
-            {name}
-          </Badge>
-        ))}
-        {hiddenCount > 0 && (
-          <button
-            type="button"
-            onClick={(e) => {
-              // Stop the click bubbling to a row handler (e.g. row-open nav).
-              e.stopPropagation()
-              setOpen(true)
-            }}
-          >
+          <Hint key={name} label={name}>
             <Badge
-              variant="secondary"
-              className="cursor-pointer font-medium hover:bg-secondary/80"
+              variant="outline"
+              className="min-w-0 max-w-full cursor-default whitespace-nowrap"
             >
-              +{hiddenCount}
+              <span className="truncate">{name}</span>
             </Badge>
-          </button>
+          </Hint>
+        ))}
+        {hidden.length > 0 && (
+          <Hint label={hidden.join(', ')}>
+            <button
+              type="button"
+              className="shrink-0"
+              onClick={(e) => {
+                // Stop the click bubbling to a row handler (e.g. row-open nav).
+                e.stopPropagation()
+                setOpen(true)
+              }}
+            >
+              <Badge
+                variant="secondary"
+                className="cursor-pointer whitespace-nowrap tabular-nums hover:bg-secondary/80"
+              >
+                +{hidden.length}
+              </Badge>
+            </button>
+          </Hint>
         )}
       </div>
 
@@ -76,7 +89,7 @@ export function BadgeOverflowList({
           </DialogHeader>
           <div className="flex flex-wrap gap-1.5 py-2">
             {items.map((name) => (
-              <Badge key={name} variant="outline" className="font-medium">
+              <Badge key={name} variant="outline" className="whitespace-nowrap">
                 {name}
               </Badge>
             ))}

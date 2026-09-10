@@ -387,8 +387,21 @@ export function FileDropzoneField({
 }) {
   const [dz, setDz] = React.useState<DropzoneFile | null>(null)
 
-  // Seed/refresh the preview from the saved image whenever there's no fresh
-  // pick. Naming it from the path keeps image detection (extension) working.
+  // Mirror the form value into the preview. A `File` can land here WITHOUT ever
+  // passing through `onChange` — restoring a local draft resets the form behind
+  // this component's back — so a pick can't be the only thing that builds the
+  // preview, or a restored photo shows as an empty dropzone. Keyed on the File
+  // identity alone so the object URL is minted (and revoked) exactly once per
+  // file, and re-picking the same one is a no-op.
+  React.useEffect(() => {
+    if (!value) return
+    const url = URL.createObjectURL(value)
+    setDz({ name: value.name, url, file: value })
+    return () => URL.revokeObjectURL(url)
+  }, [value])
+
+  // No pick: fall back to the already-saved image (edit mode), or nothing.
+  // Naming it from the path keeps image detection (extension) working.
   React.useEffect(() => {
     if (value) return
     setDz(existingUrl ? { name: baseName(existingUrl), url: existingUrl } : null)

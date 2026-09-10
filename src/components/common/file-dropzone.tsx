@@ -32,8 +32,12 @@ function readAsDataUrl(file: File): Promise<string> {
   })
 }
 
+// The raw File's mime is the most reliable signal and is checked first: a
+// blob: URL carries no type, and a file can arrive with an extensionless name.
 const isImage = (f: DropzoneFile) =>
-  f.url.startsWith('data:image') || /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(f.name)
+  f.file?.type.startsWith('image/') ||
+  f.url.startsWith('data:image') ||
+  /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(f.name)
 
 /**
  * Translate an `accept` mime/extension string into the uppercase extension list
