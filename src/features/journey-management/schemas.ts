@@ -461,6 +461,7 @@ export const liveDetailSchema = z.object({
         at: z.string().nullish(),
         party_name: z.string().nullish(),
         beat_name: z.string().nullish(),
+        stop_type: z.string().nullish(),
         call_type: z.string().nullish(),
         is_productive: z.boolean().nullish(),
         order_value: decimal,

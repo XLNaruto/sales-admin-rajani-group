@@ -81,18 +81,39 @@ function toPoint(lat: string | null, lng: string | null): GeoPoint | null {
   return Number.isFinite(point.lat) && Number.isFinite(point.lng) ? point : null
 }
 
-/** `call_type` on the wire → the legend's marker vocabulary. */
+/**
+ * `call_type` on the wire → the legend's marker vocabulary.
+ *
+ * The wire enum has exactly THREE members — `in_turn`, `out_of_turn`,
+ * `telephonic` — and this map used to be missing the middle one while carrying
+ * four keys that are not call types at all (`ovt`, `ovc`, `joint_working`,
+ * `official_work` are facet names; `distributor` is a stop type). So every
+ * out-of-turn visit fell through to the `'in-turn'` default and was drawn and
+ * labelled as an in-turn call, and the OVT legend chip could only ever read
+ * zero. The API was simultaneously classifying almost everything as
+ * out-of-turn, so the two bugs cancelled: the map looked right and was wrong.
+ *
+ * `ovc` is a `compliance_state`, not a call type, and has no evaluator yet —
+ * `facets.ovc` counts them and no marker can claim the kind until one exists.
+ * `joint-working` and `official-work` are properties of the DAY, not of a
+ * visit, and are shown through the facet counts.
+ */
 const CALL_TYPES: Record<string, VisitKind> = {
   in_turn: 'in-turn',
+  out_of_turn: 'ovt',
   telephonic: 'telephonic',
-  ovt: 'ovt',
-  ovc: 'ovc',
-  joint_working: 'joint-working',
-  distributor: 'distributor',
-  official_work: 'official-work',
 }
 
-function toKind(callType: string | null | undefined): VisitKind {
+/**
+ * A visit's marker kind. `stop_type` outranks `call_type` for a distributor:
+ * the legend has a distributor chip, and which pin earns it is a question about
+ * WHO was called on rather than how. Retailers fall through to the call type.
+ */
+function toKind(
+  callType: string | null | undefined,
+  stopType?: string | null,
+): VisitKind {
+  if (stopType === 'distributor') return 'distributor'
   return CALL_TYPES[callType ?? ''] ?? 'in-turn'
 }
 
@@ -160,7 +181,7 @@ function toDetail(r: LiveDetailRow): LiveDayDetail {
     at: timeOfDay(visit.at),
     outlet: visit.party_name ?? 'Unnamed outlet',
     beatName: visit.beat_name ?? null,
-    kind: toKind(visit.call_type),
+    kind: toKind(visit.call_type, visit.stop_type),
     productive: Boolean(visit.is_productive),
     orderValue: visit.order_value,
     dwellSeconds: visit.dwell_seconds,
