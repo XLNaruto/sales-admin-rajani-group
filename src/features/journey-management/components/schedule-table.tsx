@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { format, parseISO } from 'date-fns'
 import {
   Lock,
+  CircleDot,
   PencilLine,
   Pin,
   Store,
@@ -18,6 +19,7 @@ import { takesCity } from '../lib/activities'
 import { DAY_LABEL_COLOR, DAY_LABEL_HINT, DAY_LABEL_TEXT } from '../lib/day-label'
 import { isLocked } from '../lib/plan-flags'
 import { unscheduledIsAProblem } from '../lib/plan-status'
+import type { LiveStripDay } from '../lib/live-strip'
 import { ActivitySelect } from './activity-select'
 import type { CitySelect } from './allocation-editor'
 import type {
@@ -133,7 +135,7 @@ export function ScheduleTable({
   editable = false,
   busy = false,
 }: {
-  strip: MonthStripDay[]
+  strip: LiveStripDay[]
   days: PlanDay[]
   status: PlanStatus
   activities: ActivityDef[]
@@ -193,12 +195,37 @@ export function ScheduleTable({
       0,
     )
 
+  /**
+   * The title bar's height, so the column header can park directly beneath it
+   * rather than sliding under it. Measured, not hard-coded: the chips and the
+   * status line wrap, so the bar is one or two lines tall depending on width.
+   */
+  const titleRef = useRef<HTMLDivElement>(null)
+  const [titleHeight, setTitleHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    const measure = () => setTitleHeight(el.offsetHeight)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
   return (
     // `overflow-clip`, not `overflow-hidden`: both clip the rounded corners, but
-    // `hidden` establishes a scroll container, and the column header below sticks
-    // to the page — it has to see the shell's scrollport, not this card's.
+    // `hidden` establishes a scroll container, and the two sticky rows below stick
+    // to the page — they have to see the shell's scrollport, not this card's.
     <div className="overflow-clip rounded-xl border border-border/60 bg-card">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-3">
+      {/* The card's own title bar sticks under the plan header, and the column
+          header sticks under THIS — so the month keeps both the counts and the
+          column labels in view however far down you scroll. Opaque, or the rows
+          passing behind it show through. */}
+      <div
+        ref={titleRef}
+        className="sticky top-[var(--plan-header-h,0px)] z-20 flex flex-wrap items-center gap-2 border-b border-border/60 bg-card px-4 py-3"
+      >
         <h2 className="font-heading text-sm font-semibold text-foreground">The month</h2>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-semibold tabular-nums text-muted-foreground">
           {strip.length - unscheduled} / {strip.length} dated
@@ -240,19 +267,24 @@ export function ScheduleTable({
         </span>
       </div>
 
-      {/* The table scrolls in its OWN box, both ways.
-          A horizontal scroller cannot be a page-level one: `overflow-x: auto`
-          makes the wrapper a scroll container, and a `sticky` header inside it
-          then pins to the wrapper rather than to the viewport. So the wrapper
-          owns both axes — a capped height with the header stuck to its top —
-          which is the ordinary data-table arrangement and keeps the column
-          labels visible however far down the month you are. */}
-      <div className="max-h-[70vh] overflow-auto overscroll-contain">
-        {/* `table-fixed` + `min-w`: the header's widths ARE the layout, and the
-            minimum is what gives the wrapper something to scroll horizontally on
-            a narrow screen instead of crushing six columns into it. */}
-        <table className="w-full min-w-[56rem] table-fixed border-collapse text-sm">
-          <thead className="sticky top-0 z-10">
+      {/* No scrollport of its own — the page is the only thing that scrolls.
+          That is also what makes the column header work: `sticky` pins to the
+          nearest scroll container, so the header only follows you down a 31-row
+          month while the table has none. It stops at the plan header's height,
+          handed down as `--plan-header-h` because that header wraps. */}
+      <div>
+        {/* `table-fixed`: the header's widths ARE the layout. No `min-w` either —
+            a minimum would need a horizontal scroller around it, and that
+            scroller would capture the header's `sticky` back into this box. */}
+        {/* Column rules on EVERY cell, set once here rather than on each `<td>`:
+            the columns are wide and the row tints are faint, so without them a
+            wrapped list of distributors reads as if it belonged to the column
+            beside it. The last column is the row's buttons, so it takes none. */}
+        <table className="w-full table-fixed border-collapse text-sm [&_td:last-child]:border-r-0 [&_td]:border-r [&_td]:border-border/60 [&_th:last-child]:border-r-0 [&_th]:border-r [&_th]:border-border/60">
+          <thead
+            className="sticky z-10"
+            style={{ top: `calc(var(--plan-header-h, 0px) + ${titleHeight}px)` }}
+          >
             {/* border-collapse drops a sticky row's own border, so the header rule
                 is an inset shadow instead. */}
             <tr className="bg-card text-left shadow-[inset_0_-1px_0_var(--border)]">
@@ -342,7 +374,7 @@ function DayRows({
   onClearDay,
   onEditBeats,
 }: {
-  stripDay: MonthStripDay
+  stripDay: LiveStripDay
   day: PlanDay | undefined
   draftDay: ScheduleDraftDay | undefined
   activities: ActivityDef[]
@@ -409,8 +441,13 @@ function DayRows({
       ]),
   )
 
+  // A full-strength rule BETWEEN dates: the row tints (holiday, missed, blank)
+  // are deliberately faint, so a faint rule on top of them left three-row dates
+  // reading as one continuous block of text.
   const rowClass = cn(
-    'border-b border-border/40 align-top transition-colors hover:bg-accent/40',
+    // No hover tint: the row tints (holiday, missed, blank) carry meaning, and a
+    // hover wash over them reads as the row changing state under the pointer.
+    'border-b border-border align-top',
     stripDay.label === 'holiday' && 'bg-muted/30',
     stripDay.label === 'missed' && 'bg-warning/5',
     blanksMatter && stripDay.label === 'unscheduled' && 'bg-destructive/5',
@@ -422,7 +459,10 @@ function DayRows({
     return (
       <tr id={dayRowId(stripDay.day)} className={rowClass}>
         <DateCell day={stripDay} locked={locked} />
-        <td className="whitespace-nowrap px-4 py-2.5">
+        {/* Wider on the right than the other cells: the chip can carry two
+            trailing icons (unsaved, origin), and at an even `px-4` those sit hard
+            against the next column's rule. */}
+        <td className="whitespace-nowrap py-2.5 pl-4 pr-6">
           <LabelChip day={stripDay} />
         </td>
         <td className="px-4 py-2.5 text-sm text-muted-foreground" colSpan={4}>
@@ -496,12 +536,12 @@ function DayRows({
             // Dashed within a date, solid between them: a date carrying three
             // pieces of work is three rows, and with no rule at all they read as
             // one cell's worth of wrapped text.
-            className={cn(rowClass, !last && 'border-dashed border-border/30')}
+            className={cn(rowClass, !last && 'border-dashed border-border/60')}
           >
             {first ? (
               <>
                 <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
-                <td rowSpan={rowCount} className="whitespace-nowrap px-4 py-2.5">
+                <td rowSpan={rowCount} className="whitespace-nowrap py-2.5 pl-4 pr-6">
                   <LabelChip day={stripDay} />
                 </td>
               </>
@@ -614,7 +654,7 @@ function PinnedRow({
   rowCount,
 }: {
   entry: PlanDayEntry
-  stripDay: MonthStripDay
+  stripDay: LiveStripDay
   locked: boolean
   rowClass: string
   first: boolean
@@ -630,14 +670,14 @@ function PinnedRow({
       id={first ? dayRowId(stripDay.day) : undefined}
       className={cn(
         rowClass,
-        !last && 'border-dashed border-border/30',
+        !last && 'border-dashed border-border/60',
         'bg-primary/[0.04]',
       )}
     >
       {first ? (
         <>
           <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
-          <td rowSpan={rowCount} className="whitespace-nowrap px-4 py-2.5">
+          <td rowSpan={rowCount} className="whitespace-nowrap py-2.5 pl-4 pr-6">
             <LabelChip day={stripDay} />
           </td>
         </>
@@ -721,7 +761,7 @@ function DateCell({
  * The label belongs to the DATE, not to a piece of work on it: a date carrying a
  * leave and a meeting is one square, badged by the working half.
  */
-function LabelChip({ day }: { day: MonthStripDay }) {
+function LabelChip({ day }: { day: LiveStripDay }) {
   return (
     <Hint label={DAY_LABEL_HINT[day.label]}>
       <span className="inline-flex cursor-default items-center gap-1.5 text-xs font-medium text-foreground">
@@ -736,6 +776,27 @@ function LabelChip({ day }: { day: MonthStripDay }) {
           }}
         />
         {DAY_LABEL_TEXT[day.label]}
+        {/* This label came off the DRAFT, not off the server — so it says which
+            of the two Saves the date is waiting on. Without it a date the admin
+            has just dated reads exactly like one that is already saved. */}
+        {day.pending ? (
+          // Clears the row's own rule: the marker sits in a bordered table, and
+          // at the default offset the bubble lands ON the border above it.
+          <Hint
+            side="top"
+            sideOffset={10}
+            label={
+              day.pending === 'pin'
+                ? 'Unsaved pin — the allocation’s Save commits it.'
+                : 'Unsaved change — the schedule’s Save commits it.'
+            }
+          >
+            <CircleDot
+              className="ml-0.5 size-3 shrink-0 cursor-default text-warning"
+              aria-label="Unsaved"
+            />
+          </Hint>
+        ) : null}
         {/* Where the approved calendar differs from the one the sales incharge handed over. */}
         {day.origin === 'admin' ? (
           <Hint label="Corrected by an admin after the sales incharge submitted the month.">

@@ -14,6 +14,7 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
 import { takesCity } from '../lib/activities'
+import type { ScheduledDays } from '../lib/scheduled-days'
 import { BucketDatePicker } from './bucket-date-picker'
 import { DayCountInput } from './day-count-input'
 import type {
@@ -86,6 +87,12 @@ function sum(rows: BucketDraft[]): number {
  *   400 — so the pickers are built from them and from nothing else. The city is
  *   deliberately not policed that way, at either end.
  */
+/**
+ * Shared empty set for a bucket the sales incharge has not dated. One instance
+ * so the picker's `useMemo` on it does not re-run on every render of the panel.
+ */
+const EMPTY_DATES: Set<string> = new Set()
+
 export function AllocationEditor({
   options,
   month,
@@ -100,6 +107,22 @@ export function AllocationEditor({
   savedDistributors,
   /** The saved activity buckets, for `days_scheduled` and the names. */
   savedActivities,
+  /**
+   * Days the calendar below currently spends per bucket, counted off the DRAFT.
+   *
+   * Preferred over the saved `days_scheduled` wherever it is present, because
+   * both editors are on one screen: an admin who empties a bucket's dates in the
+   * calendar must not be told the bucket still has five days against it.
+   */
+  scheduled,
+  /**
+   * Give a bucket a date on the CALENDAR, or take one off it.
+   *
+   * Present only while the calendar is editable. With it the date rows below are
+   * a live view of the month rather than a second, pin-only list — see
+   * `BucketDatePicker.onToggle`.
+   */
+  onToggleDate,
   readOnly = false,
   busy = false,
   /** Why the allocation is locked, when it is — an approved plan refuses the PATCH. */
@@ -120,10 +143,36 @@ export function AllocationEditor({
   city: CitySelect
   savedDistributors: DistributorAllocation[]
   savedActivities: ActivityAllocation[]
+  scheduled?: ScheduledDays
+  onToggleDate?: (row: BucketDraft, date: string, on: boolean) => void
   readOnly?: boolean
   busy?: boolean
   lockedReason?: string
 }) {
+  /**
+   * "N scheduled" for one bucket. The live count wins whenever the calendar is on
+   * screen — INCLUDING when it is zero, which is the whole point: falling back to
+   * the saved figure there would report days against a bucket the admin has just
+   * emptied. Zero itself is not rendered, only counted as "nothing dated yet".
+   */
+  const scheduledOf = (key: string, side: 'activity' | 'distributor', saved?: number) => {
+    if (!scheduled) return saved
+    return scheduled[side].get(key) || undefined
+  }
+
+  /**
+   * WHICH dates the sales incharge has this bucket on — the same live-over-saved
+   * rule as the count above it, for the same reason: the calendar is on this
+   * screen, so a date he has just been given must show here immediately.
+   *
+   * The saved `scheduledDates` is the fallback, not the source: it only moves
+   * when the calendar is saved.
+   */
+  const scheduledDatesOf = (key: string, saved?: string[]) => {
+    if (scheduled) return scheduled.activityDates.get(key) ?? EMPTY_DATES
+    return saved?.length ? new Set(saved) : EMPTY_DATES
+  }
+
   const totalDays = options?.totalDays ?? 0
   const activityDays = sum(activityBuckets)
   const distributorDays = sum(distributorBuckets)
@@ -378,7 +427,20 @@ export function AllocationEditor({
           lockedDates={lockedDates}
           rows={activityBuckets}
           nameOf={(row) => nameOfActivity.get(row.id) ?? `Activity ${row.id}`}
-          savedOf={(row) => savedActivityByKey.get(bucketKey(row))?.daysScheduled}
+          savedOf={(row) =>
+            scheduledOf(
+              bucketKey(row),
+              'activity',
+              savedActivityByKey.get(bucketKey(row))?.daysScheduled,
+            )
+          }
+          scheduledDatesOf={(row) =>
+            scheduledDatesOf(
+              bucketKey(row),
+              savedActivityByKey.get(bucketKey(row))?.scheduledDates,
+            )
+          }
+          onToggleDate={onToggleDate}
           // Only a SEARCH takes a city — every other activity row returns
           // undefined and renders no picker at all.
           cityOf={(row) =>
@@ -445,7 +507,13 @@ export function AllocationEditor({
           month={month}
           rows={distributorBuckets}
           nameOf={(row) => nameOfDistributor.get(row.id) ?? `Distributor ${row.id}`}
-          savedOf={(row) => savedDistributorById.get(row.id)?.daysScheduled}
+          savedOf={(row) =>
+            scheduledOf(
+              row.id,
+              'distributor',
+              savedDistributorById.get(row.id)?.daysScheduled,
+            )
+          }
           metaOf={(row) => {
             const saved = savedDistributorById.get(row.id)
             const option = options?.distributors.find(
@@ -513,6 +581,8 @@ function BucketPanel({
   rows,
   nameOf,
   savedOf,
+  scheduledDatesOf,
+  onToggleDate,
   metaOf,
   cityOf,
   distributorsOf,
@@ -537,6 +607,13 @@ function BucketPanel({
   nameOf: (row: BucketDraft) => string
   /** Days the sales incharge has already dated against this bucket, if any. */
   savedOf: (row: BucketDraft) => number | undefined
+  /**
+   * The dates behind that count. Rendered in the date picker as HELD — shown but
+   * not pinnable — so a fully dated bucket stops reading as an empty one.
+   */
+  scheduledDatesOf?: (row: BucketDraft) => Set<string> | undefined
+  /** Write a date straight onto the calendar — absent while it is frozen. */
+  onToggleDate?: (row: BucketDraft, date: string, on: boolean) => void
   metaOf?: (row: BucketDraft) => RowMeta
   /** `undefined` for a row whose activity has no use for a city. */
   cityOf?: (row: BucketDraft) => RowCity | undefined
@@ -645,6 +722,7 @@ function BucketPanel({
         <ul className="mt-3 max-h-[30rem] space-y-2 overflow-y-auto overscroll-contain pr-1.5">
           {rows.map((row) => {
             const scheduled = savedOf(row)
+            const heldDates = scheduledDatesOf?.(row)
             const meta = metaOf?.(row)
             const rowCity = cityOf?.(row)
             const rowDistributors = distributorsOf?.(row)
@@ -710,19 +788,33 @@ function BucketPanel({
                   {/* The count and the bin sit on the NAME line and stay there
                       whether or not the row carries a city, so every row in the
                       list keeps one column of controls at one height. */}
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  <div className="flex shrink-0 items-end gap-1.5">
                     {/* Capped at the length of the month, and at nothing else: a
                         single bucket bigger than the calendar is certainly a typo,
                         but the TOTAL across buckets is free to exceed it, because a
                         date can carry two entries. */}
-                    <DayCountInput
-                      value={row.daysCount}
-                      max={totalDays || undefined}
-                      disabled={readOnly || busy}
-                      ariaLabel={`Days for ${nameOf(row)}`}
-                      onChange={(daysCount) => patch(row, { daysCount })}
-                      className="h-8 w-14 text-sm"
-                    />
+                    {/* Titled, because a bare number box beside a name reads as a
+                        quantity of anything. The label is presentational only —
+                        the input keeps its own `aria-label`, which names the
+                        bucket as well as the unit. */}
+                    <div className="flex flex-col items-center gap-1">
+                      {/* Sized to the label, not to the input — "No. of days" is
+                          wider than a 14-unit box, so the box centres under it. */}
+                      <span
+                        aria-hidden
+                        className="whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.08em] text-muted-foreground"
+                      >
+                        No. of days
+                      </span>
+                      <DayCountInput
+                        value={row.daysCount}
+                        max={totalDays || undefined}
+                        disabled={readOnly || busy}
+                        ariaLabel={`Days for ${nameOf(row)}`}
+                        onChange={(daysCount) => patch(row, { daysCount })}
+                        className="h-8 w-14 text-sm"
+                      />
+                    </div>
                     {!readOnly ? (
                       <Hint label="Remove this bucket">
                         <button
@@ -888,18 +980,27 @@ function BucketPanel({
                       incharge's to pick. This is for the days that are already
                       fixed — the meeting that is on the 4th. Activity rows only;
                       a distributor's days are his to date. */}
-                    {withDates && (!readOnly || (row.dates?.length ?? 0) > 0) ? (
+                    {withDates &&
+                    (!readOnly ||
+                      (row.dates?.length ?? 0) > 0 ||
+                      (heldDates?.size ?? 0) > 0) ? (
                       <Field label="Dates">
                         <BucketDatePicker
                           month={month}
                           lockedDates={lockedDates}
                           takenDates={datesTakenFrom(row)}
+                          scheduledDates={heldDates}
                           dates={row.dates ?? []}
                           max={row.daysCount}
                           label={nameOf(row)}
                           readOnly={readOnly}
                           disabled={busy}
                           onChange={(dates) => patch(row, { dates })}
+                          onToggle={
+                            onToggleDate
+                              ? (date, on) => onToggleDate(row, date, on)
+                              : undefined
+                          }
                         />
                       </Field>
                     ) : null}

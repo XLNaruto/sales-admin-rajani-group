@@ -13,6 +13,12 @@ type HintProps = {
   children: ReactNode
   side?: 'top' | 'right' | 'bottom' | 'left'
   align?: 'start' | 'center' | 'end'
+  /**
+   * Gap between the bubble and its trigger. Raise it where the trigger sits
+   * inside a bordered row: the default 6px clears an icon button, but against a
+   * table's own rule the bubble lands on the border and reads as part of it.
+   */
+  sideOffset?: number
 }
 
 /**
@@ -30,7 +36,13 @@ type HintProps = {
  *   <button type="button" onClick={...}><Eye className="size-4" /></button>
  * </Hint>
  */
-export function Hint({ label, children, side = 'top', align = 'center' }: HintProps) {
+export function Hint({
+  label,
+  children,
+  side = 'top',
+  align = 'center',
+  sideOffset,
+}: HintProps) {
   const [open, setOpen] = useState(false)
   /** Blocks re-opening until the pointer/focus actually leaves the trigger. */
   const blocked = useRef(false)
@@ -63,7 +75,7 @@ export function Hint({ label, children, side = 'top', align = 'center' }: HintPr
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side={side} align={align}>
+      <TooltipContent side={side} align={align} sideOffset={sideOffset}>
         {label}
       </TooltipContent>
     </Tooltip>

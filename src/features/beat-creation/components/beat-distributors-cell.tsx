@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Store } from 'lucide-react'
+import { Hint } from '@/components/common/hint'
 import {
   Dialog,
   DialogContent,
@@ -38,20 +39,22 @@ export function BeatDistributorsCell({
     <>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         {shown.map((d) => (
-          <span
-            key={d.id}
-            className="inline-flex max-w-40 items-center gap-1.5 text-sm whitespace-nowrap"
-          >
-            <Store className="size-3.5 shrink-0 text-muted-foreground" />
-            <span className="truncate">{d.name}</span>
-          </span>
+          // The name truncates at the cell width, so the hint carries the full one.
+          <Hint key={d.id} label={d.name}>
+            <span className="inline-flex max-w-40 cursor-default items-center gap-1.5 text-sm whitespace-nowrap">
+              <Store className="size-3.5 shrink-0 text-muted-foreground" />
+              <span className="truncate">{d.name}</span>
+            </span>
+          </Hint>
         ))}
         {hidden > 0 && (
-          <button type="button" onClick={() => setOpen(true)} className="cursor-pointer">
-            <Badge variant="outline" className="font-medium transition-colors hover:bg-accent">
-              +{hidden}
-            </Badge>
-          </button>
+          <Hint label={distributors.slice(INLINE_LIMIT).map((d) => d.name).join(', ')}>
+            <button type="button" onClick={() => setOpen(true)} className="cursor-pointer">
+              <Badge variant="outline" className="font-medium transition-colors hover:bg-accent">
+                +{hidden}
+              </Badge>
+            </button>
+          </Hint>
         )}
       </div>
 

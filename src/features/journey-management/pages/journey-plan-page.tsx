@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { EmptyState } from '@/components/common/empty-state'
 import { Hint } from '@/components/common/hint'
 import { Button } from '@/components/ui/button'
-import { Combobox } from '@/components/ui/combobox'
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { RouteError } from '@/features/error'
 import { AgentPanel } from '../components/agent-panel'
 import { AllocationEditor } from '../components/allocation-editor'
@@ -56,11 +56,79 @@ function HeaderChip({
 
   return (
     <Hint label={`${label}: ${text}`}>
-      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-1 text-xs font-medium text-foreground">
+      <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border/60 bg-muted/40 px-2.5 py-0.5 text-xs font-medium text-foreground">
         <Icon className="size-3.5 shrink-0 text-muted-foreground" />
         <span className={cn('truncate', mono && 'font-mono tabular-nums')}>{text}</span>
       </span>
     </Hint>
+  )
+}
+
+/**
+ * The header card, with only what every state of this screen has: who the month
+ * belongs to, and the month pager.
+ *
+ * Shared by the two states that carry NO plan — loading, and a month nobody has
+ * opened — so the screen keeps one identity instead of collapsing to a bare
+ * dropdown on a background the moment there is nothing to show. The plan's own
+ * header adds the status and the provenance chips inside the same shell; those
+ * are facts about a plan, and there is no plan here to have them.
+ */
+function PlanIdentityBar({
+  incharge,
+  month,
+  monthLabel: label,
+  onPrev,
+  onNext,
+  onSelect,
+}: {
+  incharge: {
+    options: ComboboxOption[]
+    loading: boolean
+    value: string
+    onChange: (id: string) => void
+  }
+  month: string
+  monthLabel: string
+  onPrev: () => void
+  onNext: () => void
+  onSelect: (month: string) => void
+}) {
+  return (
+    <div className="mb-4 border-b border-border/60 pb-3">
+      <div className="rounded-xl border border-border/50 bg-card px-4 py-2 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+            <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+              <Route className="size-4" />
+            </span>
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <p className="px-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-muted-foreground">
+                Journey plan
+              </p>
+              <Combobox
+                variant="inline"
+                withAvatars
+                placeholder="Select sales incharge"
+                searchPlaceholder="Search sales incharge…"
+                value={incharge.value}
+                onChange={incharge.onChange}
+                options={incharge.options}
+                loading={incharge.loading}
+              />
+            </div>
+          </div>
+
+          <MonthStepper
+            month={month}
+            label={label}
+            onPrev={onPrev}
+            onNext={onNext}
+            onSelect={onSelect}
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -137,6 +205,8 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     isSavingAllocation,
 
     schedule,
+    strip,
+    scheduledByBucket,
     beatNames,
     distributorNames,
     activities,
@@ -149,6 +219,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     setEntryDistributors,
     setEntryCity,
     setEntryBeats,
+    toggleBucketDate,
     removeEntry,
     clearDay,
     scheduleDirty,
@@ -214,18 +285,21 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
       // a short dashed box: `h-full` resolves against the layout's `flex-1` outlet
       // wrapper, so the panel below grows to the footer without ever overflowing.
       <div className="flex h-full flex-col">
-        {/* No incharge picker here: an unrun month has no sales incharge list to pick from, so
-            the control could only ever read "Select sales incharge" and open empty.
-            The month pager is the way out of this state, and it stands alone. */}
-        <div className="mb-5 flex flex-wrap items-center justify-end gap-3">
-          <MonthStepper
-            month={month}
-            label={monthLabel}
-            onPrev={prevMonth}
-            onNext={nextMonth}
-            onSelect={selectMonth}
-          />
-        </div>
+        {/* The same header card as a month that HAS a plan — the identity of the
+            screen should not change shape just because this month is empty. It
+            carries only what exists here: no status, no provenance, since there
+            is no plan to have either. The picker can still only offer the person
+            already on screen (the month's list is empty by definition), and that
+            is the point — without it the header loses whose month this is, on the
+            one screen where the admin steps months looking for the next plan. */}
+        <PlanIdentityBar
+          incharge={incharge}
+          month={month}
+          monthLabel={monthLabel}
+          onPrev={prevMonth}
+          onNext={nextMonth}
+          onSelect={selectMonth}
+        />
         <EmptyState
           className="min-h-88 flex-1"
           icon={CalendarX2}
@@ -243,25 +317,14 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     return (
       <div>
         {!isLoadingReps ? (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <Combobox
-              variant="inline"
-              withAvatars
-              placeholder="Select sales incharge"
-              searchPlaceholder="Search sales incharge…"
-              value={incharge.value}
-              onChange={incharge.onChange}
-              options={incharge.options}
-              loading={incharge.loading}
-            />
-            <MonthStepper
-              month={month}
-              label={monthLabel}
-              onPrev={prevMonth}
-              onNext={nextMonth}
-              onSelect={selectMonth}
-            />
-          </div>
+          <PlanIdentityBar
+            incharge={incharge}
+            month={month}
+            monthLabel={monthLabel}
+            onPrev={prevMonth}
+            onNext={nextMonth}
+            onSelect={selectMonth}
+          />
         ) : null}
         <PlanSkeleton withHeader={isLoadingReps} />
       </div>
@@ -300,25 +363,31 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           through the padding and reads as two stray gaps rather than one band. */}
       <div
         ref={headerRef}
-        className="sticky -top-6 z-20 -mx-6 -mt-6 mb-5 bg-background px-6 pt-6"
+        className="sticky -top-6 z-20 -mx-6 -mt-6 mb-4 bg-background px-6 pt-6"
       >
-        <div className="border-b border-border/60 pb-4">
-          <div className="rounded-xl border border-border/50 bg-card p-4 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-card">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-4">
-                <span className="grid size-12 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
-                  <Route className="size-5" />
+        {/* Deliberately tight: this band is sticky, so every pixel it takes is a
+            pixel the 31-row calendar below never gets back. Nothing here is
+            scaled down — the type is full size and the height comes out of the
+            padding and the gaps instead. */}
+        <div className="border-b border-border/60 pb-3">
+          <div className="rounded-xl border border-border/50 bg-card px-4 py-2 shadow-[rgba(99,99,99,0.2)_0px_2px_8px_0px] dark:bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              {/* ONE wrapping row, not a stack: the eyebrow, the name, the status
+                  and the provenance chips are all short, and stacking them cost
+                  three lines of a band that is sticky over a 31-row calendar. */}
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+                  <Route className="size-4" />
                 </span>
 
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                      Journey plan
-                    </p>
-                    {/* The status belongs in the most prominent row on the screen:
-                        it decides which of the two editors below is even live. */}
-                    <StatusChip status={status} />
-                  </div>
+                {/* The eyebrow sits ON TOP of the name, not beside it: read
+                    inline it scans as part of the person's name. Two short lines
+                    against the 36px avatar, so the row does not grow for it. */}
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <p className="px-1 text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-muted-foreground">
+                    Journey plan
+                  </p>
+
                   <Combobox
                     variant="inline"
                     withAvatars
@@ -329,44 +398,44 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                     options={incharge.options}
                     loading={incharge.loading}
                   />
-
-                  {/* `empty:hidden`: with every fact missing the chips all return
-                      null, and the row must not leave its margin behind. */}
-                  <div className="mt-2 flex flex-wrap items-center gap-2 empty:hidden">
-                    <HeaderChip
-                      icon={Hash}
-                      label="Employee code"
-                      value={plan.employeeCode}
-                      mono
-                    />
-                    <HeaderChip
-                      icon={MapPin}
-                      label="Headquarter"
-                      value={plan.headquarter ?? '—'}
-                    />
-                    {/* The timestamp that matters is the latest one the chain
-                        reached, not the generation stamp — that is the fact an admin
-                        is looking for on a month already in flight. */}
-                    <HeaderChip
-                      icon={Clock}
-                      label={
-                        plan.approvedAt
-                          ? 'Approved'
-                          : plan.submittedAt
-                            ? 'Submitted by the sales incharge'
-                            : plan.publishedAt
-                              ? 'Published'
-                              : `Drafted by the ${plan.generatedBy}`
-                      }
-                      value={stampLabel(
-                        plan.approvedAt ??
-                          plan.submittedAt ??
-                          plan.publishedAt ??
-                          plan.generatedAt,
-                      )}
-                    />
-                  </div>
                 </div>
+
+                {/* The status belongs in the most prominent row on the screen:
+                    it decides which of the two editors below is even live. */}
+                <StatusChip status={status} />
+
+                <HeaderChip
+                  icon={Hash}
+                  label="Employee code"
+                  value={plan.employeeCode}
+                  mono
+                />
+                <HeaderChip
+                  icon={MapPin}
+                  label="Headquarter"
+                  value={plan.headquarter ?? '—'}
+                />
+                {/* The timestamp that matters is the latest one the chain
+                    reached, not the generation stamp — that is the fact an admin
+                    is looking for on a month already in flight. */}
+                <HeaderChip
+                  icon={Clock}
+                  label={
+                    plan.approvedAt
+                      ? 'Approved'
+                      : plan.submittedAt
+                        ? 'Submitted by the sales incharge'
+                        : plan.publishedAt
+                          ? 'Published'
+                          : `Drafted by the ${plan.generatedBy}`
+                  }
+                  value={stampLabel(
+                    plan.approvedAt ??
+                      plan.submittedAt ??
+                      plan.publishedAt ??
+                      plan.generatedAt,
+                  )}
+                />
               </div>
 
               <MonthStepper
@@ -418,6 +487,13 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           city={city}
           savedDistributors={plan.distributorAllocations}
           savedActivities={plan.activityAllocations}
+          // Counted off the calendar draft below, so the counts here move as it
+          // is corrected rather than waiting on a save.
+          scheduled={scheduledByBucket}
+          // The other half of that: a date given or taken here IS the calendar
+          // below, so the picker writes the schedule draft rather than pinning a
+          // second promise beside the day it already shows.
+          onToggleDate={toggleBucketDate}
           readOnly={!allocationEditable}
           busy={busy}
           lockedReason={
@@ -430,7 +506,10 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
         />
 
         <ScheduleTable
-          strip={plan.monthStrip}
+          // The LIVE strip, not `plan.monthStrip`: the labels and the dated
+          // count have to follow the drafts on this screen, or the calendar
+          // contradicts the allocation directly above it.
+          strip={strip}
           days={plan.days}
           status={status}
           activities={activities}
@@ -462,10 +541,14 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           the extra `pb-10` is that 24px back again — so the buttons stay optically
           where `py-4` put them instead of dropping into the corner. */}
       {hasActions ? (
-        <div className="sticky -bottom-6 z-20 -mx-6 mt-6 bg-background px-6 pb-10">
+        <div className="sticky -bottom-6 z-20 -mx-6 mt-4 bg-background px-6 pb-3">
           {/* Rule inside the padding, so it lines up with the header's and with the
-              cards between them — the background still bleeds the full width. */}
-          <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
+              cards between them — the background still bleeds the full width.
+
+              `-bottom-6` pins the band's bottom edge to the shell's border box, so
+              the padding area is covered and NONE of this padding is hidden: `pb`
+              is exactly the gap you see under the buttons. Keep it small. */}
+          <div className="flex flex-wrap items-center gap-3 border-t border-border/60 pt-3">
             {allocationEditable && allocationDirty ? (
               <>
                 {/* The one hard stop on this screen: a month cannot promise more

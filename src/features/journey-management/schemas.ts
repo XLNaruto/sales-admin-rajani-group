@@ -156,6 +156,12 @@ export const activityAllocationSchema = z.object({
   dates: z.array(z.string()).nullish(),
   days_count: int,
   days_scheduled: int,
+  /**
+   * Dates the SALES INCHARGE has actually put this bucket on — the read-side
+   * counterpart of `dates`, and not something the allocation save takes back.
+   * Absent on a server that only reports the count.
+   */
+  scheduled_dates: z.array(z.string()).nullish(),
 })
 
 /**

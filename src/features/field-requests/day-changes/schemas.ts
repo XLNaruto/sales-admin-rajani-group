@@ -18,8 +18,7 @@ export const dayChangeOperationSchema = z.enum(['update', 'create'])
  * One proposed piece of work. The API resolves activity, distributor and beat
  * NAMES onto it so the queue can be answered without opening the plan.
  */
-export const dayChangeEntrySchema = z
-  .object({
+const dayChangeEntryFields = {
     id: z.number(),
     sequence: z.number(),
     activity_id: z.number(),
@@ -32,8 +31,10 @@ export const dayChangeEntrySchema = z
     distributor_ids: z.array(z.number()),
     joint_working_sales_incharge_id: z.number().nullable(),
     reason: z.string().nullable(),
-  })
-  .transform((e) => ({
+}
+
+/** The shared camelCase mapping, so a current entry and a proposed one agree. */
+const toEntry = (e: z.infer<z.ZodObject<typeof dayChangeEntryFields>>) => ({
     id: e.id,
     sequence: e.sequence,
     activityId: e.activity_id,
@@ -46,6 +47,30 @@ export const dayChangeEntrySchema = z
     distributorIds: e.distributor_ids,
     jointWorkingSalesInchargeId: e.joint_working_sales_incharge_id,
     reason: e.reason,
+})
+
+export const dayChangeEntrySchema = z.object(dayChangeEntryFields).transform(toEntry)
+
+/**
+ * One piece of work ALREADY on the date, sent so the admin can see what the ask
+ * would cost him rather than only what it would add.
+ *
+ * The three extra flags are the whole point of the comparison: `visited` and
+ * `fixed_by_admin` work is kept whatever the answer, and `will_be_replaced` is
+ * the server's own verdict on which rows an approval actually drops.
+ */
+export const dayChangeCurrentEntrySchema = z
+  .object({
+    ...dayChangeEntryFields,
+    fixed_by_admin: z.boolean().optional(),
+    visited: z.boolean().optional(),
+    will_be_replaced: z.boolean().optional(),
+  })
+  .transform((e) => ({
+    ...toEntry(e),
+    fixedByAdmin: e.fixed_by_admin ?? false,
+    visited: e.visited ?? false,
+    willBeReplaced: e.will_be_replaced ?? false,
   }))
 
 /**
@@ -63,6 +88,9 @@ export const dayChangeRowSchema = z
     reason: z.string(),
     status: dayChangeStatusSchema,
     entries: z.array(dayChangeEntrySchema),
+    // Older responses predate it, so an absent list is "nothing to compare"
+    // rather than a parse failure that would blank the whole queue.
+    current_entries: z.array(dayChangeCurrentEntrySchema).default([]),
     requested_at: z.string(),
     reviewed_at: z.string().nullable(),
     rejection_reason: z.string().nullable(),
@@ -81,6 +109,7 @@ export const dayChangeRowSchema = z
     // Sent in the order the rep intends to work them; sorted here so the UI
     // never has to care whether the API kept that promise.
     entries: [...r.entries].sort((a, b) => a.sequence - b.sequence),
+    currentEntries: [...r.current_entries].sort((a, b) => a.sequence - b.sequence),
     requestedAt: r.requested_at,
     reviewedAt: r.reviewed_at,
     rejectionReason: r.rejection_reason,

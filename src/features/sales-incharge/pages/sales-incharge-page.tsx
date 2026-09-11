@@ -99,6 +99,7 @@ export function SalesInchargePage() {
         id: "actions",
         header: "Actions",
         enableSorting: false,
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <Hint label="Edit">
@@ -161,6 +162,7 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Sales Incharge" />
         ),
+        meta: { className: "w-64 min-w-64" },
         cell: ({ row }) => (
           <div className="flex items-center gap-3">
             {row.original.profilePhotoUrl ? (
@@ -174,8 +176,8 @@ export function SalesInchargePage() {
                 <UserRound className="size-4.5" />
               </span>
             )}
-            <div className="leading-tight">
-              <p className="font-medium text-foreground">
+            <div className="min-w-0 leading-tight">
+              <p className="truncate font-medium text-foreground">
                 {row.original.displayName}
               </p>
               <p className="text-xs text-muted-foreground tabular-nums">
@@ -189,6 +191,7 @@ export function SalesInchargePage() {
         accessorKey: "status",
         header: "Status",
         enableSorting: false,
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => {
           const active = row.original.status === "active";
           return (
@@ -237,6 +240,7 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Email" />
         ),
+        meta: { className: "min-w-56" },
         cell: ({ row }) =>
           row.original.email ? (
             <span className="text-sm">{row.original.email}</span>
@@ -249,6 +253,7 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Employee Code" />
         ),
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <span className="tabular-nums">
             {row.original.employeeCode ?? "N/A"}
@@ -260,9 +265,10 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Designation" />
         ),
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) =>
           row.original.designation ? (
-            <Badge variant="outline" className="font-medium">
+            <Badge variant="outline" className="font-medium whitespace-nowrap">
               {row.original.designation}
             </Badge>
           ) : (
@@ -274,6 +280,7 @@ export function SalesInchargePage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Date Of Joining" />
         ),
+        meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <span className="tabular-nums">
             {formatDate(row.original.dateOfJoining)}

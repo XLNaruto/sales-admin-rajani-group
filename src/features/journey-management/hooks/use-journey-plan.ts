@@ -26,7 +26,7 @@
  * The screen is addressed by `(incharge, month)` rather than by plan id alone, so
  * the month pager can find the *next* month's plan for the same person.
  */
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { decryptParams, encryptParams } from '@/lib/crypto'
 import { toasterrormsg, toastsuccessmsg } from '@/lib/toast'
@@ -47,6 +47,12 @@ import {
 import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
 import { takesCity } from '../lib/activities'
 import { isLocked, planIssues } from '../lib/plan-flags'
+import {
+  chargeResolver,
+  scheduledDays,
+  type ChargeableEntry,
+} from '../lib/scheduled-days'
+import { liveStrip } from '../lib/live-strip'
 import { planErrorHint } from '../lib/plan-errors'
 import {
   canEditAllocation,
@@ -213,6 +219,22 @@ export function useJourneyPlan(data?: string) {
   const reps = useJourneyPlanReps(month)
 
   /**
+   * The sales incharge the screen was last actually ON — id, name and code.
+   *
+   * The sales incharge list is keyed by MONTH, so stepping to a month nobody has
+   * a plan in returns an empty list: `rep` goes undefined and the header loses
+   * the name of the person the admin is looking at, on the one screen where he is
+   * stepping months to find that person's next plan. Remembered here so the
+   * header keeps its identity across the gap, and merged back into the picker's
+   * options below so its trigger still reads as a name rather than blank.
+   */
+  const [lastIncharge, setLastIncharge] = useState<{
+    id: string
+    name: string
+    code: string | null
+  } | null>(null)
+
+  /**
    * Which plan the screen is on. The sales incharge list already carries each plan id, so
    * resolving from `(incharge, month)` costs no extra request — and it is the only
    * way a month step can land on the right one.
@@ -223,6 +245,19 @@ export function useJourneyPlan(data?: string) {
     if (params.id) return list.find((r) => r.journeyPlanId === params.id)
     return list[0]
   }, [reps.data, params.inchargeId, params.id])
+
+  useEffect(() => {
+    if (!rep) return
+    setLastIncharge((previous) =>
+      previous?.id === rep.inchargeId && previous.name === rep.inchargeName
+        ? previous
+        : {
+            id: rep.inchargeId,
+            name: rep.inchargeName,
+            code: rep.employeeCode ?? null,
+          },
+    )
+  }, [rep])
 
   const inchargeId = params.inchargeId ?? rep?.inchargeId
   // An id in the token wins: it is the list's deep link, and newer than a cached
@@ -442,6 +477,29 @@ export function useJourneyPlan(data?: string) {
   )
 
   /**
+   * What the calendar on screen currently spends, per bucket.
+   *
+   * Live, and it has to be: both editors are on one screen, so the allocation's
+   * "N scheduled" line and its mismatch warning would otherwise report the last
+   * SAVED calendar while the admin is busy changing it above them.
+   *
+   * Pinned work is counted from the plan: it is deliberately absent from the
+   * draft (see `serverSchedule`), but it is real dated work spending real days.
+   */
+  const scheduledByBucket = useMemo(() => {
+    const entries: ChargeableEntry[] = []
+    for (const [date, day] of schedule) {
+      for (const entry of day.entries) entries.push({ ...entry, date })
+    }
+    for (const day of plan?.days ?? []) {
+      for (const entry of day.activities) {
+        if (entry.pinned) entries.push({ ...entry, date: day.date })
+      }
+    }
+    return scheduledDays(entries, activityBuckets)
+  }, [schedule, plan, activityBuckets])
+
+  /**
    * Edit one ENTRY of a date, in place. A date with nothing left on it is deleted
    * outright, because an empty `entries` list is refused by the server and an
    * omitted date is how you clear one.
@@ -562,6 +620,61 @@ export function useJourneyPlan(data?: string) {
     (date: string, index: number) =>
       editEntry(date, index, (entries) => void entries.splice(index, 1)),
     [editEntry],
+  )
+
+  /**
+   * Give an allocation bucket a date, or take one off it — **writing the
+   * calendar**, from the allocation editor above it.
+   *
+   * This is what makes the two panels one story rather than two. The bucket's
+   * date picker shows the dates the bucket actually holds, so the gesture that
+   * removes one there has to remove the day itself; pinning instead would leave
+   * the day on the calendar and add a second, stronger promise beside it.
+   *
+   * A date is either held or not, so removing takes off EVERY entry on the date
+   * charged to the bucket — and the charging rule is the shared resolver, never a
+   * second copy of it, or a doubled-up date would be counted here and missed
+   * there. A date left with nothing on it is deleted outright: an empty entry
+   * list is refused by the server, and an omitted date is how one is cleared.
+   *
+   * Pins are NOT touched. They are the admin's own promise and the allocation's
+   * Save owns them — the picker removes those through `setActivityBuckets`.
+   */
+  const toggleBucketDate = useCallback(
+    (bucket: BucketDraft, date: string, on: boolean) => {
+      editSchedule((days) => {
+        const entries = [...(days.get(date)?.entries ?? [])]
+
+        if (on) {
+          entries.push({
+            activityId: Number(bucket.id),
+            // An allocatable activity is never field selling, so there is no
+            // distributor to charge and no beat to walk. The city is the bucket's
+            // own — it is part of its identity, and the entry has to carry it or
+            // the day comes back charged to a different bucket.
+            distributorId: null,
+            cityId: bucket.cityId ?? null,
+            beatIds: [],
+            // A visit calls on the bucket's own distributors. Required on one,
+            // refused on anything else — which is exactly what the bucket holds.
+            distributorIds: bucket.distributorIds ?? [],
+          })
+        } else {
+          const chargedTo = chargeResolver(activityBuckets)
+          const key = bucketKey(bucket)
+          const kept = entries.filter((entry) => {
+            const charge = chargedTo(entry)
+            return !(charge?.side === 'activity' && charge.key === key)
+          })
+          if (kept.length === entries.length) return
+          entries.splice(0, entries.length, ...kept)
+        }
+
+        if (entries.length === 0) days.delete(date)
+        else days.set(date, { entries })
+      })
+    },
+    [editSchedule, activityBuckets],
   )
 
   const clearDay = useCallback(
@@ -1027,6 +1140,56 @@ export function useJourneyPlan(data?: string) {
     plan?.days,
   ])
 
+  /**
+   * The header's sales incharge picker.
+   *
+   * The month's own list, plus the person the screen is on when that list does
+   * not carry him — which is exactly the empty month: a Combobox whose value
+   * matches no option renders an empty trigger, and the admin would be looking
+   * at a screen that no longer says whose month it is.
+   */
+  const inchargePicker = useMemo(() => {
+    const options = (reps.data ?? []).map((r) => ({
+      value: r.inchargeId,
+      label: r.inchargeName,
+      badge: r.employeeCode ? `#${r.employeeCode}` : undefined,
+    }))
+    const current = inchargeId ?? lastIncharge?.id ?? ''
+    if (current && !options.some((option) => option.value === current)) {
+      const known = lastIncharge?.id === current ? lastIncharge : null
+      options.unshift({
+        value: current,
+        label: known?.name ?? 'This sales incharge',
+        badge: known?.code ? `#${known.code}` : undefined,
+      })
+    }
+    return {
+      options,
+      loading: reps.isFetching,
+      value: current,
+      onChange: selectIncharge,
+    }
+  }, [reps.data, reps.isFetching, inchargeId, lastIncharge, selectIncharge])
+
+  /**
+   * The calendar's labels, recomputed from what is on screen — see `liveStrip`.
+   *
+   * The strip is what the table draws its rows from, so this is what keeps the
+   * two editors telling the admin the same story between saves.
+   */
+  const strip = useMemo(() => {
+    if (!plan) return []
+    const pinnedDates = new Set(
+      plan.days
+        .filter((day) => day.activities.some((entry) => entry.pinned))
+        .map((day) => day.date),
+    )
+    const allocationDates = new Set(
+      activityBuckets.flatMap((bucket) => bucket.dates ?? []),
+    )
+    return liveStrip(plan.monthStrip, schedule, pinnedDates, allocationDates)
+  }, [plan, schedule, activityBuckets])
+
   /** Dates that survive the correction pass whatever is sent. */
   const lockedDates = useMemo(
     () => new Set((plan?.days ?? []).filter(isLocked).map((day) => day.date)),
@@ -1066,16 +1229,7 @@ export function useJourneyPlan(data?: string) {
     /** The sales incharge the screen is on, when it knows — the create dialog's seed. */
     inchargeId,
     /** Combobox props for the header's incharge picker, plus its current value. */
-    incharge: {
-      options: (reps.data ?? []).map((r) => ({
-        value: r.inchargeId,
-        label: r.inchargeName,
-        badge: r.employeeCode ? `#${r.employeeCode}` : undefined,
-      })),
-      loading: reps.isFetching,
-      value: inchargeId ?? '',
-      onChange: selectIncharge,
-    },
+    incharge: inchargePicker,
     month,
     monthLabel: monthLabel(month),
     prevMonth: () => selectMonth(shiftMonth(month, -1)),
@@ -1109,6 +1263,12 @@ export function useJourneyPlan(data?: string) {
 
     /* the schedule */
     schedule,
+    /**
+     * The month's dates with LIVE labels — draw the calendar from this, never
+     * from `plan.monthStrip`, which only moves when a save lands.
+     */
+    strip,
+    scheduledByBucket,
     beatNames,
     distributorNames,
     activities: activities.data ?? [],
@@ -1122,6 +1282,12 @@ export function useJourneyPlan(data?: string) {
     setEntryDistributors,
     setEntryCity,
     setEntryBeats,
+    /**
+     * The allocation editor's own write into the calendar — see
+     * `toggleBucketDate`. Only offered while the calendar is editable; before
+     * that the picker can only pin.
+     */
+    toggleBucketDate: scheduleEditable ? toggleBucketDate : undefined,
     removeEntry,
     clearDay,
     scheduleDirty,

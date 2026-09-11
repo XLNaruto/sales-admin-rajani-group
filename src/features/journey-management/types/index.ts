@@ -344,6 +344,16 @@ export interface ActivityAllocation {
   daysCount: number
   /** Entries the sales incharge has actually put against it. */
   daysScheduled: number
+  /**
+   * The dates behind `daysScheduled` — **the sales incharge's own choices**, not
+   * the admin's `dates`.
+   *
+   * Read-only on this screen, and deliberately not fed back into `dates` by the
+   * save: a date in `dates` is PINNED, which is a promise the rep can no longer
+   * move. Echoing his picks back as pins would freeze his whole month the first
+   * time the admin touched a day count.
+   */
+  scheduledDates: string[]
 }
 
 /**

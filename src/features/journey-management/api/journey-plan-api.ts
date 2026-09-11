@@ -314,6 +314,9 @@ function toPlanDetail(r: JourneyPlanDetailRow): JourneyPlanDetail {
       dates: bucket.dates ?? [],
       daysCount: bucket.days_count,
       daysScheduled: bucket.days_scheduled,
+      // Sorted here rather than trusted: they are rendered as a date sequence,
+      // and `yyyy-MM-dd` sorts chronologically as a string.
+      scheduledDates: [...(bucket.scheduled_dates ?? [])].sort(),
     })),
     distributorAllocations: (r.distributor_allocations ?? []).map((bucket) => ({
       distributorId: bucket.distributor_id,

@@ -38,6 +38,19 @@ export interface DayChangeEntry {
 }
 
 /**
+ * One piece of work ALREADY on the date — what approving would cost.
+ *
+ * The flags are the server's own verdict, not ours to re-derive: visited or
+ * admin-fixed work is kept whichever way the request is answered, and
+ * `willBeReplaced` marks exactly the rows an approval drops.
+ */
+export interface DayChangeCurrentEntry extends DayChangeEntry {
+  fixedByAdmin: boolean
+  visited: boolean
+  willBeReplaced: boolean
+}
+
+/**
  * One day-change request as the queue shows it.
  *
  * NOTHING HAS BEEN WRITTEN TO THE PLAN while this is `pending`: the rep's app,
@@ -57,6 +70,8 @@ export interface DayChange {
   status: DayChangeStatus
   /** The proposed work, in sequence order. */
   entries: DayChangeEntry[]
+  /** What the date already holds, in sequence order. Empty when it holds nothing. */
+  currentEntries: DayChangeCurrentEntry[]
   requestedAt: string
   reviewedAt: string | null
   /** Why the admin said no. Set only while `rejected`. */

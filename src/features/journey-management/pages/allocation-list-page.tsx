@@ -125,6 +125,8 @@ export function AllocationListPage() {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="Sales Incharge" />
         ),
+        // Wide enough that names and the code · HQ sub-line stay on one line.
+        meta: { className: 'w-64 min-w-64' },
         cell: ({ row }) => {
           // Either half of the sub-line can be missing (no employee code, no
           // territory). Drop what's absent — and the separator with it — rather
@@ -135,10 +137,12 @@ export function AllocationListPage() {
               <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
                 {initials(row.original.inchargeName)}
               </span>
-              <div className="leading-tight">
-                <p className="font-medium text-foreground">{row.original.inchargeName}</p>
+              <div className="min-w-0 leading-tight">
+                <p className="truncate font-medium text-foreground">
+                  {row.original.inchargeName}
+                </p>
                 {employeeCode || headquarter ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="truncate text-xs text-muted-foreground">
                     {employeeCode ? (
                       <span className="font-mono tabular-nums">{employeeCode}</span>
                     ) : null}
