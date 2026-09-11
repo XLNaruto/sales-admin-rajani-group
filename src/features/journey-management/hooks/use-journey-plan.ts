@@ -44,7 +44,8 @@ import {
   useSaveAllocation,
   useSaveSchedule,
 } from '../api/use-journey-plan-detail'
-import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
+import { focusFirstInvalidField } from '../lib/invalid-field'
+import { currentMonth, dayLabel, monthLabel, shiftMonth } from '../lib/journey-format'
 import { takesCity } from '../lib/activities'
 import { isLocked, planIssues } from '../lib/plan-flags'
 import {
@@ -93,29 +94,28 @@ interface ScheduleDraft {
 }
 
 /**
- * The allocation as the server currently holds it — **plus a bucket for any
- * (activity, city) PAIR the calendar has days for and the allocation does not.**
+ * The allocation as the server currently holds it — **and nothing else.**
  *
- * The fallback is the second half, and it is a fallback in the literal sense:
- * the server is the place to reconcile this, and once it returns a bucket for
- * every dated activity none of these are built. Until then — and for any case it
- * still misses — a day on the calendar with no bucket behind it is invisible in
- * the panel that is supposed to account for the month: the day exists, the flag
- * says "outside every bucket", and Activity Days reads as though nothing is
- * there. So the days themselves make the bucket.
+ * There is deliberately no fallback here that builds a row out of the calendar.
+ * The allocation response already accounts for every dated activity, carrying
+ * `days_scheduled` and `scheduled_dates` per bucket, so a second row derived
+ * from `plan.days` is not a safety net but a duplicate: a bucket allocated with
+ * no city, dated on days that carry one, looked unallocated on the (activity,
+ * city) pair and grew a second "Distributor Visit" beside the real one — with
+ * the month's days split across the two.
  *
- * Derived from `plan.days`, **never from the draft**. Base and draft are compared
- * to decide whether anything is unsaved, so a row built from the draft would
- * either make the screen dirty on arrival or regenerate itself the moment the
- * admin deleted it. From the plan it is stable: it arrives with the month, it can
- * be edited or removed like any other row, and the next allocation save persists
- * whatever the admin left.
+ * Days the calendar holds reach their row through `scheduledDays` instead, which
+ * charges each entry to a bucket through the shared resolver — including the
+ * resolver's fallback, which hands an entry whose city matches nothing to the
+ * activity's only bucket. That is how a day dated in Bhuj against a city-less
+ * allocation is counted where it belongs rather than inventing a row for it.
  *
- * Field selling is skipped — an entry with a distributor is charged to a
- * DISTRIBUTOR bucket, which is a different panel with different rules.
+ * The one thing that still WRITES a row from the calendar is the admin doing it
+ * himself: `ensureActivityBucket` adds one when he dates work no bucket pays for.
+ * That is an action, not a derivation — it cannot regenerate a row he deleted.
  */
 function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
-  const buckets: BucketDraft[] = plan.activityAllocations.map((bucket) => ({
+  return plan.activityAllocations.map((bucket) => ({
     id: String(bucket.activityId),
     // Part of the bucket's identity, not a decoration — see `bucketKey`.
     cityId: bucket.cityId,
@@ -124,70 +124,6 @@ function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
     dates: bucket.dates,
     daysCount: bucket.daysCount,
   }))
-
-  /**
-   * The pairs the allocation already accounts for — the PAIR, not the activity.
-   *
-   * Keyed the way every other bucket lookup is (see `bucketKey`), and for the
-   * same reason: an activity allocated in Rajkot says nothing about the same
-   * activity dated in Morbi. Matching on the activity alone would skip the Morbi
-   * days, and `chargeResolver`'s sole-bucket fallback would then charge them to
-   * the Rajkot row — one city's days reported against the other's promise, with
-   * no row on the screen owning them.
-   *
-   * A pair that IS allocated is left alone deliberately: its days reach the row
-   * through `scheduledDays` as HELD dates, which is what they are. They are not
-   * folded into `dates`, because that field is the admin's own pin and the save
-   * sends it as one — promoting days the sales incharge picked himself would pin
-   * work nobody promised.
-   */
-  const allocated = new Set(buckets.map(bucketKey))
-  /**
-   * Keyed on the (activity, city) PAIR, like every other bucket: the same
-   * activity dated in two cities is two buckets, and folding them onto the
-   * activity alone would promise one city's days against the other's.
-   */
-  const derived = new Map<
-    string,
-    { id: string; cityId: string | null; distributorIds: Set<string>; days: Set<string> }
-  >()
-
-  for (const day of plan.days) {
-    for (const entry of day.activities) {
-      if (!entry.activityId || entry.distributorId) continue
-      const id = String(entry.activityId)
-
-      const key = `${id}|${entry.cityId ?? ''}`
-      if (allocated.has(key)) continue
-      const row =
-        derived.get(key) ??
-        {
-          id,
-          cityId: entry.cityId,
-          distributorIds: new Set<string>(),
-          days: new Set<string>(),
-        }
-      for (const target of entry.distributors) row.distributorIds.add(target.distributorId)
-      // DISTINCT dates: a date carrying the activity twice is still one day of
-      // the month, and the count is a number of days.
-      row.days.add(day.date)
-      derived.set(key, row)
-    }
-  }
-
-  for (const row of derived.values()) {
-    buckets.push({
-      id: row.id,
-      cityId: row.cityId,
-      distributorIds: [...row.distributorIds],
-      // No pinned dates: nobody promised these days, he took them. The count is
-      // what he has actually used.
-      dates: [],
-      daysCount: row.days.size,
-    })
-  }
-
-  return buckets
 }
 
 function serverDistributorBuckets(plan: JourneyPlanDetail): BucketDraft[] {
@@ -552,6 +488,25 @@ export function useJourneyPlan(data?: string) {
   }, [activityBuckets, options.data?.activities, plan?.activityAllocations])
 
   /**
+   * Buckets promising no days at all.
+   *
+   * A row IS a number of days, so zero is not a smaller promise — it is the row
+   * saying nothing while occupying the panel, and it is what puts a `0` against
+   * dates the calendar already holds ("1 scheduled" over a count of 0). The
+   * count box floors itself at 1 on blur, so this only ever catches what arrived
+   * that way: a bucket the server returned with `days_count: 0`.
+   *
+   * Both sides, since the rule is about what a bucket means and not about which
+   * panel it sits in.
+   */
+  const bucketsMissingDays = useMemo(
+    () =>
+      activityBuckets.filter((bucket) => bucket.daysCount < 1).length +
+      distributorBuckets.filter((bucket) => bucket.daysCount < 1).length,
+    [activityBuckets, distributorBuckets],
+  )
+
+  /**
    * Visit buckets naming nobody — `JOURNEY_PLAN_ACTIVITY_DISTRIBUTORS_REQUIRED`.
    * A hard stop like the over-allocation: the server refuses the whole save.
    */
@@ -593,6 +548,33 @@ export function useJourneyPlan(data?: string) {
     () => new Map((activities.data ?? []).map((activity) => [activity.id, activity])),
     [activities.data],
   )
+
+  /**
+   * Dated field work naming nobody — `JOURNEY_PLAN_DISTRIBUTOR_REQUIRED`.
+   *
+   * Checked here rather than left to the server because the schedule save is a
+   * FULL REPLACEMENT of the month: one row without a distributor takes the 400,
+   * and every other edit in the body goes down with it. The row itself already
+   * says "needs a distributor"; this is what stops the admin pressing Save past
+   * it and losing the rest of his work.
+   *
+   * `requiresBeat` is the test, matching `setEntryActivity`: an activity that
+   * takes beats is field selling, and field selling is charged to a distributor.
+   * An activity the master has not loaded is left alone — refusing a save on a
+   * rule that could not be read would block a month for no stated reason.
+   */
+  const datesMissingDistributor = useMemo(() => {
+    const dates: string[] = []
+    for (const [date, day] of schedule) {
+      const missing = day.entries.some((entry) => {
+        if (!entry.activityId || entry.distributorId) return false
+        const activity = activityById.get(entry.activityId)
+        return activity?.requiresBeat === true
+      })
+      if (missing) dates.push(date)
+    }
+    return dates.sort()
+  }, [schedule, activityById])
 
   /** Every date the allocation ON SCREEN pins, across its activity buckets. */
   const allocationDates = useMemo(
@@ -1021,6 +1003,7 @@ export function useJourneyPlan(data?: string) {
     // Refused rather than warned: the counts cannot be worked as written, and a
     // saved over-allocation is what would then block the publish.
     if (draftOverBy > 0) {
+      focusFirstInvalidField('allocation')
       toasterrormsg(
         `The counts promise ${draftAllocatedDays} days in a ${totalDays}-day month. Remove ${draftOverBy} day${
           draftOverBy === 1 ? '' : 's'
@@ -1029,7 +1012,18 @@ export function useJourneyPlan(data?: string) {
       return
     }
 
+    if (bucketsMissingDays > 0) {
+      focusFirstInvalidField('allocation')
+      toasterrormsg(
+        bucketsMissingDays === 1
+          ? 'One row promises no days. A row is a number of days — give it at least 1, or remove it.'
+          : `${bucketsMissingDays} rows promise no days. A row is a number of days — give each at least 1, or remove them.`,
+      )
+      return
+    }
+
     if (bucketsMissingCity > 0) {
+      focusFirstInvalidField('allocation')
       toasterrormsg(
         bucketsMissingCity === 1
           ? 'One distributor search names no city. A search is a city — pick one, or remove the row.'
@@ -1041,6 +1035,7 @@ export function useJourneyPlan(data?: string) {
     // The other hard stop: an activity flagged `requires_distributors` has to
     // name at least one, or the save comes back a 400 for the whole month.
     if (bucketsMissingDistributors > 0) {
+      focusFirstInvalidField('allocation')
       toasterrormsg(
         bucketsMissingDistributors === 1
           ? 'One activity still names no distributor. Pick at least one, or remove the row.'
@@ -1104,6 +1099,7 @@ export function useJourneyPlan(data?: string) {
     totalDays,
     bucketsMissingDistributors,
     bucketsMissingCity,
+    bucketsMissingDays,
     activityNameOf,
   ])
 
@@ -1116,6 +1112,18 @@ export function useJourneyPlan(data?: string) {
    */
   const submitSchedule = useCallback(() => {
     if (!plan || !planId || !scheduleEditable || !scheduleDirty) return
+
+    // Stopped before the request, not after: the body is the whole month, so the
+    // server's 400 would throw away every other edit in it.
+    if (datesMissingDistributor.length > 0) {
+      focusFirstInvalidField('schedule')
+      const shown = datesMissingDistributor.slice(0, 3).map(dayLabel).join(', ')
+      const rest = datesMissingDistributor.length - 3
+      toasterrormsg(
+        `Field work on ${shown}${rest > 0 ? ` and ${rest} more date${rest === 1 ? '' : 's'}` : ''} names no distributor. Pick one on each row, or remove the row.`,
+      )
+      return
+    }
 
     const days: ScheduleDayInput[] = [...schedule.entries()]
       // Sorted by date: `yyyy-MM-dd` sorts lexicographically, and a chronological
@@ -1182,6 +1190,7 @@ export function useJourneyPlan(data?: string) {
     schedule,
     saveSchedule,
     activityNameOf,
+    datesMissingDistributor,
   ])
 
   /**
@@ -1556,6 +1565,7 @@ export function useJourneyPlan(data?: string) {
     bucketsMissingDistributors,
     /** Search buckets with no city — a client-side rule, also blocking. */
     bucketsMissingCity,
+    bucketsMissingDays,
     /** Activity ids that must name a distributor, off the master's own flag. */
     requiresDistributors,
     allocationDirty,
@@ -1596,6 +1606,7 @@ export function useJourneyPlan(data?: string) {
     removeEntry,
     clearDay,
     scheduleDirty,
+    datesMissingDistributor,
     scheduleEditable,
     discardSchedule,
     submitSchedule,

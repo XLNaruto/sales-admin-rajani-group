@@ -16,6 +16,7 @@ import {
 import { Hint } from '@/components/common/hint'
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
+import { INVALID_FIELD_ATTR, INVALID_SCOPE_ATTR } from '../lib/invalid-field'
 import { takesCity } from '../lib/activities'
 import { DAY_LABEL_COLOR, DAY_LABEL_HINT, DAY_LABEL_TEXT } from '../lib/day-label'
 import { isLocked } from '../lib/plan-flags'
@@ -225,7 +226,12 @@ export function ScheduleTable({
     // `overflow-clip`, not `overflow-hidden`: both clip the rounded corners, but
     // `hidden` establishes a scroll container, and the two sticky rows below stick
     // to the page — they have to see the shell's scrollport, not this card's.
-    <div className="overflow-clip rounded-xl border border-border/60 bg-card">
+    <div
+      className="overflow-clip rounded-xl border border-border/60 bg-card"
+      // Names this editor for `focusFirstInvalidField` — the calendar's own Save
+      // scrolls to a row in here, never up into the allocation's fields.
+      {...{ [INVALID_SCOPE_ATTR]: 'schedule' }}
+    >
       {/* The card's own title bar sticks under the plan header, and the column
           header sticks under THIS — so the month keeps both the counts and the
           column labels in view however far down you scroll. Opaque, or the rows
@@ -993,9 +999,16 @@ function WhereCell({
     const name =
       saved?.distributorName ??
       (entry.distributorId ? distributorNames.get(entry.distributorId) : null)
+    // Field selling is charged to a distributor, so a row without one is the
+    // `JOURNEY_PLAN_DISTRIBUTOR_REQUIRED` the save is refused with. Marked so the
+    // refusal can scroll a month-long table to THIS row.
+    const missingDistributor = canEdit && !entry.distributorId
 
     return (
-      <div className="min-w-0 py-0.5">
+      <div
+        className="min-w-0 py-0.5"
+        {...(missingDistributor ? { [INVALID_FIELD_ATTR]: '' } : {})}
+      >
         {canEdit ? (
           <Combobox
             value={entry.distributorId ?? ''}
@@ -1010,6 +1023,12 @@ function WhereCell({
             searchable
             searchPlaceholder="Search distributors…"
             className="w-full min-w-0"
+            // The row already says "needs a distributor" underneath; this is so
+            // the control itself reads as the empty one once the save has
+            // scrolled the admin to it.
+            triggerClassName={cn(
+              missingDistributor && 'border-warning/60 text-warning',
+            )}
           />
         ) : (
           <span className="block truncate py-1.5 text-sm text-foreground">
@@ -1024,7 +1043,7 @@ function WhereCell({
             </span>
           </Hint>
         ) : null}
-        {!entry.distributorId && canEdit ? (
+        {missingDistributor ? (
           <Hint label="Work that takes beats must say whose days it spends — the save is refused without it.">
             <span className="mt-0.5 inline-flex cursor-default items-center gap-1 text-[11px] font-medium text-warning">
               <TriangleAlert className="size-3" />

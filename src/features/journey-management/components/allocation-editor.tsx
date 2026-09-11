@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils'
 import { bucketKey, type BucketDraft } from '../lib/allocation-buckets'
 import { takesCity } from '../lib/activities'
 import type { ScheduledDays } from '../lib/scheduled-days'
+import { INVALID_FIELD_ATTR, INVALID_SCOPE_ATTR } from '../lib/invalid-field'
 import { BucketDatePicker } from './bucket-date-picker'
 import { DayCountInput } from './day-count-input'
 import type {
@@ -366,7 +367,12 @@ export function AllocationEditor({
   )
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border/60 bg-card">
+    <div
+      className="overflow-hidden rounded-xl border border-border/60 bg-card"
+      // Names this editor, so its own Save only ever scrolls to fields inside it
+      // — the calendar below has its own Save and its own refusals.
+      {...{ [INVALID_SCOPE_ATTR]: 'allocation' }}
+    >
       <div className="flex flex-wrap items-center gap-2 border-b border-border/60 px-4 py-3">
         <h2 className="font-heading text-sm font-semibold text-foreground">
           The allocation
@@ -408,7 +414,14 @@ export function AllocationEditor({
       {over ? (
         <p
           role="alert"
-          className="flex items-start gap-2 border-b border-destructive/25 bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive"
+          // The first thing `focusFirstInvalidField` finds when the month is
+          // over-promised — and the right one: the fix is not in any single
+          // count box, it is "take N days out of these rows", which is what the
+          // banner says. `tabIndex` only so it can be focused; it never enters
+          // the tab order.
+          tabIndex={-1}
+          {...{ [INVALID_FIELD_ATTR]: '' }}
+          className="flex items-start gap-2 border-b border-destructive/25 bg-destructive/10 px-4 py-2.5 text-xs font-medium text-destructive outline-none focus-visible:ring-2 focus-visible:ring-destructive/40"
         >
           <TriangleAlert className="mt-px size-3.5 shrink-0" />
           <span>
@@ -802,7 +815,13 @@ function BucketPanel({
                         quantity of anything. The label is presentational only —
                         the input keeps its own `aria-label`, which names the
                         bucket as well as the unit. */}
-                    <div className="flex flex-col items-center gap-1">
+                    <div
+                      className="flex flex-col items-center gap-1"
+                      // A row IS a number of days, so a 0 is not a small promise
+                      // but an empty one. The box floors itself at 1 on blur, so
+                      // this only shows for a count that ARRIVED as 0.
+                      {...(row.daysCount < 1 ? { [INVALID_FIELD_ATTR]: '' } : {})}
+                    >
                       {/* Sized to the label, not to the input — "No. of days" is
                           wider than a 14-unit box, so the box centres under it. */}
                       <span
@@ -814,6 +833,7 @@ function BucketPanel({
                       <DayCountInput
                         value={row.daysCount}
                         max={totalDays || undefined}
+                        invalid={row.daysCount < 1}
                         disabled={readOnly || busy}
                         ariaLabel={`Days for ${nameOf(row)}`}
                         onChange={(daysCount) => patch(row, { daysCount })}
@@ -844,7 +864,7 @@ function BucketPanel({
                 {rowCity || rowDistributors || withDates ? (
                   <dl className="mt-2.5 space-y-2 border-t border-border/60 pt-2.5">
                     {rowCity ? (
-                      <Field label="City">
+                      <Field label="City" invalid={!readOnly && !rowCity.value}>
                         {readOnly ? (
                           <span className="flex h-8 items-center gap-1.5 text-xs text-muted-foreground">
                             <MapPin className="size-3 shrink-0" />
@@ -900,7 +920,10 @@ function BucketPanel({
                       // rather than a single select: "four days of visits, across
                       // these three". Removing the last one is legal — the bucket
                       // is then days of visiting nobody in particular yet.
-                      <Field label="Distributors">
+                      <Field
+                        label="Distributors"
+                        invalid={!readOnly && rowDistributors.ids.length === 0}
+                      >
                         {/* `w-full min-w-0`: as a flex item of the field's `dd`
                             this box would otherwise take its width from the
                             chips inside it — the default `min-width: auto` — and
@@ -1104,9 +1127,25 @@ function AddDistributor({
  * distributors, everything has dates — so an unlabelled control is a question
  * the admin has to answer by recognising the placeholder.
  */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  invalid = false,
+  children,
+}: {
+  label: string
+  /**
+   * Marks the field as the one a refused save is about, so the submit handler's
+   * `focusFirstInvalidField` can take the admin to it. The row already says what
+   * is wrong; this is only how it is found.
+   */
+  invalid?: boolean
+  children: ReactNode
+}) {
   return (
-    <div className="flex items-start gap-2">
+    <div
+      className="flex items-start gap-2"
+      {...(invalid ? { [INVALID_FIELD_ATTR]: '' } : {})}
+    >
       <dt className="w-20 shrink-0 pt-2 text-xs leading-4 font-medium text-muted-foreground">
         {label}
       </dt>

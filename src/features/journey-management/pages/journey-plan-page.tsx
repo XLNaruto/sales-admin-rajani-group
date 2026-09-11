@@ -198,6 +198,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     draftOverBy,
     savedOverBy,
     bucketsMissingDistributors,
+    bucketsMissingDays,
     bucketsMissingCity,
     lockedDates,
     discardAllocation,
@@ -224,6 +225,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
     removeEntry,
     clearDay,
     scheduleDirty,
+    datesMissingDistributor,
     scheduleEditable,
     discardSchedule,
     submitSchedule,
@@ -558,28 +560,30 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
                 {/* The one hard stop on this screen: a month cannot promise more
                     days than it holds, so the Save refuses until the counts come
                     back inside the calendar. */}
+                {/* NOT disabled on a broken draft, deliberately. A disabled
+                    button cannot be clicked, and the click is what takes the
+                    admin to the field at fault: pressing Save on a month that
+                    does not add up now scrolls to the row and says why, which is
+                    an instruction. A dead button beside a tooltip is a puzzle. */}
                 <Hint
                   label={
                     draftOverBy > 0
                       ? `The counts run ${draftOverBy} day${
                           draftOverBy === 1 ? '' : 's'
                         } past the end of the month. Reduce them before saving.`
-                      : bucketsMissingDistributors > 0
-                        ? 'An activity that visits distributors has to name at least one. Pick them, or remove the row.'
-                        : bucketsMissingCity > 0
-                          ? 'A distributor search has to name the city to search in. Pick one, or remove the row.'
-                          : 'Replaces both bucket sets with what is on screen.'
+                      : bucketsMissingDays > 0
+                        ? 'A row promises no days. A row is a number of days — give it at least 1, or remove it.'
+                        : bucketsMissingDistributors > 0
+                          ? 'An activity that visits distributors has to name at least one. Pick them, or remove the row.'
+                          : bucketsMissingCity > 0
+                            ? 'A distributor search has to name the city to search in. Pick one, or remove the row.'
+                            : 'Replaces both bucket sets with what is on screen.'
                   }
                 >
                   <span className="inline-flex">
                     <Button
                       className="cursor-pointer"
-                      disabled={
-                        busy ||
-                        draftOverBy > 0 ||
-                        bucketsMissingDistributors > 0 ||
-                        bucketsMissingCity > 0
-                      }
+                      disabled={busy}
                       onClick={submitAllocation}
                     >
                       {isSavingAllocation ? <Loader2 className="animate-spin" /> : <Save />}{' '}
@@ -600,10 +604,24 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
 
             {scheduleEditable && scheduleDirty ? (
               <>
-                <Hint label="Replaces the whole calendar. Dates a visit has landed on are kept as history whatever is sent.">
+                {/* The save replaces the WHOLE calendar, so one row the server
+                    will refuse takes every other correction down with it. The
+                    row already says "needs a distributor"; the Save waits for
+                    it rather than spending the month on a 400. */}
+                <Hint
+                  label={
+                    datesMissingDistributor.length > 0
+                      ? `Field work on ${datesMissingDistributor.length} date${
+                          datesMissingDistributor.length === 1 ? '' : 's'
+                        } names no distributor. Pick one on each row, or remove the row.`
+                      : 'Replaces the whole calendar. Dates a visit has landed on are kept as history whatever is sent.'
+                  }
+                >
                   <span className="inline-flex">
                     <Button
                       className="cursor-pointer"
+                      // Live for the same reason as the allocation's Save: the
+                      // click is what scrolls the month to the row at fault.
                       disabled={busy}
                       onClick={submitSchedule}
                     >

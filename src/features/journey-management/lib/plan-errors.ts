@@ -68,6 +68,11 @@ export function planErrorHint(
       return `${date ?? 'One fixed date'} is already worked, so it cannot be re-planned.`
     case 'JOURNEY_PLAN_DUPLICATE_FIXED_DATE':
       return `${date ?? 'One date'} is fixed twice for ${activity ?? 'the same activity'}.`
+    // The entry-level rule, as opposed to the bucket-level
+    // `..._ACTIVITY_DISTRIBUTORS_REQUIRED` above it: field selling is charged to
+    // a distributor, so a dated entry without one has nobody's days to spend.
+    case 'JOURNEY_PLAN_DISTRIBUTOR_REQUIRED':
+      return `The ${activity ?? 'work'} on ${date ?? 'one date'} names no distributor. Pick one on that row, or remove it.`
     case 'JOURNEY_PLAN_VISIT_DISTRIBUTORS_REQUIRED':
       return `The visit on ${date ?? 'one date'} names nobody to call on.`
     case 'JOURNEY_PLAN_VISIT_DISTRIBUTORS_NOT_ALLOWED':
