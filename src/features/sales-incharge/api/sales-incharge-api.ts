@@ -246,7 +246,8 @@ function buildScalarBody(
     salary: grossSalary(values.basicSalary, values.allowance),
     bank_account_name: str(values.bankAccountName),
     bank_account_number: str(values.bankAccountNumber),
-    bank_ifsc: str(values.bankIfsc),
+    // Stored upper-case, whatever the field/draft happened to hold.
+    bank_ifsc: str(values.bankIfsc?.toUpperCase()),
     bank_name: str(values.bankName),
     aadhar_number: str(values.aadharNumber),
   }

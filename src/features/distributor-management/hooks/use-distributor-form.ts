@@ -166,7 +166,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     paymentConditionId: num(values.paymentConditionId),
     bankAccountName: str(values.bankAccountName),
     bankAccountNumber: str(values.bankAccountNumber),
-    bankIfsc: str(values.bankIfsc),
+    bankIfsc: str(values.bankIfsc?.toUpperCase()),
     bankName: str(values.bankName),
   };
 }

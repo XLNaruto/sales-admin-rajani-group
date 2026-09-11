@@ -7,6 +7,7 @@ import { useCompanies, useRedirectOnCompanySwitch } from "@/features/company";
 import { PageHeader } from "@/components/common/page-header";
 import { DraftsButton } from "@/components/common/drafts-button";
 import { FormSection } from "@/components/common/form-section";
+import { IfscInput } from "@/components/common/ifsc-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
@@ -428,11 +429,7 @@ export function SalesInchargeCreatePage({
                 />
               </Field>
               <Field label="IFSC Code" error={errors.bankIfsc?.message}>
-                <Input
-                  placeholder="e.g. HDFC0001234"
-                  className="uppercase"
-                  {...register("bankIfsc")}
-                />
+                <IfscInput {...register("bankIfsc")} />
               </Field>
               <Field label="Bank Name" error={errors.bankName?.message}>
                 <Input placeholder="e.g. HDFC Bank" {...register("bankName")} />

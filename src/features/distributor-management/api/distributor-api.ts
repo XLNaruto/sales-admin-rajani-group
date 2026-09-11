@@ -285,7 +285,8 @@ function buildScalarBody(input: DistributorCreateInput) {
     payment_condition_id: input.paymentConditionId,
     bank_account_name: str(input.bankAccountName),
     bank_account_number: str(input.bankAccountNumber),
-    bank_ifsc: str(input.bankIfsc),
+    // Stored upper-case, whatever the field/draft happened to hold.
+    bank_ifsc: str(input.bankIfsc?.toUpperCase()),
     bank_name: str(input.bankName),
   }
 }

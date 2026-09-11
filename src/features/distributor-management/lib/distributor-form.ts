@@ -163,7 +163,12 @@ export const distributorSchema = z.object({
   paymentConditionId: z.string().optional(),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
-  bankIfsc: z.string().optional(),
+  bankIfsc: z
+    .string()
+    .optional()
+    .refine((v) => !v || /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.toUpperCase()), {
+      message: 'Enter a valid IFSC code',
+    }),
   bankName: z.string().optional(),
 })
 

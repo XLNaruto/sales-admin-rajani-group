@@ -10,6 +10,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Field, MultiSelect } from "@/features/beat-creation";
 import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "@/components/common/file-input";
+import { IfscInput } from "@/components/common/ifsc-input";
 import { OwnerPartnersField } from "../components/owner-partners-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
@@ -1065,11 +1066,7 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
                 optional
                 error={errors.bankIfsc?.message}
               >
-                <Input
-                  placeholder="e.g. HDFC0001234"
-                  className="uppercase"
-                  {...register("bankIfsc")}
-                />
+                <IfscInput {...register("bankIfsc")} />
               </Field>
               <Field
                 label="Bank Name"

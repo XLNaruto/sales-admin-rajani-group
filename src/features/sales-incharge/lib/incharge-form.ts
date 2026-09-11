@@ -35,7 +35,11 @@ export const salesInchargeSchema = z
     profilePhoto: z.instanceof(File).optional(),
     bankAccountName: z.string().min(2, 'Enter the account holder name'),
     bankAccountNumber: z.string().regex(/^\d{9,18}$/, 'Enter a valid account number'),
-    bankIfsc: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC code'),
+    bankIfsc: z
+      .string()
+      .refine((v) => /^[A-Z]{4}0[A-Z0-9]{6}$/.test(v.toUpperCase()), {
+        message: 'Enter a valid IFSC code',
+      }),
     bankName: z.string().min(2, 'Enter the bank name'),
     aadharNumber: z.string().regex(/^\d{12}$/, 'Enter a valid 12-digit Aadhaar number'),
     aadharFront: z.instanceof(File).optional(),
