@@ -123,6 +123,11 @@ export function AllocationEditor({
    * `BucketDatePicker.onToggle`.
    */
   onToggleDate,
+  /**
+   * Activities the calendar holds that no bucket covers, and the gesture that
+   * gives one a bucket. Rendered under the activity panel — see
+   * `UnallocatedActivities`.
+   */
   readOnly = false,
   busy = false,
   /** Why the allocation is locked, when it is — an approved plan refuses the PATCH. */

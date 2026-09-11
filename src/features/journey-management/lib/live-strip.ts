@@ -58,6 +58,12 @@ export function liveStrip(
    * Dates pinned by the allocation draft on screen — saved or not. A pin is a
    * dated day of work, so the calendar shows it as one rather than waiting for
    * the allocation's own Save to tell it.
+   *
+   * It cuts **both** ways, and the second direction is the one that used to be
+   * missing: a saved pin the admin has just taken off a bucket is still on the
+   * plan, so reading `pinnedDates` alone left the date sitting there as planned
+   * with nothing to say the day was on its way out. A pin the draft no longer
+   * holds therefore stops holding its date here.
    */
   allocationDates: Set<string> = new Set(),
 ): LiveStripDay[] {
@@ -69,22 +75,29 @@ export function liveStrip(
     const drafted = (draft.get(day.date)?.entries ?? []).some(
       (entry) => entry.activityId > 0,
     )
-    const pinned = pinnedDates.has(day.date)
     const allocated = allocationDates.has(day.date)
+    // A pin only holds its date while the allocation on screen still pins it.
+    const pinned = pinnedDates.has(day.date) && allocated
+    /** The admin has taken a SAVED pin off this date — it goes on the next save. */
+    const unpinned = pinnedDates.has(day.date) && !allocated
     const scheduled = drafted || pinned || allocated
 
     const label = scheduled ? 'planned' : 'unscheduled'
     if (label === day.label) {
       // The label agrees with the server, but the date can still be carrying an
-      // unsaved pin — a pin onto a date he had already dated himself. Worth the
-      // marker: it is the allocation's Save that commits it, not the calendar's.
-      return { ...day, pending: allocated && !drafted && !pinned ? 'pin' : null }
+      // unsaved pin — added onto a date he had already dated himself, or removed
+      // from one that keeps its label because he has dated it too. Worth the
+      // marker either way: it is the allocation's Save that commits it.
+      const pinChange = unpinned || (allocated && !drafted && !pinnedDates.has(day.date))
+      return { ...day, pending: pinChange ? 'pin' : null }
     }
 
     return {
       ...day,
       label,
-      pending: drafted || !allocated ? 'schedule' : 'pin',
+      // A label that moved because a pin came off is the allocation's to commit,
+      // whatever else the date carries.
+      pending: unpinned || (allocated && !drafted) ? 'pin' : 'schedule',
     }
   })
 }

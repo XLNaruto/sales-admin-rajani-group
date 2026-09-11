@@ -5,6 +5,7 @@ import {
   CircleDot,
   PencilLine,
   Pin,
+  PinOff,
   Store,
   TriangleAlert,
   Truck,
@@ -118,6 +119,12 @@ export function ScheduleTable({
   city,
   /** The draft calendar by date; absent means the date carries no work. */
   draft,
+  /**
+   * Dates whose saved pin the allocation draft has dropped. The pinned rows on
+   * those dates are going when the allocation saves, and are marked as such —
+   * they are rendered from the plan, so nothing else about them moves until then.
+   */
+  unpinnedDates,
   /** Beat id → name, for beats added in this edit and not yet on a saved entry. */
   beatNames,
   /** Distributor id → name, for read-only rows. */
@@ -144,6 +151,7 @@ export function ScheduleTable({
   visitActivityIds: Set<string>
   city: CitySelect
   draft: Map<string, ScheduleDraftDay>
+  unpinnedDates?: Set<string>
   beatNames: Map<string, string>
   distributorNames: Map<string, string>
   onSetActivity: (date: string, index: number, activityId: number) => void
@@ -289,7 +297,11 @@ export function ScheduleTable({
                 is an inset shadow instead. */}
             <tr className="bg-card text-left shadow-[inset_0_-1px_0_var(--border)]">
               <Th className="w-20">Date</Th>
-              <Th className="w-36">State</Th>
+              {/* Wider than the label alone needs: the chip can carry an
+                  unsaved marker AND an origin marker after its text, and under
+                  `table-fixed` anything past the column's width is clipped by the
+                  next column's rule rather than widening the table. */}
+              <Th className="w-48">State</Th>
               <Th className="w-80">Activity</Th>
               <Th className="w-56">Distributor / City</Th>
               <Th>Beats</Th>
@@ -305,6 +317,7 @@ export function ScheduleTable({
                 stripDay={stripDay}
                 day={dayByDate.get(stripDay.date)}
                 draftDay={draft.get(stripDay.date)}
+                unpinned={unpinnedDates?.has(stripDay.date) ?? false}
                 activities={activities}
                 activityById={activityById}
                 distributorOptions={distributorOptions}
@@ -354,6 +367,7 @@ function DayRows({
   stripDay,
   day,
   draftDay,
+  unpinned,
   activities,
   activityById,
   distributorOptions,
@@ -377,6 +391,8 @@ function DayRows({
   stripDay: LiveStripDay
   day: PlanDay | undefined
   draftDay: ScheduleDraftDay | undefined
+  /** The allocation draft has dropped this date's pin — the row is going. */
+  unpinned: boolean
   activities: ActivityDef[]
   activityById: Map<number, ActivityDef>
   distributorOptions: ComboboxOption[]
@@ -459,10 +475,7 @@ function DayRows({
     return (
       <tr id={dayRowId(stripDay.day)} className={rowClass}>
         <DateCell day={stripDay} locked={locked} />
-        {/* Wider on the right than the other cells: the chip can carry two
-            trailing icons (unsaved, origin), and at an even `px-4` those sit hard
-            against the next column's rule. */}
-        <td className="whitespace-nowrap py-2.5 pl-4 pr-6">
+        <td className="py-2.5 pl-4 pr-3">
           <LabelChip day={stripDay} />
         </td>
         <td className="px-4 py-2.5 text-sm text-muted-foreground" colSpan={4}>
@@ -479,6 +492,7 @@ function DayRows({
           key={entry.id}
           entry={entry}
           stripDay={stripDay}
+          removing={unpinned}
           locked={locked}
           rowClass={rowClass}
           first={index === 0}
@@ -541,7 +555,7 @@ function DayRows({
             {first ? (
               <>
                 <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
-                <td rowSpan={rowCount} className="whitespace-nowrap py-2.5 pl-4 pr-6">
+                <td rowSpan={rowCount} className="py-2.5 pl-4 pr-3">
                   <LabelChip day={stripDay} />
                 </td>
               </>
@@ -647,6 +661,7 @@ function DayRows({
 function PinnedRow({
   entry,
   stripDay,
+  removing,
   locked,
   rowClass,
   first,
@@ -655,6 +670,12 @@ function PinnedRow({
 }: {
   entry: PlanDayEntry
   stripDay: LiveStripDay
+  /**
+   * The pin behind this row has been taken off the bucket above and not saved
+   * yet. The row still exists — it is the plan's, and only the allocation's Save
+   * deletes it — so it says it is going instead of quietly staying put.
+   */
+  removing: boolean
   locked: boolean
   rowClass: string
   first: boolean
@@ -671,13 +692,16 @@ function PinnedRow({
       className={cn(
         rowClass,
         !last && 'border-dashed border-border/60',
-        'bg-primary/[0.04]',
+        // Going, but not gone: the row keeps its place and loses its tint, so the
+        // date does not appear to have changed by itself while the Save that
+        // actually removes it is still sitting at the bottom of the screen.
+        removing ? 'bg-transparent opacity-60' : 'bg-primary/[0.04]',
       )}
     >
       {first ? (
         <>
           <DateCell day={stripDay} locked={locked} rowSpan={rowCount} />
-          <td rowSpan={rowCount} className="whitespace-nowrap py-2.5 pl-4 pr-6">
+          <td rowSpan={rowCount} className="py-2.5 pl-4 pr-3">
             <LabelChip day={stripDay} />
           </td>
         </>
@@ -688,16 +712,30 @@ function PinnedRow({
           {/* The column is finite and an activity name is not, so the truncated
               label carries its own full text. */}
           <Hint label={entry.activityName}>
-            <span className="cursor-default truncate text-sm text-foreground">
+            <span
+              className={cn(
+                'cursor-default truncate text-sm',
+                removing ? 'text-muted-foreground line-through' : 'text-foreground',
+              )}
+            >
               {entry.activityName}
             </span>
           </Hint>
-          <Hint label="You fixed this date on the allocation above. The sales incharge cannot move or remove it, and neither can this screen — edit the bucket's dates to change it.">
-            <span className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              <Pin className="size-2.5" />
-              fixed by you
-            </span>
-          </Hint>
+          {removing ? (
+            <Hint label="You have taken this date off the bucket above. The day goes when you save the allocation — nothing on this screen can delete it before that.">
+              <span className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-full bg-warning/12 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                <PinOff className="size-2.5" />
+                removing on save
+              </span>
+            </Hint>
+          ) : (
+            <Hint label="You fixed this date on the allocation above. The sales incharge cannot move or remove it, and neither can this screen — edit the bucket's dates to change it.">
+              <span className="inline-flex shrink-0 cursor-default items-center gap-1 rounded-full bg-primary/12 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                <Pin className="size-2.5" />
+                fixed by you
+              </span>
+            </Hint>
+          )}
         </span>
       </td>
 
@@ -764,18 +802,19 @@ function DateCell({
 function LabelChip({ day }: { day: LiveStripDay }) {
   return (
     <Hint label={DAY_LABEL_HINT[day.label]}>
-      <span className="inline-flex cursor-default items-center gap-1.5 text-xs font-medium text-foreground">
+      <span className="flex min-w-0 max-w-full cursor-default items-center gap-1.5 text-xs font-medium text-foreground">
         <span
           aria-hidden
           style={{
             display: 'block',
             width: 4,
             height: 12,
+            flexShrink: 0,
             borderRadius: 1,
             backgroundColor: DAY_LABEL_COLOR[day.label],
           }}
         />
-        {DAY_LABEL_TEXT[day.label]}
+        <span className="min-w-0 truncate">{DAY_LABEL_TEXT[day.label]}</span>
         {/* This label came off the DRAFT, not off the server — so it says which
             of the two Saves the date is waiting on. Without it a date the admin
             has just dated reads exactly like one that is already saved. */}
@@ -965,7 +1004,11 @@ function WhereCell({
             }
             options={distributorOptions}
             placeholder="Pick a distributor"
-            searchable={distributorOptions.length > 8}
+            // Always, not past a threshold: every other distributor picker on
+            // this screen searches, and a control that grows a search box only
+            // on some rows reads as two different controls.
+            searchable
+            searchPlaceholder="Search distributors…"
             className="w-full min-w-0"
           />
         ) : (

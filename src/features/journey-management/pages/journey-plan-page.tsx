@@ -206,6 +206,7 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
 
     schedule,
     strip,
+    unpinnedDates,
     scheduledByBucket,
     beatNames,
     distributorNames,
@@ -518,6 +519,9 @@ export function JourneyPlanPage({ data }: JourneyPlanPageProps) {
           visitActivityIds={requiresDistributors}
           city={city}
           draft={schedule}
+          // Pins the admin has just taken off a bucket. Their rows come from the
+          // plan, so only this tells the calendar they are on their way out.
+          unpinnedDates={unpinnedDates}
           beatNames={beatNames}
           distributorNames={distributorNames}
           onSetActivity={setEntryActivity}

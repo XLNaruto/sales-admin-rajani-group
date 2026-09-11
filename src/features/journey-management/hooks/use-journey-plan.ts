@@ -92,9 +92,30 @@ interface ScheduleDraft {
   days: Map<string, ScheduleDraftDay>
 }
 
-/** The allocation as the server currently holds it. */
+/**
+ * The allocation as the server currently holds it — **plus a bucket for any
+ * activity the calendar has days for and the allocation does not.**
+ *
+ * The fallback is the second half, and it is a fallback in the literal sense:
+ * the server is the place to reconcile this, and once it returns a bucket for
+ * every dated activity none of these are built. Until then — and for any case it
+ * still misses — a day on the calendar with no bucket behind it is invisible in
+ * the panel that is supposed to account for the month: the day exists, the flag
+ * says "outside every bucket", and Activity Days reads as though nothing is
+ * there. So the days themselves make the bucket.
+ *
+ * Derived from `plan.days`, **never from the draft**. Base and draft are compared
+ * to decide whether anything is unsaved, so a row built from the draft would
+ * either make the screen dirty on arrival or regenerate itself the moment the
+ * admin deleted it. From the plan it is stable: it arrives with the month, it can
+ * be edited or removed like any other row, and the next allocation save persists
+ * whatever the admin left.
+ *
+ * Field selling is skipped — an entry with a distributor is charged to a
+ * DISTRIBUTOR bucket, which is a different panel with different rules.
+ */
 function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
-  return plan.activityAllocations.map((bucket) => ({
+  const buckets: BucketDraft[] = plan.activityAllocations.map((bucket) => ({
     id: String(bucket.activityId),
     // Part of the bucket's identity, not a decoration — see `bucketKey`.
     cityId: bucket.cityId,
@@ -103,6 +124,55 @@ function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
     dates: bucket.dates,
     daysCount: bucket.daysCount,
   }))
+
+  /** Activities the allocation already accounts for, in any city. */
+  const allocated = new Set(buckets.map((bucket) => bucket.id))
+  /**
+   * Keyed on the (activity, city) PAIR, like every other bucket: the same
+   * activity dated in two cities is two buckets, and folding them onto the
+   * activity alone would promise one city's days against the other's.
+   */
+  const derived = new Map<
+    string,
+    { id: string; cityId: string | null; distributorIds: Set<string>; days: Set<string> }
+  >()
+
+  for (const day of plan.days) {
+    for (const entry of day.activities) {
+      if (!entry.activityId || entry.distributorId) continue
+      const id = String(entry.activityId)
+      if (allocated.has(id)) continue
+
+      const key = `${id}|${entry.cityId ?? ''}`
+      const row =
+        derived.get(key) ??
+        {
+          id,
+          cityId: entry.cityId,
+          distributorIds: new Set<string>(),
+          days: new Set<string>(),
+        }
+      for (const target of entry.distributors) row.distributorIds.add(target.distributorId)
+      // DISTINCT dates: a date carrying the activity twice is still one day of
+      // the month, and the count is a number of days.
+      row.days.add(day.date)
+      derived.set(key, row)
+    }
+  }
+
+  for (const row of derived.values()) {
+    buckets.push({
+      id: row.id,
+      cityId: row.cityId,
+      distributorIds: [...row.distributorIds],
+      // No pinned dates: nobody promised these days, he took them. The count is
+      // what he has actually used.
+      dates: [],
+      daysCount: row.days.size,
+    })
+  }
+
+  return buckets
 }
 
 function serverDistributorBuckets(plan: JourneyPlanDetail): BucketDraft[] {
@@ -476,6 +546,41 @@ export function useJourneyPlan(data?: string) {
     [activities.data],
   )
 
+  /** Every date the allocation ON SCREEN pins, across its activity buckets. */
+  const allocationDates = useMemo(
+    () => new Set(activityBuckets.flatMap((bucket) => bucket.dates ?? [])),
+    [activityBuckets],
+  )
+
+  /** Dates the PLAN holds pinned work on, whatever the draft now says. */
+  const pinnedDates = useMemo(
+    () =>
+      new Set(
+        (plan?.days ?? [])
+          .filter((day) => day.activities.some((entry) => entry.pinned))
+          .map((day) => day.date),
+      ),
+    [plan?.days],
+  )
+
+  /**
+   * Saved pins the admin has taken off a bucket and not saved yet.
+   *
+   * The pinned rows on the calendar are rendered from the PLAN — they are absent
+   * from the schedule draft by design — so nothing about removing a pin reaches
+   * them until the allocation's Save lands and the server deletes the entry.
+   * Until then the calendar showed the day as fixed while the chip that fixed it
+   * was already gone, which reads as "the remove did not work". These dates mark
+   * the rows as going.
+   */
+  const unpinnedDates = useMemo(() => {
+    const going = new Set<string>()
+    for (const date of pinnedDates) {
+      if (!allocationDates.has(date)) going.add(date)
+    }
+    return going
+  }, [pinnedDates, allocationDates])
+
   /**
    * What the calendar on screen currently spends, per bucket.
    *
@@ -492,12 +597,18 @@ export function useJourneyPlan(data?: string) {
       for (const entry of day.entries) entries.push({ ...entry, date })
     }
     for (const day of plan?.days ?? []) {
+      // A pin the admin has just taken off the bucket is not counted and not
+      // reported as one of its dates — otherwise removing the chip put the same
+      // date straight back as one the sales incharge holds, which is how the
+      // remove looked like it had not worked at all. The row itself stays until
+      // the allocation saves, marked as going; see `unpinnedDates`.
+      if (unpinnedDates.has(day.date)) continue
       for (const entry of day.activities) {
         if (entry.pinned) entries.push({ ...entry, date: day.date })
       }
     }
     return scheduledDays(entries, activityBuckets)
-  }, [schedule, plan, activityBuckets])
+  }, [schedule, plan, activityBuckets, unpinnedDates])
 
   /**
    * Edit one ENTRY of a date, in place. A date with nothing left on it is deleted
@@ -981,24 +1092,75 @@ export function useJourneyPlan(data?: string) {
   const issues = useMemo(() => (plan ? planIssues(plan) : []), [plan])
 
   /**
-   * Distributors an entry may be assigned to: **the ones this plan allocates**,
-   * plus any the schedule already uses.
+   * Distributors a field entry may be assigned to: **the ones the allocation ON
+   * SCREEN holds**, plus any the schedule already uses.
+   *
+   * Off the DRAFT buckets, not the saved ones — the two editors share a screen
+   * and the admin works top-down: he adds the distributors, then dates them. Read
+   * from the saved allocation, this list was empty until he saved, so the picker
+   * under a day he had just allocated said "No results" about three distributors
+   * visible directly above it.
    *
    * Scheduling onto an unallocated distributor is legal — it is the sales
    * incharge's own work, reported as `schedule_unallocated` and blocking nothing —
-   * but the picker leads with the allocation, because that is what the admin
-   * promised and what the counts are measured against.
+   * so anyone the calendar already names is kept even after his bucket goes, or
+   * the row would lose the name it is displaying.
    */
-  const distributorOptions = useMemo(
-    () =>
-      (plan?.distributorAllocations ?? []).map((bucket) => ({
-        value: bucket.distributorId,
-        label: bucket.distributorName ?? `Distributor ${bucket.distributorId}`,
-        hint: `${bucket.daysScheduled} of ${bucket.daysCount} days used`,
-        badge: bucket.beatCount ? `${bucket.beatCount} beats` : undefined,
-      })),
-    [plan?.distributorAllocations],
-  )
+  const distributorOptions = useMemo(() => {
+    /** Names and beat counts, wherever this screen has them. */
+    const saved = new Map(
+      (plan?.distributorAllocations ?? []).map((bucket) => [bucket.distributorId, bucket]),
+    )
+    const reachable = new Map(
+      (options.data?.distributors ?? []).map((row) => [row.distributorId, row]),
+    )
+
+    const ids = distributorBuckets.map((bucket) => bucket.id)
+    const known = new Set(ids)
+    // Anyone the calendar is already on, in either surface. Appended after the
+    // allocation, which is what the counts are measured against.
+    for (const day of schedule.values()) {
+      for (const entry of day.entries) {
+        if (entry.distributorId && !known.has(entry.distributorId)) {
+          known.add(entry.distributorId)
+          ids.push(entry.distributorId)
+        }
+      }
+    }
+    for (const day of plan?.days ?? []) {
+      for (const entry of day.activities) {
+        if (entry.distributorId && !known.has(entry.distributorId)) {
+          known.add(entry.distributorId)
+          ids.push(entry.distributorId)
+        }
+      }
+    }
+
+    return ids.map((id) => {
+      const bucket = distributorBuckets.find((candidate) => candidate.id === id)
+      const beats = saved.get(id)?.beatCount ?? reachable.get(id)?.beatCount
+      return {
+        value: id,
+        label:
+          saved.get(id)?.distributorName ??
+          reachable.get(id)?.distributorName ??
+          `Distributor ${id}`,
+        // The LIVE spend against the LIVE count: both move while he works, and a
+        // saved figure here would contradict the row he is looking at.
+        hint: bucket
+          ? `${scheduledByBucket.distributor.get(id) ?? 0} of ${bucket.daysCount} days used`
+          : 'Not allocated — his own day',
+        badge: beats ? `${beats} beats` : undefined,
+      }
+    })
+  }, [
+    distributorBuckets,
+    schedule,
+    plan?.days,
+    plan?.distributorAllocations,
+    options.data?.distributors,
+    scheduledByBucket,
+  ])
 
   /**
    * Who a VISIT entry may call on — every distributor his beats reach.
@@ -1177,18 +1339,11 @@ export function useJourneyPlan(data?: string) {
    * The strip is what the table draws its rows from, so this is what keeps the
    * two editors telling the admin the same story between saves.
    */
-  const strip = useMemo(() => {
-    if (!plan) return []
-    const pinnedDates = new Set(
-      plan.days
-        .filter((day) => day.activities.some((entry) => entry.pinned))
-        .map((day) => day.date),
-    )
-    const allocationDates = new Set(
-      activityBuckets.flatMap((bucket) => bucket.dates ?? []),
-    )
-    return liveStrip(plan.monthStrip, schedule, pinnedDates, allocationDates)
-  }, [plan, schedule, activityBuckets])
+  const strip = useMemo(
+    () =>
+      plan ? liveStrip(plan.monthStrip, schedule, pinnedDates, allocationDates) : [],
+    [plan, schedule, pinnedDates, allocationDates],
+  )
 
   /** Dates that survive the correction pass whatever is sent. */
   const lockedDates = useMemo(
@@ -1268,6 +1423,8 @@ export function useJourneyPlan(data?: string) {
      * from `plan.monthStrip`, which only moves when a save lands.
      */
     strip,
+    /** Dates whose saved pin the allocation draft has dropped — see above. */
+    unpinnedDates,
     scheduledByBucket,
     beatNames,
     distributorNames,
