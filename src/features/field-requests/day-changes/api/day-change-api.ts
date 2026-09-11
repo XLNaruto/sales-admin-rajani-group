@@ -37,13 +37,20 @@ export async function fetchDayChanges(
       params: toQuery(params),
     })
     const res = dayChangeListResponseSchema.parse(raw)
-    return {
-      items: res.day_changes,
-      total: res.total ?? res.day_changes.length,
-      page: res.page ?? 1,
-      pageSize: res.page_size ?? res.day_changes.length,
-      totalPages: res.total_pages ?? 1,
-    }
+    const items = res.day_changes
+
+    // The endpoint answers with a bare array — no totals to read back. The page
+    // and size are what we ASKED for, and a page that came back full is taken
+    // to mean there is another one: without that, the pager would lock on page
+    // one and the "All" query would stop after the first batch.
+    const page = res.page ?? params.page ?? 1
+    const pageSize = res.page_size ?? params.pageSize ?? items.length
+    const isFull = pageSize > 0 && items.length >= pageSize
+    const total = res.total ?? (page - 1) * pageSize + items.length + (isFull ? 1 : 0)
+    const totalPages =
+      res.total_pages ?? (pageSize > 0 ? Math.max(1, Math.ceil(total / pageSize)) : 1)
+
+    return { items, total, page, pageSize, totalPages }
   } catch (error) {
     throw asApiError(error, 'Failed to load day change requests.')
   }

@@ -16,6 +16,22 @@ export type DayChangeStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
  */
 export type DayChangeOperation = 'update' | 'create'
 
+/**
+ * A beat on a day-change entry. Id and name arrive together, so the name is
+ * never mis-paired; it is null when the beat has since been removed and the
+ * id is what the UI falls back to.
+ */
+export interface DayChangeBeat {
+  id: number
+  name: string | null
+}
+
+/** A distributor a VISIT entry would call on. */
+export interface DayChangeVisitDistributor {
+  id: number
+  name: string | null
+}
+
 /** One piece of work the rep is proposing for the date. */
 export interface DayChangeEntry {
   id: number
@@ -27,11 +43,9 @@ export interface DayChangeEntry {
   distributorName: string | null
   /** Re-derived from the beats at approval time; carried here for display. */
   cityId: number | null
-  beatIds: number[]
-  /** In the same order as `beatIds`, for the ids that resolve. */
-  beatNames: string[]
+  beats: DayChangeBeat[]
   /** Whom a VISIT entry would call on. Empty on everything else. */
-  distributorIds: number[]
+  visitDistributors: DayChangeVisitDistributor[]
   jointWorkingSalesInchargeId: number | null
   /** The note that would travel onto the scheduled row — not the review reason. */
   reason: string | null

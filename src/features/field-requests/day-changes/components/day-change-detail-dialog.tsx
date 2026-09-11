@@ -115,27 +115,32 @@ function EntryCard({
           </p>
         ) : null}
 
-        {entry.beatIds.length > 0 ? (
+        {entry.beats.length > 0 ? (
           <div className="flex flex-wrap items-center gap-1.5">
             <Route className="size-3.5 shrink-0 text-muted-foreground" />
-            {/* `beatNames` only carries the ids that resolve, so the id is the
-                fallback rather than a blank chip. */}
-            {entry.beatIds.map((id, i) => (
+            {/* A beat that has since been removed comes back without a name, so
+                the id is the fallback rather than a blank chip. */}
+            {entry.beats.map((beat) => (
               <span
-                key={id}
+                key={beat.id}
                 className="rounded-full bg-blue-600/10 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400"
               >
-                {entry.beatNames[i] ?? `Beat #${id}`}
+                {beat.name ?? `Beat #${beat.id}`}
               </span>
             ))}
           </div>
         ) : null}
 
-        {entry.distributorIds.length > 0 ? (
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Users className="size-3.5 shrink-0" />
-            {entry.distributorIds.length} distributor
-            {entry.distributorIds.length === 1 ? '' : 's'} to call on
+        {entry.visitDistributors.length > 0 ? (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <Users className="size-3.5 shrink-0 translate-y-px" />
+            {/* Named rather than counted: "3 distributors to call on" told the
+                admin nothing he could weigh the ask against. */}
+            <span className="min-w-0">
+              {entry.visitDistributors
+                .map((d) => d.name ?? `Distributor #${d.id}`)
+                .join(', ')}
+            </span>
           </p>
         ) : null}
 

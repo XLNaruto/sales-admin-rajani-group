@@ -15,38 +15,63 @@ export const dayChangeStatusSchema = z.enum([
 export const dayChangeOperationSchema = z.enum(['update', 'create'])
 
 /**
+ * A beat as the day-change payload now carries it: id and name travel together
+ * in one object rather than as two parallel arrays, so a beat can never lose
+ * its name to a length mismatch. `beat_name` is null when the beat has since
+ * been removed.
+ */
+const dayChangeBeatSchema = z
+  .object({
+    beat_id: z.number(),
+    beat_name: z.string().nullish(),
+  })
+  .transform((b) => ({ id: b.beat_id, name: b.beat_name ?? null }))
+
+/**
+ * Whom a VISIT entry would call on. Sent as objects; a bare id is still
+ * accepted so an older response does not blank the queue.
+ */
+const dayChangeVisitDistributorSchema = z.union([
+  z.number().transform((id) => ({ id, name: null as string | null })),
+  z
+    .object({
+      distributor_id: z.number(),
+      distributor_name: z.string().nullish(),
+    })
+    .transform((d) => ({ id: d.distributor_id, name: d.distributor_name ?? null })),
+])
+
+/**
  * One proposed piece of work. The API resolves activity, distributor and beat
  * NAMES onto it so the queue can be answered without opening the plan.
  */
 const dayChangeEntryFields = {
-    id: z.number(),
-    sequence: z.number(),
-    activity_id: z.number(),
-    activity_name: z.string().nullable(),
-    distributor_id: z.number().nullable(),
-    distributor_name: z.string().nullable(),
-    city_id: z.number().nullable(),
-    beat_ids: z.array(z.number()),
-    beat_names: z.array(z.string()),
-    distributor_ids: z.array(z.number()),
-    joint_working_sales_incharge_id: z.number().nullable(),
-    reason: z.string().nullable(),
+  id: z.number(),
+  sequence: z.number(),
+  activity_id: z.number(),
+  activity_name: z.string().nullish(),
+  distributor_id: z.number().nullish(),
+  distributor_name: z.string().nullish(),
+  city_id: z.number().nullish(),
+  beats: z.array(dayChangeBeatSchema).default([]),
+  visit_distributors: z.array(dayChangeVisitDistributorSchema).default([]),
+  joint_working_sales_incharge_id: z.number().nullish(),
+  reason: z.string().nullish(),
 }
 
 /** The shared camelCase mapping, so a current entry and a proposed one agree. */
 const toEntry = (e: z.infer<z.ZodObject<typeof dayChangeEntryFields>>) => ({
-    id: e.id,
-    sequence: e.sequence,
-    activityId: e.activity_id,
-    activityName: e.activity_name,
-    distributorId: e.distributor_id,
-    distributorName: e.distributor_name,
-    cityId: e.city_id,
-    beatIds: e.beat_ids,
-    beatNames: e.beat_names,
-    distributorIds: e.distributor_ids,
-    jointWorkingSalesInchargeId: e.joint_working_sales_incharge_id,
-    reason: e.reason,
+  id: e.id,
+  sequence: e.sequence,
+  activityId: e.activity_id,
+  activityName: e.activity_name ?? null,
+  distributorId: e.distributor_id ?? null,
+  distributorName: e.distributor_name ?? null,
+  cityId: e.city_id ?? null,
+  beats: e.beats,
+  visitDistributors: e.visit_distributors,
+  jointWorkingSalesInchargeId: e.joint_working_sales_incharge_id ?? null,
+  reason: e.reason ?? null,
 })
 
 export const dayChangeEntrySchema = z.object(dayChangeEntryFields).transform(toEntry)
@@ -118,14 +143,30 @@ export const dayChangeRowSchema = z
     salesInchargeName: r.sales_incharge_name,
   }))
 
-/** The day-change list envelope (rows + pagination metadata). */
-export const dayChangeListResponseSchema = z.object({
-  day_changes: z.array(dayChangeRowSchema),
-  total: z.number().optional(),
-  page: z.number().optional(),
-  page_size: z.number().optional(),
-  total_pages: z.number().optional(),
-})
+/**
+ * The day-change list response.
+ *
+ * The endpoint answers with a BARE ARRAY of rows; the paginated envelope is
+ * still accepted because the same schema parses both and a server that gains
+ * pagination later must not blank the queue. A bare array carries no totals, so
+ * the caller derives them from the page it got.
+ */
+export const dayChangeListResponseSchema = z.union([
+  z.array(dayChangeRowSchema).transform((day_changes) => ({
+    day_changes,
+    total: undefined,
+    page: undefined,
+    page_size: undefined,
+    total_pages: undefined,
+  })),
+  z.object({
+    day_changes: z.array(dayChangeRowSchema),
+    total: z.number().optional(),
+    page: z.number().optional(),
+    page_size: z.number().optional(),
+    total_pages: z.number().optional(),
+  }),
+])
 
 /**
  * PATCH /day-changes/{id}/status — the answered request plus what the approval
