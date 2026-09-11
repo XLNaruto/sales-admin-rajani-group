@@ -607,7 +607,7 @@ function DayRows({
               />
             </td>
 
-            <td className="px-4 py-2">
+            <td className="overflow-hidden px-4 py-2">
               <BeatCell
                 entry={isPlaceholder ? undefined : entry}
                 saved={saved}
@@ -1145,7 +1145,7 @@ function BeatCell({
                   : `${index + 1}. ${beatNames.get(beatId) ?? 'Beat'} — added in this edit`
               }
             >
-              <span className="inline-flex h-5 max-w-48 cursor-default items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 text-[11px] font-medium text-primary">
+              <span className="inline-flex h-5 min-w-0 max-w-full cursor-default items-center gap-1 rounded-full border border-primary/25 bg-primary/10 px-2 text-[11px] font-medium text-primary sm:max-w-48">
                 <Store className="size-2.5 shrink-0" />
                 <span className="truncate">
                   {beat?.beatName ?? beatNames.get(beatId) ?? `Beat ${beatId}`}

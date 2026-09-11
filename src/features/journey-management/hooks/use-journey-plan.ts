@@ -94,7 +94,7 @@ interface ScheduleDraft {
 
 /**
  * The allocation as the server currently holds it — **plus a bucket for any
- * activity the calendar has days for and the allocation does not.**
+ * (activity, city) PAIR the calendar has days for and the allocation does not.**
  *
  * The fallback is the second half, and it is a fallback in the literal sense:
  * the server is the place to reconcile this, and once it returns a bucket for
@@ -125,8 +125,23 @@ function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
     daysCount: bucket.daysCount,
   }))
 
-  /** Activities the allocation already accounts for, in any city. */
-  const allocated = new Set(buckets.map((bucket) => bucket.id))
+  /**
+   * The pairs the allocation already accounts for — the PAIR, not the activity.
+   *
+   * Keyed the way every other bucket lookup is (see `bucketKey`), and for the
+   * same reason: an activity allocated in Rajkot says nothing about the same
+   * activity dated in Morbi. Matching on the activity alone would skip the Morbi
+   * days, and `chargeResolver`'s sole-bucket fallback would then charge them to
+   * the Rajkot row — one city's days reported against the other's promise, with
+   * no row on the screen owning them.
+   *
+   * A pair that IS allocated is left alone deliberately: its days reach the row
+   * through `scheduledDays` as HELD dates, which is what they are. They are not
+   * folded into `dates`, because that field is the admin's own pin and the save
+   * sends it as one — promoting days the sales incharge picked himself would pin
+   * work nobody promised.
+   */
+  const allocated = new Set(buckets.map(bucketKey))
   /**
    * Keyed on the (activity, city) PAIR, like every other bucket: the same
    * activity dated in two cities is two buckets, and folding them onto the
@@ -141,9 +156,9 @@ function serverActivityBuckets(plan: JourneyPlanDetail): BucketDraft[] {
     for (const entry of day.activities) {
       if (!entry.activityId || entry.distributorId) continue
       const id = String(entry.activityId)
-      if (allocated.has(id)) continue
 
       const key = `${id}|${entry.cityId ?? ''}`
+      if (allocated.has(key)) continue
       const row =
         derived.get(key) ??
         {
@@ -484,6 +499,39 @@ export function useJourneyPlan(data?: string) {
   )
 
   /**
+   * The activities an Activity Days bucket may name — the same whitelist behind
+   * the panel's "Add an activity" picker.
+   *
+   * Field selling is not in it: those days are charged to a DISTRIBUTOR bucket,
+   * so an entry with a distributor must never grow an activity row.
+   */
+  const allocatableActivityIds = useMemo(
+    () =>
+      new Set(
+        (options.data?.activities ?? []).map((activity) => String(activity.activityId)),
+      ),
+    [options.data?.activities],
+  )
+
+  /**
+   * The pairs the SERVER allocated, as opposed to the ones this screen has added.
+   *
+   * The distinction matters to one rule only: a row the admin created here by
+   * dating the work owns its own count and may grow with the calendar, while a
+   * count the server returned is the admin's stated promise and is never edited
+   * out from under him.
+   */
+  const serverAllocatedKeys = useMemo(
+    () =>
+      new Set(
+        (plan?.activityAllocations ?? []).map(
+          (bucket) => `${bucket.activityId}|${bucket.cityId ?? ''}`,
+        ),
+      ),
+    [plan?.activityAllocations],
+  )
+
+  /**
    * Search buckets with no city.
    *
    * **A client-side rule, not the API's** — the server takes a city-less search
@@ -633,6 +681,85 @@ export function useJourneyPlan(data?: string) {
   )
 
   /**
+   * Make sure Activity Days has a row that pays for a day just put on the
+   * calendar — the calendar writing the allocation, the mirror of
+   * `toggleBucketDate` writing the calendar.
+   *
+   * Dating "Leave" on the 3rd when no Leave bucket exists otherwise leaves a day
+   * nothing accounts for: the panel that is supposed to describe the month says
+   * nothing about it, and the day is flagged as outside every bucket. So the
+   * gesture that creates the day creates the row.
+   *
+   * Which row is decided by the SHARED charge resolver, never a second copy of
+   * the rule: a day the resolver already charges to an existing bucket must not
+   * grow a second one beside it, or both would claim it. That is the "it already
+   * exists" case, and it needs no write at all — `scheduledByBucket` is live, so
+   * the day shows up under that row as a held date and in its "N scheduled" the
+   * moment the entry lands.
+   *
+   * A DAYS COUNT is added, never a pinned date. A pin is the admin's own promise
+   * and the save sends it as one; pinning a day he merely dated here would leave
+   * the day on the calendar and a second, stronger promise beside it — the same
+   * double-up `toggleBucketDate` avoids.
+   */
+  const ensureActivityBucket = useCallback(
+    (
+      date: string,
+      entry: { activityId: number; cityId: string | null; distributorIds: string[] },
+    ) => {
+      const id = String(entry.activityId)
+      if (!allocatableActivityIds.has(id)) return
+
+      const charge = chargeResolver(activityBuckets)({
+        activityId: entry.activityId,
+        // Never field selling — the whitelist above has already ruled that out.
+        distributorId: null,
+        cityId: entry.cityId,
+      })
+      if (charge?.side !== 'activity') return
+
+      const existing = activityBuckets.find((bucket) => bucketKey(bucket) === charge.key)
+      if (!existing) {
+        setActivityBuckets([
+          ...activityBuckets,
+          {
+            id,
+            // Part of the row's identity, so it has to be the entry's own or the
+            // day comes back charged to a different row.
+            cityId: entry.cityId,
+            distributorIds: entry.distributorIds,
+            dates: [],
+            daysCount: 1,
+          },
+        ])
+        return
+      }
+
+      // The admin's own promise. Dating more work against it is exactly what a
+      // promise is for, and the panel already reports the overrun.
+      if (serverAllocatedKeys.has(charge.key)) return
+
+      // A row this screen added: it grows with the days it is being given, or a
+      // second Leave would read as one day of Leave with two days dated on it.
+      const held = scheduledByBucket.activityDates.get(charge.key)
+      const days = (held?.size ?? 0) + (held?.has(date) ? 0 : 1)
+      if (existing.daysCount >= days) return
+      setActivityBuckets(
+        activityBuckets.map((bucket) =>
+          bucketKey(bucket) === charge.key ? { ...bucket, daysCount: days } : bucket,
+        ),
+      )
+    },
+    [
+      activityBuckets,
+      allocatableActivityIds,
+      scheduledByBucket,
+      serverAllocatedKeys,
+      setActivityBuckets,
+    ],
+  )
+
+  /**
    * Set an entry's activity — and, at `index === entries.length`, create it.
    *
    * The shape follows the activity master, because the server refuses the wrong
@@ -646,28 +773,49 @@ export function useJourneyPlan(data?: string) {
    */
   const setEntryActivity = useCallback(
     (date: string, index: number, activityId: number) => {
+      if (!activityId) {
+        editEntry(date, index, (entries) => void entries.splice(index, 1))
+        return
+      }
+
+      const activity = activityById.get(activityId)
+      const takesBeats = activity?.requiresBeat ?? true
+      const takesVisits = Boolean(activity?.requiresDistributors)
+
+      /**
+       * The entry as it will end up — built HERE, off the draft on screen,
+       * rather than inside the edit below.
+       *
+       * `editEntry` mutates through a state updater, and React is free to run
+       * that later (and, in strict mode, twice). So the allocation cannot be fed
+       * from a variable the updater assigns: it would still be undefined when it
+       * was read. The shape is a pure function of the previous entry, so it is
+       * computed once and both the schedule and the allocation are given it.
+       */
+      const previous = schedule.get(date)?.entries[index]
+      const next: ScheduleDraftEntry = {
+        activityId,
+        distributorId: takesBeats ? (previous?.distributorId ?? null) : null,
+        // Derived server-side on a field entry, so there is nothing to keep.
+        cityId: takesBeats ? null : (previous?.cityId ?? null),
+        beatIds: takesBeats ? (previous?.beatIds ?? []) : [],
+        // Dropped the moment the work stops being a visit: the API refuses
+        // targets on an activity that takes none.
+        distributorIds: takesVisits ? (previous?.distributorIds ?? []) : [],
+      }
+
       editEntry(date, index, (entries) => {
-        if (!activityId) {
-          entries.splice(index, 1)
-          return
-        }
-        const activity = activityById.get(activityId)
-        const takesBeats = activity?.requiresBeat ?? true
-        const takesVisits = Boolean(activity?.requiresDistributors)
-        const previous = entries[index]
-        entries[index] = {
-          activityId,
-          distributorId: takesBeats ? (previous?.distributorId ?? null) : null,
-          // Derived server-side on a field entry, so there is nothing to keep.
-          cityId: takesBeats ? null : (previous?.cityId ?? null),
-          beatIds: takesBeats ? (previous?.beatIds ?? []) : [],
-          // Dropped the moment the work stops being a visit: the API refuses
-          // targets on an activity that takes none.
-          distributorIds: takesVisits ? (previous?.distributorIds ?? []) : [],
-        }
+        entries[index] = next
+      })
+
+      // The day now exists; give Activity Days the row that pays for it.
+      ensureActivityBucket(date, {
+        activityId,
+        cityId: next.cityId,
+        distributorIds: next.distributorIds ?? [],
       })
     },
-    [editEntry, activityById],
+    [editEntry, activityById, ensureActivityBucket, schedule],
   )
 
   /**
