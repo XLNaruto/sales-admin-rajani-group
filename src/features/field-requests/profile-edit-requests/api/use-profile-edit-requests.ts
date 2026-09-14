@@ -60,6 +60,9 @@ export function useProfileEditRequest(id: number | null) {
     queryKey: queryKeys.fieldRequests.profileEdit(id ?? 0),
     queryFn: () => fetchProfileEditRequest(id as number),
     enabled: id != null,
+    // A 404 here is an answer, not a blip: the request belongs to another
+    // company, or to nobody. Retrying it just delays the explanation.
+    retry: false,
   })
 }
 
@@ -72,7 +75,11 @@ export function useReviewProfileEditRequest() {
   return useMutation({
     mutationFn: ({ id, review }: { id: number; review: ProfileEditReview }) =>
       reviewProfileEditRequest(id, review),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: queryKeys.fieldRequests.all }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.fieldRequests.all })
+      // Answering a request is what makes its notification old news — the badge
+      // and the feed have to follow, or the bell keeps advertising work done.
+      void qc.invalidateQueries({ queryKey: queryKeys.notifications.inbox.all })
+    },
   })
 }

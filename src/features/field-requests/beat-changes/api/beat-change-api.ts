@@ -1,8 +1,13 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { asApiError } from '@/lib/api-error'
-import { beatChangeListResponseSchema, beatChangeReviewResponseSchema } from '../schemas'
+import {
+  beatChangeListResponseSchema,
+  beatChangeResponseSchema,
+  beatChangeReviewResponseSchema,
+} from '../schemas'
 import type {
+  BeatChange,
   BeatChangeListParams,
   BeatChangeListResult,
   BeatChangeReview,
@@ -45,6 +50,26 @@ export async function fetchBeatChanges(
     }
   } catch (error) {
     throw asApiError(error, 'Failed to load beat change requests.')
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/beat-changes/{id} — one request in full.
+ *
+ * The read behind a notification deep link. Fetching by id rather than paging
+ * the queue matters: once a request has been answered it is no longer on page 1
+ * of anything, and the link still has to open it.
+ *
+ * Scoped to the SELECTED COMPANY, so a request belonging to another tenant
+ * answers `404` exactly as a non-existent one does — the caller separates the
+ * two with the notification's `metadata.company_ids`.
+ */
+export async function fetchBeatChange(id: number): Promise<BeatChange> {
+  try {
+    const raw = await http.get<unknown>(endpoints.BEAT_CHANGE.GET(id))
+    return beatChangeResponseSchema.parse(raw)
+  } catch (error) {
+    throw asApiError(error, 'Failed to load the beat change request.')
   }
 }
 

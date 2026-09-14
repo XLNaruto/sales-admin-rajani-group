@@ -189,6 +189,12 @@ const extraTitles: Record<string, string> = {
   // Opened from a row on the fleet map (and from a rep's record), so it has no
   // sidebar item of its own.
   '/tracking/trail': 'Rep Day Trail',
+  // Request detail screens — opened from a queue row or a notification, so they
+  // have no sidebar item of their own. Named here so the last crumb reads as the
+  // screen rather than as its URL segment.
+  '/requests/beat-changes/detail': 'Beat Change Request',
+  '/requests/day-changes/detail': 'Day Change Request',
+  '/requests/profile-edits/detail': 'Profile Edit Request',
   '/profile': 'My Profile',
   '/login': 'Login',
   '/forgot-password': 'Forgot Password',

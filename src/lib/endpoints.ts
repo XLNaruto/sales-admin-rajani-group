@@ -302,6 +302,12 @@ export const endpoints = {
     /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
     LIST: '/sales-incharge-admin/beat-changes',
     /**
+     * GET one request in full — the deep-link target behind a notification.
+     * Scoped to the selected company, so a request belonging to another tenant
+     * answers `404`, not `403`.
+     */
+    GET: (id: string | number) => `/sales-incharge-admin/beat-changes/${id}`,
+    /**
      * PATCH { status: 'approved' } | { status: 'rejected', rejection_reason }.
      * Approving is what MOVES THE DAY — the replacement beat takes the outgoing
      * one's place in the walk, in the same transaction as the answer. Every
@@ -319,6 +325,12 @@ export const endpoints = {
   DAY_CHANGE: {
     /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
     LIST: '/sales-incharge-admin/day-changes',
+    /**
+     * GET one request in full, `current_entries` included — the deep-link
+     * target behind a notification, and the only read that finds a request once
+     * it has been answered and fallen off page 1 of the queue.
+     */
+    GET: (id: string | number) => `/sales-incharge-admin/day-changes/${id}`,
     /**
      * PATCH { status: 'approved' } | { status: 'rejected', rejection_reason }.
      * Approving is WHAT WRITES THE DAY, and the only thing that does — on an
@@ -347,6 +359,28 @@ export const endpoints = {
      */
     STATUS: (id: string | number) =>
       `/sales-incharge-admin/profile-edit-requests/${id}/status`,
+  },
+  /**
+   * The signed-in admin's notification inbox — the bell.
+   *
+   * Deliberately UNGATED: the feed is a property of the token holder rather
+   * than a managed resource, so no permission key guards these four. It is also
+   * per-USER, not per-company — the inbox can legitimately carry a request the
+   * admin must switch company to open.
+   */
+  NOTIFICATION: {
+    /** GET ?page&page_size&unread&sort_order — one page of the feed. */
+    INBOX: '/sales-incharge-admin/notifications/inbox',
+    /** GET → { unread } — the badge. Cheap; this is the one that gets polled. */
+    UNREAD_COUNT: '/sales-incharge-admin/notifications/inbox/unread-count',
+    /** PATCH (no body) → { updated } — mark the whole feed read. */
+    READ_ALL: '/sales-incharge-admin/notifications/inbox/read-all',
+    /**
+     * PATCH (no body) → the updated notification. Idempotent; someone else's
+     * notification answers `404`, never `403`.
+     */
+    READ: (id: string | number) =>
+      `/sales-incharge-admin/notifications/inbox/${id}/read`,
   },
   /** Firebase Cloud Messaging — register/refresh this device's push token. */
   FCM: {

@@ -244,6 +244,12 @@ export const queryKeys = {
     /** GET /profile-edit-requests/{id} — one request in full. */
     profileEdit: (id: number) =>
       [...queryKeys.fieldRequests.all, 'profile-edit', id] as const,
+    /** GET /beat-changes/{id} — one request in full (the deep-link read). */
+    beatChange: (id: number) =>
+      [...queryKeys.fieldRequests.all, 'beat-change', id] as const,
+    /** GET /day-changes/{id} — one request in full (the deep-link read). */
+    dayChange: (id: number) =>
+      [...queryKeys.fieldRequests.all, 'day-change', id] as const,
   },
   /**
    * Location tracking — the GPS ledger reads. Separate from `journey` on
@@ -276,6 +282,27 @@ export const queryKeys = {
     all: ['notifications'] as const,
     list: () => [...queryKeys.notifications.all, 'list'] as const,
     greetings: () => [...queryKeys.notifications.all, 'greetings'] as const,
+    /**
+     * The bell's own feed. Per-USER, not per-company — unlike almost everything
+     * else in here, switching tenant does not change what it holds.
+     */
+    inbox: {
+      // Spelled out rather than spread from `notifications.all`: an eagerly
+      // evaluated self-reference would make the whole factory circular.
+      all: ['notifications', 'inbox'] as const,
+      /**
+       * Every inbox LIST, whichever tab — the prefix to match when rewriting
+       * cached rows. `inbox.all` would also match the count, whose data is a
+       * bare number and not a page of rows.
+       */
+      lists: () => [...queryKeys.notifications.inbox.all, 'list'] as const,
+      /** GET /notifications/inbox — the dropdown's list, keyed by its tab. */
+      list: (filters?: Record<string, unknown>) =>
+        [...queryKeys.notifications.inbox.lists(), filters ?? {}] as const,
+      /** GET /notifications/inbox/unread-count — the badge. Polled. */
+      unreadCount: () =>
+        [...queryKeys.notifications.inbox.all, 'unread-count'] as const,
+    },
   },
   location: {
     all: ['location'] as const,

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { ChevronDown, LogOut, Menu, Moon, User } from 'lucide-react'
-// import { Bell } from 'lucide-react' // notifications button (hidden)
 import { Breadcrumbs } from './breadcrumbs'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
@@ -17,6 +16,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { useLogout } from '@/features/auth'
 import { useMyProfile } from '@/features/profile'
 import { CompanySwitcher } from '@/features/company'
+import { NotificationBell } from '@/features/notifications'
 import { asset } from '@/lib/asset'
 import { cn } from '@/lib/utils'
 
@@ -72,12 +72,10 @@ export function Topbar() {
       </div>
 
       <div className="flex items-center gap-1">
-        {/* Notifications — temporarily hidden
-        <Button variant="ghost" size="icon" className="relative" title="Notifications">
-          <Bell className="size-5" />
-          <span className="absolute right-2 top-2 size-2 rounded-full bg-destructive" />
-        </Button>
-        */}
+        {/* The request inbox. Ungated — the feed belongs to the token holder,
+            not to a permission — so it renders for every signed-in admin. */}
+        <NotificationBell />
+
         {/* Active-company selector — sits before the profile menu */}
         <CompanySwitcher />
 

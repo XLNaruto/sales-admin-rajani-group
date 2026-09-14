@@ -69,6 +69,14 @@ export const beatChangeListResponseSchema = z.object({
 })
 
 /**
+ * GET /beat-changes/{id} — one request in full, wrapped in its own envelope.
+ * The deep-link read behind a notification.
+ */
+export const beatChangeResponseSchema = z
+  .object({ beat_change: beatChangeRowSchema })
+  .transform((r) => r.beat_change)
+
+/**
  * PATCH /beat-changes/{id}/status — the answered request plus the entry's beats
  * as the day now stands.
  */

@@ -169,6 +169,14 @@ export const dayChangeListResponseSchema = z.union([
 ])
 
 /**
+ * GET /day-changes/{id} — one request in full, `current_entries` included,
+ * wrapped in its own envelope. The deep-link read behind a notification.
+ */
+export const dayChangeResponseSchema = z
+  .object({ day_change: dayChangeRowSchema })
+  .transform((r) => r.day_change)
+
+/**
  * PATCH /day-changes/{id}/status — the answered request plus what the approval
  * actually wrote to the date. `applied` is null on a rejection: nothing moved.
  */

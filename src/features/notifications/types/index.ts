@@ -1,3 +1,6 @@
+/** The bell's feed — the real, server-backed notification inbox. */
+export * from './inbox'
+
 export type NotificationType = 'push' | 'sales-alert' | 'greeting'
 
 export type GreetingCategory = 'birthday' | 'anniversary' | 'festival'

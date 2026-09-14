@@ -1,8 +1,13 @@
 import { http } from '@/lib/http'
 import { endpoints } from '@/lib/endpoints'
 import { asApiError } from '@/lib/api-error'
-import { dayChangeListResponseSchema, dayChangeReviewResponseSchema } from '../schemas'
+import {
+  dayChangeListResponseSchema,
+  dayChangeResponseSchema,
+  dayChangeReviewResponseSchema,
+} from '../schemas'
 import type {
+  DayChange,
   DayChangeListParams,
   DayChangeListResult,
   DayChangeReview,
@@ -53,6 +58,26 @@ export async function fetchDayChanges(
     return { items, total, page, pageSize, totalPages }
   } catch (error) {
     throw asApiError(error, 'Failed to load day change requests.')
+  }
+}
+
+/**
+ * GET /sales-incharge-admin/day-changes/{id} — one request in full.
+ *
+ * The read behind a notification deep link, and the only one that finds a
+ * request after it has been answered and fallen off page 1 of the queue. It
+ * carries `current_entries` as well as `entries`, which is what lets the detail
+ * screen show what an approval would COST beside what it would add.
+ *
+ * Scoped to the SELECTED COMPANY, so a request belonging to another tenant
+ * answers `404` exactly as a non-existent one does.
+ */
+export async function fetchDayChange(id: number): Promise<DayChange> {
+  try {
+    const raw = await http.get<unknown>(endpoints.DAY_CHANGE.GET(id))
+    return dayChangeResponseSchema.parse(raw)
+  } catch (error) {
+    throw asApiError(error, 'Failed to load the day change request.')
   }
 }
 

@@ -6,7 +6,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
-import { fetchBeatChanges, reviewBeatChange } from './beat-change-api'
+import { fetchBeatChange, fetchBeatChanges, reviewBeatChange } from './beat-change-api'
 import type { BeatChangeListParams, BeatChangeReview } from '../types'
 
 /** GET /sales-incharge-admin/beat-changes — live, server-filtered queue. */
@@ -42,6 +42,26 @@ export function useBeatChangesInfinite(
   })
 }
 
+
+/**
+ * GET /sales-incharge-admin/beat-changes/{id} — one request in full.
+ *
+ * The deep-link read: a notification names a request, not a queue, and once the
+ * request has been answered it is no longer on page 1 of anything. Kept fresh
+ * on mount rather than cached long — the whole screen is a decision about a
+ * record another admin may have answered a second ago.
+ */
+export function useBeatChange(id: number | null) {
+  return useQuery({
+    queryKey: queryKeys.fieldRequests.beatChange(id ?? 0),
+    queryFn: () => fetchBeatChange(id as number),
+    enabled: id != null,
+    // A 404 here is an answer, not a blip: the request belongs to another
+    // company, or to nobody. Retrying it just delays the explanation.
+    retry: false,
+  })
+}
+
 /**
  * PATCH /sales-incharge-admin/beat-changes/{id}/status — approve or reject.
  *
@@ -57,6 +77,9 @@ export function useReviewBeatChange() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.fieldRequests.all })
       void qc.invalidateQueries({ queryKey: queryKeys.journey.all })
+      // Answering a request is what makes its notification old news — the badge
+      // and the feed have to follow, or the bell keeps advertising work done.
+      void qc.invalidateQueries({ queryKey: queryKeys.notifications.inbox.all })
     },
   })
 }
