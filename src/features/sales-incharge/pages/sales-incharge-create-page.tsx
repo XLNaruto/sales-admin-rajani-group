@@ -364,7 +364,6 @@ export function SalesInchargeCreatePage({
                   fromYear={2000}
                   toYear={currentYear + 5}
                   minDate={birthDate}
-                  maxDate={today}
                 />
               )}
             />
