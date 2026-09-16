@@ -187,7 +187,7 @@ export function DayDiff({ request, replaces }: { request: DayChange; replaces: b
   if (!replaces || current.length === 0) {
     return (
       <DiffColumn
-        title={replaces ? 'Proposed instead' : 'Proposed in addition'}
+        title={replaces ? 'Requested day plan' : 'Requested in addition'}
         count={request.entries.length}
         empty="Nothing proposed — approving clears the day's un-worked entries."
       >
@@ -204,7 +204,7 @@ export function DayDiff({ request, replaces }: { request: DayChange; replaces: b
     <div className="space-y-2">
       <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_auto_1fr]">
         <DiffColumn
-          title="On the plan now"
+          title="Current day plan"
           count={current.length}
           empty="The date holds nothing yet."
         >
@@ -227,7 +227,7 @@ export function DayDiff({ request, replaces }: { request: DayChange; replaces: b
         </span>
 
         <DiffColumn
-          title="After approving"
+          title="Requested day plan"
           count={request.entries.length}
           empty="Nothing — approving clears the day's un-worked entries."
         >
