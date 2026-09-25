@@ -4,6 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { toastMutationError } from "@/lib/api-toast";
+import { toasterrormsg } from "@/lib/toast";
+import { errorCode, getApiErrorMessage } from "@/lib/api-error";
 import { encryptParams } from "@/lib/crypto";
 import { useFormDraft } from "@/hooks/use-form-drafts";
 import {
@@ -18,6 +20,7 @@ import {
   DISTRIBUTOR_FILE_FIELDS,
   type DistributorFormValues,
 } from "../lib/distributor-form";
+import { assignedProductErrorRow } from "../lib/assigned-products";
 import type { GeoLabels } from "@/features/location";
 import type {
   DistributorCreateInput,
@@ -124,7 +127,6 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     cityId: values.cityId,
     pincode: str(values.pincode),
     deliveryRouteId: num(values.deliveryRouteId),
-    deliveryRouteDay: optValue(values.deliveryRouteDay),
     agencyTalukaIds: values.agencyTalukaIds ?? [],
     marketType: optValue(values.marketType),
     villageIds: values.villageIds ?? [],
@@ -146,8 +148,10 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     // Business details
     otherAgencies: str(values.otherAgencies),
     similarAgencies: str(values.similarAgencies),
-    assignedProducts: str(values.assignedProducts),
-    productTargets: str(values.productTargets),
+    assignedProducts: values.assignedProducts.map((p) => ({
+      categoryId: Number(p.categoryId),
+      targetQuantity: Number(p.targetQuantity),
+    })),
     deliveryVehicle: optValue(values.deliveryVehicle),
     // The detail field is only shown (and only meaningful) when there is a
     // vehicle — drop it otherwise, so a record seeded with "no" plus an old
@@ -218,6 +222,13 @@ export function useDistributorForm(id?: string, draftId?: string) {
     draftId,
     enabled: !isEdit,
     fileFields: DISTRIBUTOR_FILE_FIELDS,
+    // Drafts saved before Assigned Products became a list hold free text there.
+    migrate: (values) => ({
+      ...values,
+      assignedProducts: Array.isArray(values.assignedProducts)
+        ? values.assignedProducts
+        : [],
+    }),
     describe: (values) => ({
       label: values.firmName?.trim() || "Untitled distributor",
       summary: [values.owners?.[0]?.name, values.owners?.[0]?.mobile, values.email]
@@ -279,11 +290,29 @@ export function useDistributorForm(id?: string, draftId?: string) {
       // A 409 is a business-rule conflict the user can act on — most commonly
       // DISTRIBUTOR_CODE_TAKEN — so surface the API's own message verbatim
       // instead of the generic retry copy.
-      const onError = (error: unknown) =>
+      const onError = (error: unknown) => {
+        // Assigned-product rule violations name a category — pin the message
+        // on that row instead of a detached toast.
+        const row = assignedProductErrorRow(error, values.assignedProducts);
+        if (row) {
+          form.setError(`assignedProducts.${row.index}.categoryId`, {
+            type: "server",
+            message: row.message,
+          });
+          scrollToFirstError();
+          return;
+        }
+        if (errorCode(error) === "CATEGORY_NOT_FOUND") {
+          toasterrormsg(
+            getApiErrorMessage(error, "One of the assigned categories no longer exists."),
+          );
+          return;
+        }
         toastMutationError(
           error,
           `Couldn't ${isEdit ? "update" : "create"} the distributor. Please try again.`,
         );
+      };
 
       if (isEdit && id) {
         updateDistributor.mutate(
@@ -347,5 +376,7 @@ export function useDistributorForm(id?: string, draftId?: string) {
     saveOnBlur,
     /** True while a draft is being resumed (`?data=` carried a draft id). */
     isRestoring,
+    /** Saved assigned products' category names (edit mode), keyed by id. */
+    assignedProductNames: detail.data?.assignedProductNames,
   };
 }

@@ -14,7 +14,7 @@ import { GeoLocationValue } from "@/components/maps/geo-location-value";
 import { cn } from "@/lib/utils";
 import { useDistributorDetail } from "../api/use-distributors";
 import { labelFor } from "../lib/distributor-reference";
-import type { DistributorStatus } from "../types";
+import type { AssignedProduct, DistributorStatus } from "../types";
 
 /** Format a 'yyyy-MM-dd' string as 'dd-MM-yyyy' (falls back to the raw value). */
 function formatDate(value: string | null) {
@@ -73,6 +73,38 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h3 className="mb-3 mt-6 border-b border-border pb-2 text-sm font-semibold text-foreground first:mt-0">
       {children}
     </h3>
+  );
+}
+
+/** Category | Target Quantity table for the distributor's assigned products. */
+function AssignedProductsTable({ rows }: { rows: AssignedProduct[] }) {
+  return (
+    <div className="mt-1 overflow-hidden rounded-lg border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 text-left font-medium">Category</th>
+            <th className="px-3 py-2 text-right font-medium">Target Quantity</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((p) => (
+            <tr key={p.categoryId}>
+              <td className="px-3 py-2">
+                {p.categoryName ?? (
+                  <span className="text-muted-foreground">
+                    Deleted category (#{p.categoryId})
+                  </span>
+                )}
+              </td>
+              <td className="px-3 py-2 text-right tabular-nums">
+                {p.targetQuantity.toLocaleString("en-IN")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -279,10 +311,6 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field label="Taluka" value={data.talukaName} />
                 <Field label="Pincode" value={data.pincode} />
                 <Field label="Delivery Route" value={data.deliveryRoute} />
-                <Field
-                  label="Delivery Day"
-                  value={data.deliveryRouteDay ? labelFor(data.deliveryRouteDay) : null}
-                />
                 <Field label="Weekly Off" value={data.weeklyOff} />
                 <Field
                   label="Market Type"
@@ -318,12 +346,11 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 />
                 <Field
                   label="Assigned Products"
-                  value={data.assignedProducts}
-                  wide
-                />
-                <Field
-                  label="Target Per Product"
-                  value={data.productTargets}
+                  value={
+                    data.assignedProducts.length > 0 ? (
+                      <AssignedProductsTable rows={data.assignedProducts} />
+                    ) : null
+                  }
                   wide
                 />
                 <Field

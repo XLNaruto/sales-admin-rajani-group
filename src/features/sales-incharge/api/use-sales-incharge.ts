@@ -212,8 +212,6 @@ const SALESMEN: Salesman[] = [
     alternateMobile: "9820011001",
     dateOfJoining: "2024-06-12",
     email: "ramesh@rajanigroup.com",
-    basicSalary: 42000,
-    allowance: 8000,
     designation: "Area Sales Manager",
     ...bank(
       "Ramesh Yadav",
@@ -233,8 +231,6 @@ const SALESMEN: Salesman[] = [
     mobile: "9876500104",
     dateOfJoining: "2024-08-01",
     email: "suresh@rajanigroup.com",
-    basicSalary: 38000,
-    allowance: 7000,
     designation: "Senior Sales Officer",
     ...bank(
       "Suresh Patil",
@@ -255,8 +251,6 @@ const SALESMEN: Salesman[] = [
     dateOfJoining: "2023-11-20",
     dateOfExit: "2025-03-31",
     email: "anita@rajanigroup.com",
-    basicSalary: 36000,
-    allowance: 6000,
     designation: "Sales Officer",
     ...bank(
       "Anita Deshmukh",
@@ -276,8 +270,6 @@ const SALESMEN: Salesman[] = [
     mobile: "9876500112",
     dateOfJoining: "2025-01-15",
     email: "vikram@rajanigroup.com",
-    basicSalary: 40000,
-    allowance: 9000,
     designation: "Area Sales Manager",
     ...bank(
       "Vikram Chauhan",
@@ -297,8 +289,6 @@ const SALESMEN: Salesman[] = [
     mobile: "9876500115",
     dateOfJoining: "2025-03-03",
     email: "pooja@rajanigroup.com",
-    basicSalary: 39000,
-    allowance: 7500,
     designation: "Senior Sales Officer",
     ...bank(
       "Pooja Nair",
@@ -319,8 +309,6 @@ const SALESMEN: Salesman[] = [
     dateOfJoining: "2023-09-10",
     dateOfExit: "2024-12-31",
     email: "karan@rajanigroup.com",
-    basicSalary: 35000,
-    allowance: 5000,
     designation: "Sales Officer",
     ...bank(
       "Karan Mehta",
@@ -340,8 +328,6 @@ const SALESMEN: Salesman[] = [
     mobile: "9876500122",
     dateOfJoining: "2024-02-18",
     email: "deepa@rajanigroup.com",
-    basicSalary: 41000,
-    allowance: 8500,
     designation: "Regional Sales Manager",
     ...bank(
       "Deepa Iyer",
@@ -361,8 +347,6 @@ const SALESMEN: Salesman[] = [
     mobile: "9876500126",
     dateOfJoining: "2024-05-22",
     email: "arjun@rajanigroup.com",
-    basicSalary: 43000,
-    allowance: 9500,
     designation: "Area Sales Manager",
     ...bank(
       "Arjun Reddy",

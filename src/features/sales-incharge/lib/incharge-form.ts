@@ -1,5 +1,4 @@
 import { z } from 'zod'
-import { requiredAmount } from '@/lib/validation'
 
 const phone = (msg = 'Enter a valid 10-digit number') => z.string().regex(/^\d{10}$/, msg)
 
@@ -25,9 +24,6 @@ export const salesInchargeSchema = z
     dateOfJoining: z.string().min(1, 'Select date of joining'),
     dateOfExit: z.string().optional(),
     email: z.string().email('Enter a valid email'),
-    // Money fields carry the API's amount limit (12 figures, 2 after the point).
-    basicSalary: requiredAmount('Enter the basic salary'),
-    allowance: requiredAmount('Enter the allowance'),
     // Display-only: there's no designations master to resolve an id from, so a
     // selected value isn't sent; the record's existing designation is preserved.
     designation: z.string().optional(),
@@ -83,8 +79,6 @@ export const salesInchargeDefaults: Partial<SalesInchargeFormValues> = {
   dateOfJoining: '',
   dateOfExit: '',
   email: '',
-  basicSalary: '',
-  allowance: '',
   designation: '',
   profilePhoto: undefined,
   bankAccountName: '',

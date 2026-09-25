@@ -134,6 +134,14 @@ export const endpoints = {
   ROUTE: {
     LIST: '/sales-incharge-admin/routes',
   },
+  /**
+   * Product categories of the admin's currently selected company. Read-only
+   * here — only the distributor form's "Assigned Products" picker uses it, with
+   * `type=parent` for the main (root) categories.
+   */
+  CATEGORY: {
+    LIST: '/sales-incharge-admin/categories',
+  },
   /** Beats — the ordered route a salesman covers (name/grade/city/distributor). */
   BEAT: {
     LIST: '/sales-incharge-admin/beats',

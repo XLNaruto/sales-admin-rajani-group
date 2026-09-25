@@ -67,6 +67,28 @@ export const distributorOwnerSchema = z
 
 export type DistributorOwnerValues = z.infer<typeof distributorOwnerSchema>
 
+/**
+ * One "Assigned Products" row: a main category (stringified id, like every
+ * select value) plus its target in whole units — not rupees.
+ */
+export const assignedProductSchema = z.object({
+  categoryId: z.string().min(1, 'Select a main category'),
+  targetQuantity: z
+    .string()
+    .trim()
+    .min(1, 'Enter the target quantity')
+    .regex(/^\d+$/, 'Enter a whole number (0 or more)')
+    .refine((v) => Number.isSafeInteger(Number(v)), 'Enter a smaller number'),
+})
+
+export type AssignedProductValues = z.infer<typeof assignedProductSchema>
+
+/** A blank row, appended by "Add product". */
+export const EMPTY_ASSIGNED_PRODUCT: AssignedProductValues = {
+  categoryId: '',
+  targetQuantity: '',
+}
+
 export const distributorSchema = z.object({
   // --- Firm & owner details ---
   firmName: z.string().min(2, "Enter the firm's name"),
@@ -109,19 +131,6 @@ export const distributorSchema = z.object({
   // Id of a row in the route master (GET /routes), stringified like every other
   // select value; sent as `delivery_route_id`.
   deliveryRouteId: z.string().optional(),
-  // Weekday the distributor is served on that route (the API's enum).
-  deliveryRouteDay: optEnum(
-    [
-      'sunday',
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-    ],
-    'Choose a delivery day from the list',
-  ),
   agencyTalukaIds: z.array(z.string()).optional(),
   marketType: optEnum(
     ['local', 'rural', 'local_rural', 'counter_sales'],
@@ -144,8 +153,22 @@ export const distributorSchema = z.object({
   // --- Business details ---
   otherAgencies: z.string().optional(),
   similarAgencies: z.string().optional(),
-  assignedProducts: z.string().optional(),
-  productTargets: z.string().optional(),
+  // Main categories with unit targets. The API replaces the whole list on every
+  // save, so it's always sent complete; each category may appear only once.
+  assignedProducts: z.array(assignedProductSchema).superRefine((rows, ctx) => {
+    const seen = new Set<string>()
+    rows.forEach((row, i) => {
+      if (!row.categoryId) return
+      if (seen.has(row.categoryId)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'This category is already assigned',
+          path: [i, 'categoryId'],
+        })
+      }
+      seen.add(row.categoryId)
+    })
+  }),
   deliveryVehicle: optEnum(['yes', 'no'], 'Choose Yes or No'),
   deliveryVehicleDetail: z.string().optional(),
   godownSize: optNum('Enter a valid size'),
@@ -191,7 +214,6 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   cityId: '',
   pincode: '',
   deliveryRouteId: '',
-  deliveryRouteDay: '',
   agencyTalukaIds: [],
   villageIds: [],
   retailersLocal: '',
@@ -202,8 +224,7 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   godownImages: [],
   otherAgencies: '',
   similarAgencies: '',
-  assignedProducts: '',
-  productTargets: '',
+  assignedProducts: [],
   deliveryVehicleDetail: '',
   godownSize: '',
   yearOfEst: '',

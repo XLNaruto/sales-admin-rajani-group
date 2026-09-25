@@ -73,6 +73,15 @@ export const distributorListResponseSchema = z.object({
 export type DistributorRow = z.infer<typeof distributorRowSchema>
 export type DistributorListResponse = z.infer<typeof distributorListResponseSchema>
 
+/** One `assigned_products[]` item: a main category plus its unit target. */
+export const assignedProductSchema = z.object({
+  category_id: z.number(),
+  category_name: z.string().nullish(),
+  target_quantity: z.number(),
+})
+
+export type AssignedProductRow = z.infer<typeof assignedProductSchema>
+
 /**
  * A full distributor record from GET /sales-incharge-admin/distributors/{id}.
  * Every field the create/update body accepts comes back here so the edit form
@@ -106,7 +115,6 @@ export const distributorDetailSchema = z.object({
   pincode: z.string().nullish(),
   delivery_route_id: z.number().nullish(),
   delivery_route_name: z.string().nullish(),
-  delivery_route_day: z.string().nullish(),
   taluka_of_agency_ids: z.array(z.number()).nullish(),
   market_type: z.string().nullish(),
   village_ids: z.array(z.number()).nullish(),
@@ -123,8 +131,9 @@ export const distributorDetailSchema = z.object({
   godown_image_paths: z.array(z.string()).nullish(),
   other_agencies_details: z.string().nullish(),
   similar_category_agencies: z.string().nullish(),
-  assigned_products: z.string().nullish(),
-  target_per_product: z.string().nullish(),
+  // Main categories assigned to the distributor, each with a unit target.
+  // Sorted by category_id; `category_name` is null if the category was deleted.
+  assigned_products: z.array(assignedProductSchema).nullish(),
   delivery_vehicle: z.boolean().nullish(),
   delivery_vehicle_detail: z.string().nullish(),
   godown_size_sqft: z.number().nullish(),
@@ -160,6 +169,8 @@ export const distributorCompaniesResponseSchema = z.object({
   id: z.union([z.number(), z.string()]).transform(String),
   company_id: z.array(z.union([z.number(), z.string()])).nullish(),
   company_names: z.array(z.string()).nullish(),
+  // The server drops assigned products whose category belongs to a removed company.
+  assigned_products: z.array(assignedProductSchema).nullish(),
 })
 
 /**

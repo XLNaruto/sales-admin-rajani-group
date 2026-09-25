@@ -369,25 +369,6 @@ export function SalesInchargeCreatePage({
             />
           </Field>
 
-          <Field label="Salary — Basic (₹)" error={errors.basicSalary?.message}>
-            <Input
-              inputMode="decimal"
-              placeholder="e.g. 40000"
-              {...register("basicSalary")}
-            />
-          </Field>
-
-          <Field
-            label="Salary — Allowance (₹)"
-            error={errors.allowance?.message}
-          >
-            <Input
-              inputMode="decimal"
-              placeholder="e.g. 10000"
-              {...register("allowance")}
-            />
-          </Field>
-
           <Field
             label="Address"
             error={errors.address?.message}
@@ -404,7 +385,7 @@ export function SalesInchargeCreatePage({
             <FormSection
               icon={Landmark}
               title="Bank Details"
-              description="Salary account for payouts."
+              description="Account for payouts."
               className="mb-4"
             />
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">

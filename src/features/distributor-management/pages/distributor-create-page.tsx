@@ -12,6 +12,7 @@ import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "@/components/common/file-input";
 import { IfscInput } from "@/components/common/ifsc-input";
 import { OwnerPartnersField } from "../components/owner-partners-field";
+import { AssignedProductsField } from "../components/assigned-products-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
 import { DISTRIBUTOR_DRAFT_KEY } from "../lib/distributor-form";
 import { useCompanies, useRedirectOnCompanySwitch } from "@/features/company";
@@ -27,7 +28,6 @@ import {
   useZoneSelect,
 } from "@/features/location";
 import {
-  DELIVERY_DAYS,
   FIRM_TYPES,
   MARKET_SYSTEMS,
   MARKET_TYPES,
@@ -78,6 +78,7 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
     isPending,
     isLoading,
     isError,
+    assignedProductNames,
     goBack,
     saveOnBlur,
     isRestoring,
@@ -585,26 +586,6 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           </Field>
 
           <Field
-            label="Delivery Day"
-            optional
-            error={errors.deliveryRouteDay?.message}
-          >
-            <Controller
-              control={control}
-              name="deliveryRouteDay"
-              render={({ field }) => (
-                <Combobox
-                  value={field.value ?? ""}
-                  onChange={field.onChange}
-                  options={DELIVERY_DAYS}
-                  placeholder="Select…"
-                  searchable={false}
-                />
-              )}
-            />
-          </Field>
-
-          <Field
             label="Taluka Of Agency"
             optional
             error={errors.agencyTalukaIds?.message}
@@ -837,31 +818,11 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
-          <Field
-            label="Assigned Rajani Products"
-            optional
-            error={errors.assignedProducts?.message}
-          >
-            <textarea
-              rows={2}
-              placeholder="Assigned Rajani Products"
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
-              {...register("assignedProducts")}
-            />
-          </Field>
-
-          <Field
-            label="Target Of Every Product"
-            optional
-            error={errors.productTargets?.message}
-          >
-            <textarea
-              rows={2}
-              placeholder="Target Of Every Product"
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-ring/40 focus:ring-1 focus:ring-ring"
-              {...register("productTargets")}
-            />
-          </Field>
+          <AssignedProductsField
+            control={control}
+            errors={errors}
+            savedNames={assignedProductNames}
+          />
 
           <Field
             label="Delivery Vehicle"

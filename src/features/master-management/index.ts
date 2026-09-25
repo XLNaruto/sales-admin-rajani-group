@@ -7,3 +7,4 @@
 export * from './outlet-types'
 export * from './payment-conditions'
 export * from './routes'
+export * from './categories'

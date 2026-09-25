@@ -25,14 +25,6 @@ function formatDate(value: string | null) {
   }
 }
 
-/** Format a numeric money string as '₹ 1,234' (falls back to the raw value). */
-function formatMoney(value: string | null) {
-  if (value == null || value.trim() === "") return "N/A";
-  const n = Number(value);
-  if (!Number.isFinite(n)) return value;
-  return `₹ ${n.toLocaleString("en-IN")}`;
-}
-
 const STATUS_STYLES: Record<SalesInchargeStatus, string> = {
   active:
     "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -193,12 +185,6 @@ export function SalesInchargeDetailDialog({ id, onClose }: Props) {
                 label="Marriage Anniversary"
                 value={formatDate(data.marriageAnniversary)}
               />
-            </dl>
-
-            <SectionTitle>Compensation</SectionTitle>
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-              <Field label="Basic Salary" value={formatMoney(data.basicSalary)} />
-              <Field label="Allowance" value={formatMoney(data.allowance)} />
             </dl>
 
             <SectionTitle>Bank</SectionTitle>

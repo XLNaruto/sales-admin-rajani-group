@@ -12,8 +12,6 @@ export interface Salesman {
   dateOfJoining: string
   dateOfExit?: string
   email: string
-  basicSalary: number
-  allowance: number
   designation: string
   photoUrl?: string
   bankAccountName: string
@@ -108,9 +106,6 @@ export interface SalesInchargeDetailView {
   marriageAnniversary: string | null
   dateOfJoining: string | null
   dateOfExit: string | null
-  basicSalary: string | null
-  allowance: string | null
-  salary: string | null
   bankAccountName: string | null
   bankAccountNumber: string | null
   bankIfsc: string | null
@@ -171,7 +166,6 @@ export interface SalesInchargePreservedFields {
   designationId: number | null
   reportsTo: number | null
   territory: string | null
-  salary: string | null
 }
 
 /**

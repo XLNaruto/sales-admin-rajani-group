@@ -12,15 +12,6 @@ export type FirmType = 'proprietorship' | 'partnership' | 'company'
 export type YesNo = 'yes' | 'no'
 export type DistributorMarketType = 'local' | 'rural' | 'local_rural' | 'counter_sales'
 export type MarketSystem = 'ready_stock' | 'booking'
-/** Weekday a distributor is served on its delivery route (the API's enum). */
-export type DeliveryRouteDay =
-  | 'sunday'
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
 /**
  * The payment terms a distributor trades on: the id of a row in the
  * payment-condition master (`@/features/master-management`). Not an enum — the
@@ -33,6 +24,21 @@ export type PaymentConditionId = number
  * 20 (see the `owners` array on POST/PATCH /distributors); the whole list is
  * replaced on every save. Dates are 'yyyy-MM-dd' strings.
  */
+/** One assigned product in a create/update request: a main category + unit target. */
+export interface AssignedProductInput {
+  categoryId: number
+  /** Whole units (not rupees), >= 0. */
+  targetQuantity: number
+}
+
+/** One assigned product as the API returns it (sorted by category id). */
+export interface AssignedProduct {
+  categoryId: number
+  /** Resolved category name; null if the category has since been deleted. */
+  categoryName: string | null
+  targetQuantity: number
+}
+
 export interface DistributorOwner {
   name: string
   mobile: string
@@ -74,8 +80,6 @@ export interface Distributor {
   pincode?: string
   /** Id of a row in the route master (`delivery_route_id`). */
   deliveryRouteId?: number
-  /** Weekday served on that route. */
-  deliveryRouteDay?: DeliveryRouteDay
   agencyTalukaIds?: string[]
   marketType?: DistributorMarketType
   villageIds?: string[]
@@ -90,8 +94,6 @@ export interface Distributor {
   // --- Business details ---
   otherAgencies?: string
   similarAgencies?: string
-  assignedProducts?: string
-  productTargets?: string
   deliveryVehicle?: YesNo
   deliveryVehicleDetail?: string
   godownSize?: number
@@ -146,8 +148,6 @@ export interface DistributorCreateInput {
   pincode?: string
   /** Id of a row in the route master; sent as `delivery_route_id`. */
   deliveryRouteId?: number
-  /** Weekday served on that route; sent as `delivery_route_day`. */
-  deliveryRouteDay?: DeliveryRouteDay
   agencyTalukaIds?: string[]
   marketType?: DistributorMarketType
   villageIds?: string[]
@@ -162,8 +162,8 @@ export interface DistributorCreateInput {
   // --- Business details ---
   otherAgencies?: string
   similarAgencies?: string
-  assignedProducts?: string
-  productTargets?: string
+  /** Main categories with unit targets — always sent in full (the API replaces the list). */
+  assignedProducts: AssignedProductInput[]
   deliveryVehicle?: YesNo
   deliveryVehicleDetail?: string
   godownSize?: number
@@ -246,7 +246,6 @@ export interface DistributorDetailView {
   deliveryRouteId: number | null
   /** Route display name resolved by the API (`delivery_route_name`). */
   deliveryRoute: string | null
-  deliveryRouteDay: string | null
   marketType: string | null
   marketSystem: string | null
   weeklyOff: string | null
@@ -259,8 +258,7 @@ export interface DistributorDetailView {
   // --- Business details ---
   otherAgencies: string | null
   similarAgencies: string | null
-  assignedProducts: string | null
-  productTargets: string | null
+  assignedProducts: AssignedProduct[]
   deliveryVehicle: boolean | null
   deliveryVehicleDetail: string | null
   godownSize: number | null

@@ -81,11 +81,17 @@ export function DistributorCompanyMappingDialog({
     update.mutate(
       { id: distributor.id, companyIds: selected },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          // The server drops assigned products of removed companies; the
+          // detail/list queries are invalidated, so only the count is echoed.
+          const kept = result.assignedProducts.length;
           toast.success(
             selected.length
               ? `Company mapping updated for ${distributor.firmName}`
               : `Company mapping cleared for ${distributor.firmName}`,
+            {
+              description: `${kept} assigned ${kept === 1 ? "product" : "products"} remain.`,
+            },
           );
           onClose();
         },
@@ -132,7 +138,7 @@ export function DistributorCompanyMappingDialog({
           <Field
             label="Company"
             optional
-            hint="Saving replaces the current mapping. Clear every company to detach the firm."
+            hint="Saving replaces the current mapping — assigned products of a removed company are removed too. Clear every company to detach the firm."
           >
             <MultiSelect
               value={selected}

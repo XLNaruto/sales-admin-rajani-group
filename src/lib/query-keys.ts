@@ -115,6 +115,9 @@ export const queryKeys = {
     /** GET /routes — the route master (dropdown source). */
     routes: (filters?: Record<string, unknown>) =>
       [...queryKeys.masters.all, 'routes', filters ?? {}] as const,
+    /** GET /categories — the category master (assigned-products picker). */
+    categories: (filters?: Record<string, unknown>) =>
+      [...queryKeys.masters.all, 'categories', filters ?? {}] as const,
   },
   salesIncharge: {
     all: ['sales-incharge'] as const,

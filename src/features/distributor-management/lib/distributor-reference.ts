@@ -42,17 +42,6 @@ export const DISTRIBUTOR_STATUSES: ComboboxOption[] = [
   { value: 'suspended', label: 'Suspended' },
 ]
 
-/** Sunday → Saturday, the days a delivery route can run on. */
-export const DELIVERY_DAYS: ComboboxOption[] = [
-  { value: 'sunday', label: 'Sunday' },
-  { value: 'monday', label: 'Monday' },
-  { value: 'tuesday', label: 'Tuesday' },
-  { value: 'wednesday', label: 'Wednesday' },
-  { value: 'thursday', label: 'Thursday' },
-  { value: 'friday', label: 'Friday' },
-  { value: 'saturday', label: 'Saturday' },
-]
-
 export const WEEKLY_OFF_DAYS: ComboboxOption[] = [
   { value: 'none', label: 'None' },
   { value: 'monday', label: 'Monday' },

@@ -8,6 +8,7 @@ import {
   distributorListResponseSchema,
   distributorCompaniesResponseSchema,
   distributorOptionsResponseSchema,
+  type AssignedProductRow,
   type DistributorOwnerRow,
   type DistributorRow,
 } from '../schemas'
@@ -15,6 +16,7 @@ import type { GeoLabels } from '@/features/location'
 import type { DistributorFormValues } from '../lib/distributor-form'
 import { joinLatLng, splitLatLng } from '../lib/distributor-reference'
 import type {
+  AssignedProduct,
   Distributor,
   DistributorCreateInput,
   DistributorDetailView,
@@ -30,9 +32,19 @@ import type {
   DistributorStatus,
   DistributorUpdateInput,
   FirmType,
-  DeliveryRouteDay,
   MarketSystem,
 } from '../types'
+
+/** Map the API's `assigned_products[]` rows to the client-facing list. */
+function toAssignedProducts(
+  rows: AssignedProductRow[] | null | undefined,
+): AssignedProduct[] {
+  return (rows ?? []).map((p) => ({
+    categoryId: p.category_id,
+    categoryName: p.category_name ?? null,
+    targetQuantity: p.target_quantity,
+  }))
+}
 
 /** Map the API's `owners[]` rows to the client-facing (camelCase) owner list. */
 function toOwners(rows: DistributorOwnerRow[] | null | undefined): DistributorOwner[] {
@@ -258,7 +270,6 @@ function buildScalarBody(input: DistributorCreateInput) {
     city_id: toId(input.cityId),
     pincode: str(input.pincode),
     delivery_route_id: input.deliveryRouteId,
-    delivery_route_day: str(input.deliveryRouteDay),
     taluka_of_agency_ids: (input.agencyTalukaIds ?? [])
       .map(toId)
       .filter((n): n is number | string => n != null),
@@ -273,8 +284,11 @@ function buildScalarBody(input: DistributorCreateInput) {
     ...geoFields(input.geoLocation),
     other_agencies_details: str(input.otherAgencies),
     similar_category_agencies: str(input.similarAgencies),
-    assigned_products: str(input.assignedProducts),
-    target_per_product: str(input.productTargets),
+    // Always sent in full: the edit is a full replace, so omitting it would wipe the list.
+    assigned_products: input.assignedProducts.map((p) => ({
+      category_id: p.categoryId,
+      target_quantity: p.targetQuantity,
+    })),
     delivery_vehicle: input.deliveryVehicle === 'yes',
     delivery_vehicle_detail: str(input.deliveryVehicleDetail),
     godown_size_sqft: input.godownSize,
@@ -332,6 +346,8 @@ export async function fetchDistributor(id: string): Promise<{
    * option — the form shows these until the real option lands.
    */
   geoLabels: GeoLabels
+  /** Saved assigned products' category names, keyed by (stringified) id. */
+  assignedProductNames: Record<string, string>
 }> {
   try {
     const raw = await http.get<unknown>(endpoints.DISTRIBUTOR.GET(id))
@@ -363,7 +379,6 @@ export async function fetchDistributor(id: string): Promise<{
       cityId: idStr(r.city_id),
       pincode: r.pincode ?? '',
       deliveryRouteId: idStr(r.delivery_route_id),
-      deliveryRouteDay: (r.delivery_route_day ?? '') as DeliveryRouteDay | '',
       agencyTalukaIds: (r.taluka_of_agency_ids ?? []).map(String),
       marketType: (r.market_type ?? undefined) as DistributorMarketType | undefined,
       villageIds: (r.village_ids ?? []).map(String),
@@ -376,8 +391,10 @@ export async function fetchDistributor(id: string): Promise<{
       godownImages: [],
       otherAgencies: r.other_agencies_details ?? '',
       similarAgencies: r.similar_category_agencies ?? '',
-      assignedProducts: r.assigned_products ?? '',
-      productTargets: r.target_per_product ?? '',
+      assignedProducts: (r.assigned_products ?? []).map((p) => ({
+        categoryId: String(p.category_id),
+        targetQuantity: String(p.target_quantity),
+      })),
       deliveryVehicle: r.delivery_vehicle == null ? undefined : r.delivery_vehicle ? 'yes' : 'no',
       deliveryVehicleDetail: r.delivery_vehicle_detail ?? '',
       godownSize: r.godown_size_sqft != null ? String(r.godown_size_sqft) : '',
@@ -408,7 +425,11 @@ export async function fetchDistributor(id: string): Promise<{
       talukaId: r.taluka_name ?? undefined,
       cityId: r.city_name ?? undefined,
     }
-    return { id: r.id, values, existing, geoLabels }
+    const assignedProductNames: Record<string, string> = {}
+    for (const p of r.assigned_products ?? []) {
+      if (p.category_name) assignedProductNames[String(p.category_id)] = p.category_name
+    }
+    return { id: r.id, values, existing, geoLabels, assignedProductNames }
   } catch (error) {
     throw asApiError(error, 'Failed to load the distributor.')
   }
@@ -452,7 +473,6 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       pincode: r.pincode ?? null,
       deliveryRouteId: r.delivery_route_id ?? null,
       deliveryRoute: r.delivery_route_name ?? null,
-      deliveryRouteDay: r.delivery_route_day ?? null,
       marketType: r.market_type ?? null,
       marketSystem: r.market_system ?? null,
       weeklyOff: r.weekly_off ?? null,
@@ -464,8 +484,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
 
       otherAgencies: r.other_agencies_details ?? null,
       similarAgencies: r.similar_category_agencies ?? null,
-      assignedProducts: r.assigned_products ?? null,
-      productTargets: r.target_per_product ?? null,
+      assignedProducts: toAssignedProducts(r.assigned_products),
       deliveryVehicle: r.delivery_vehicle ?? null,
       deliveryVehicleDetail: r.delivery_vehicle_detail ?? null,
       godownSize: r.godown_size_sqft ?? null,
@@ -527,13 +546,14 @@ export async function deleteDistributor(id: string): Promise<void> {
 /**
  * PATCH /sales-incharge-admin/distributors/{id}/companies — company mapping.
  * The body carries the *complete* new set of company ids: it replaces whatever
- * was attached before, and `[]` clears the mapping entirely. Returns the
- * mapping as the server stored it (ids + resolved names).
+ * was attached before, and `[]` clears the mapping entirely. The server also
+ * drops assigned products whose category belongs to a removed company. Returns
+ * the mapping and the surviving assigned products as the server stored them.
  */
 export async function updateDistributorCompanies(
   id: string,
   companyIds: string[],
-): Promise<{ ids: string[]; names: string[] }> {
+): Promise<{ ids: string[]; names: string[]; assignedProducts: AssignedProduct[] }> {
   try {
     const raw = await http.patch<unknown>(endpoints.DISTRIBUTOR.COMPANIES(id), {
       company_id: companyIds.map(Number).filter((n) => Number.isFinite(n)),
@@ -542,6 +562,7 @@ export async function updateDistributorCompanies(
     return {
       ids: res.company_id?.map(String) ?? [],
       names: res.company_names ?? [],
+      assignedProducts: toAssignedProducts(res.assigned_products),
     }
   } catch (error) {
     throw asApiError(error, 'Failed to update the company mapping.')

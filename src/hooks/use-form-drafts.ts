@@ -68,6 +68,11 @@ interface UseFormDraftOptions<V extends FieldValues> {
   enabled?: boolean
   /** Names of the `File` fields, so they're persisted alongside the values. */
   fileFields?: string[]
+  /**
+   * Upgrades a stored draft's values before they're restored — for fields whose
+   * shape changed since older drafts were written.
+   */
+  migrate?: (values: Partial<V>) => Partial<V>
   /** Builds the two lines shown for this draft in the list. */
   describe: (values: V) => { label: string; summary: string }
   /**
@@ -115,6 +120,7 @@ export function useFormDraft<V extends FieldValues>({
   fileFields = [],
   describe,
   onCreated,
+  migrate,
 }: UseFormDraftOptions<V>) {
   const queryClient = useQueryClient()
 
@@ -131,8 +137,8 @@ export function useFormDraft<V extends FieldValues>({
 
   // Options are read inside a stable callback — hold them in refs so a new
   // inline `describe`/`onCreated` on each render doesn't rebuild the handler.
-  const optionsRef = useRef({ describe, onCreated, fileFields, enabled })
-  optionsRef.current = { describe, onCreated, fileFields, enabled }
+  const optionsRef = useRef({ describe, onCreated, fileFields, enabled, migrate })
+  optionsRef.current = { describe, onCreated, fileFields, enabled, migrate }
 
   // Saves are serialized. Two quick blurs would otherwise both read the bucket
   // and the slower write would clobber the faster one.
@@ -161,7 +167,10 @@ export function useFormDraft<V extends FieldValues>({
         if (!active) return
         // Merge over the defaults so a field added since the draft was written
         // keeps its default instead of arriving undefined.
-        if (draft) form.reset({ ...form.getValues(), ...draft.values })
+        if (!draft) return
+        const { migrate } = optionsRef.current
+        const values = migrate ? migrate(draft.values) : draft.values
+        form.reset({ ...form.getValues(), ...values })
       })
       // Deliberately NOT gated on `active`: under StrictMode the first pass is
       // torn down immediately, and skipping this would leave the page stuck on

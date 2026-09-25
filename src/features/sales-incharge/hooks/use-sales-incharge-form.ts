@@ -225,5 +225,4 @@ const EMPTY_PRESERVED: SalesInchargePreservedFields = {
   designationId: null,
   reportsTo: null,
   territory: null,
-  salary: null,
 };
