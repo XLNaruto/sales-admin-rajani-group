@@ -23,12 +23,18 @@ export interface ProfileEditRequest {
    * acts on — and optional on an approval.
    */
   reviewReason: string | null
-  salesInchargeId: number
-  /** Null if the rep has since been removed. */
-  salesInchargeName: string | null
-  salesInchargePhone: string | null
-  employeeCode: string | null
+  /** Who raised it — drives which record the admin corrects. */
+  requesterType: ProfileEditRequesterType
+  /** Sales incharge id or distributor id, per `requesterType`. */
+  requesterId: number | null
+  /** Null if the requester has since been removed. */
+  requesterName: string | null
+  requesterPhone: string | null
+  /** Employee code (sales incharge) or distributor code. */
+  requesterCode: string | null
 }
+
+export type ProfileEditRequesterType = 'sales_incharge' | 'distributor'
 
 /**
  * Query params accepted by the profile-edit-request list endpoint (camelCase).

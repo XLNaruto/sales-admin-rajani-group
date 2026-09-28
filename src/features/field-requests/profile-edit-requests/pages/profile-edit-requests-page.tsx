@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { format, parseISO } from 'date-fns'
-import { Check, Eye, IdCard, Phone, UserPen, UserRound, X } from 'lucide-react'
+import { Check, Eye, UserPen, X } from 'lucide-react'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
@@ -11,6 +11,7 @@ import { isForbiddenError } from '@/lib/api-error'
 import { Forbidden } from '@/features/error'
 import { useCan } from '@/features/permissions'
 import { ProfileEditRequestDetailDialog } from '../components/profile-edit-request-detail-dialog'
+import { ProfileEditRequester } from '../components/profile-edit-requester'
 import { ProfileEditRequestToolbar } from '../components/profile-edit-request-toolbar'
 import { useProfileEditRequestsList } from '../hooks/use-profile-edit-requests-list'
 import type { ProfileEditRequest } from '../types'
@@ -140,41 +141,13 @@ export function ProfileEditRequestsPage() {
         },
       },
       {
-        id: 'salesIncharge',
-        header: 'Sales Incharge',
+        id: 'requester',
+        header: 'Requested By',
         enableSorting: false,
         // Headers here are multi-word; without a floor the browser hands each
         // column its content width and breaks the label over two lines.
         meta: { className: 'min-w-64 whitespace-nowrap' },
-        cell: ({ row }) => {
-          const { salesInchargeName, employeeCode, salesInchargePhone } = row.original
-          return (
-            <div className="flex items-center gap-3">
-              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-                <UserRound className="size-4.5" />
-              </span>
-              <div className="min-w-0">
-                <p className="truncate font-medium text-foreground">
-                  {/* Null once the rep has been removed — the request outlives him. */}
-                  {salesInchargeName ?? 'Removed sales incharge'}
-                </p>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-                  {employeeCode ? (
-                    <span className="inline-flex items-center gap-1">
-                      <IdCard className="size-3.5" />#{employeeCode}
-                    </span>
-                  ) : null}
-                  {salesInchargePhone ? (
-                    <span className="inline-flex items-center gap-1 tabular-nums">
-                      <Phone className="size-3.5" />
-                      {salesInchargePhone}
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-          )
-        },
+        cell: ({ row }) => <ProfileEditRequester request={row.original} />,
       },
       {
         accessorKey: 'message',
@@ -299,7 +272,7 @@ export function ProfileEditRequestsPage() {
             <>
               This records that you'll make the change —{' '}
               <span className="font-medium text-foreground">
-                {pendingApprove.salesInchargeName ?? 'the rep'}
+                {pendingApprove.requesterName ?? 'the requester'}
               </span>
               's record is not edited for you. It also frees him to raise his next
               request.

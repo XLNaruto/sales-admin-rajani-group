@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { format, parseISO } from 'date-fns'
-import { Check, IdCard, Phone, UserRound, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { StatusBadge } from '@/components/common/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -15,6 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { useProfileEditRequest } from '../api/use-profile-edit-requests'
 import type { ProfileEditRequest } from '../types'
+import { ProfileEditRequester } from './profile-edit-requester'
 
 /** An ISO-8601 timestamp as "25 Jun 2026, 03:10 AM". */
 function stampLabel(iso: string | null): string {
@@ -97,29 +98,7 @@ export function ProfileEditRequestDetailDialog({
         ) : !view ? null : (
           <div className="space-y-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-                  <UserRound className="size-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">
-                    {view.salesInchargeName ?? 'Removed sales incharge'}
-                  </p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                    {view.employeeCode ? (
-                      <span className="inline-flex items-center gap-1">
-                        <IdCard className="size-3.5" />#{view.employeeCode}
-                      </span>
-                    ) : null}
-                    {view.salesInchargePhone ? (
-                      <span className="inline-flex items-center gap-1 tabular-nums">
-                        <Phone className="size-3.5" />
-                        {view.salesInchargePhone}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <ProfileEditRequester request={view} size="lg" />
               {/* A stale badge here would be the one thing worth getting wrong,
                   so it waits for the re-read rather than showing the row's. */}
               {isLoading && !data ? (

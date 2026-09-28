@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
-import { ArrowLeft, Check, IdCard, Phone, UserRound, X } from 'lucide-react'
+import { ArrowLeft, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/common/confirm-dialog'
 import { PageHeader } from '@/components/common/page-header'
@@ -17,6 +17,7 @@ import {
   useProfileEditRequest,
   useReviewProfileEditRequest,
 } from '../api/use-profile-edit-requests'
+import { ProfileEditRequester } from '../components/profile-edit-requester'
 
 /** An ISO-8601 timestamp as "25 Jun 2026, 03:10 AM". */
 function stampLabel(iso: string | null): string {
@@ -143,30 +144,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
         ) : (
           <div className="space-y-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid size-11 shrink-0 place-items-center rounded-full bg-blue-600/10 text-blue-600 dark:text-blue-400">
-                  <UserRound className="size-5" />
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">
-                    {/* Null once the rep has been removed — the request outlives him. */}
-                    {request.salesInchargeName ?? 'Removed sales incharge'}
-                  </p>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                    {request.employeeCode ? (
-                      <span className="inline-flex items-center gap-1">
-                        <IdCard className="size-3.5" />#{request.employeeCode}
-                      </span>
-                    ) : null}
-                    {request.salesInchargePhone ? (
-                      <span className="inline-flex items-center gap-1 tabular-nums">
-                        <Phone className="size-3.5" />
-                        {request.salesInchargePhone}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
+              <ProfileEditRequester request={request} size="lg" />
               <StatusBadge status={request.status} />
             </div>
 
