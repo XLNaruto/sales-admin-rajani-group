@@ -151,7 +151,7 @@ export function useProfileEditRequestsList() {
       {
         onSuccess: () => {
           toast.success(
-            'Request approved — now make the correction on the sales incharge record.',
+            'Request approved — now make the correction on their record.',
           )
           closeApprove()
         },
@@ -170,7 +170,7 @@ export function useProfileEditRequestsList() {
       { id: target.id, review: { status: 'rejected', reason: reviewNote } },
       {
         onSuccess: () => {
-          toast.success('Request rejected — the rep can read your reason in the app.')
+          toast.success('Request rejected — the requester can read your reason in the app.')
           closeReject()
         },
         onError: (e) =>

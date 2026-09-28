@@ -151,7 +151,7 @@ export function ProfileEditRequestsPage() {
       },
       {
         accessorKey: 'message',
-        header: 'What he asked for',
+        header: 'What they asked for',
         enableSorting: false,
         // The widest thing on the row — the ask is the point of the screen.
         meta: { className: 'min-w-96 whitespace-nowrap' },
@@ -205,7 +205,7 @@ export function ProfileEditRequestsPage() {
     <div>
       <PageHeader
         title="Profile Edit Requests"
-        description="What the reps want changed on their own records. Approving records the intent — make the correction on the sales incharge itself."
+        description="What sales incharges and distributors want changed on their own records. Approving records the intent — make the correction on their record yourself."
       />
       <DataTable
         columns={columns}
@@ -274,7 +274,7 @@ export function ProfileEditRequestsPage() {
               <span className="font-medium text-foreground">
                 {pendingApprove.requesterName ?? 'the requester'}
               </span>
-              's record is not edited for you. It also frees him to raise his next
+              's record is not edited for you. It also frees them to raise their next
               request.
             </>
           ) : undefined
@@ -290,7 +290,7 @@ export function ProfileEditRequestsPage() {
             htmlFor="profile-edit-approve-note"
             className="mb-1.5 block text-sm font-medium text-foreground"
           >
-            Note back to the rep{' '}
+            Note back to the requester{' '}
             <span className="font-normal text-muted-foreground">(optional)</span>
           </label>
           <textarea
@@ -311,7 +311,7 @@ export function ProfileEditRequestsPage() {
         variant="destructive"
         icon={X}
         title="Reject this request?"
-        description="Your reason is what the rep reads back in the app, so a bare refusal leaves him nothing to act on."
+        description="Your reason is what the requester reads back in the app, so a bare refusal leaves them nothing to act on."
         confirmLabel="Yes, reject"
         cancelLabel="Cancel"
         loading={isReviewing}

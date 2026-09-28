@@ -87,7 +87,7 @@ export function ProfileEditRequestDetailDialog({
           <DialogTitle>Profile edit request</DialogTitle>
           <DialogDescription>
             Approving records that you'll make the change — the correction itself is
-            still made on the sales incharge's record.
+            still made on their record.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,7 +110,7 @@ export function ProfileEditRequestDetailDialog({
 
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                What the rep asked for
+                What they asked for
               </p>
               <p className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
                 {view.message}

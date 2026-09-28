@@ -81,7 +81,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
       {
         onSuccess: () => {
           toast.success(
-            "Request approved — now make the correction on the rep's record.",
+            "Request approved — now make the correction on their record.",
           )
           closeApprove()
         },
@@ -96,7 +96,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
       { id: request.id, review: { status: 'rejected', reason: rejectReason } },
       {
         onSuccess: () => {
-          toast.success('Request rejected — the rep can read your reason in the app.')
+          toast.success('Request rejected — the requester can read your reason in the app.')
           closeReject()
         },
         onError: (e) => onReviewError(e, "Couldn't reject the request."),
@@ -131,7 +131,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
     <div>
       <PageHeader
         title="Profile edit request"
-        description="Approving records that you'll make the change — the correction itself is still made on the sales incharge's record."
+        description="Approving records that you'll make the change — the correction itself is still made on their record."
         actions={back}
       />
 
@@ -150,7 +150,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
 
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                What the rep asked for
+                What they asked for
               </p>
               <p className="mt-1.5 whitespace-pre-wrap rounded-lg border border-border/60 bg-muted/40 p-3 text-sm leading-relaxed text-foreground">
                 {request.message}
@@ -214,7 +214,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
         onOpenChange={(open) => !open && closeApprove()}
         icon={Check}
         title="Approve this request?"
-        description="This does NOT change the profile — it records that you'll make the correction. Edit the rep on the Sales Incharge Master afterwards."
+        description="This does NOT change the profile — it records that you'll make the correction. Edit their record afterwards."
         confirmLabel="Yes, approve"
         cancelLabel="Cancel"
         loading={review.isPending}
@@ -245,7 +245,7 @@ export function ProfileEditRequestDetailPage({ id, notificationId }: Props) {
         variant="destructive"
         icon={X}
         title="Reject this request?"
-        description="Your reason is what the rep reads back in the app — and the only thing he can act on."
+        description="Your reason is what the requester reads back in the app — and the only thing they can act on."
         confirmLabel="Yes, reject"
         cancelLabel="Cancel"
         loading={review.isPending}
