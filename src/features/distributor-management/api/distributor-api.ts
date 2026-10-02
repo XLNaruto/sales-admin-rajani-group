@@ -96,6 +96,7 @@ function toDistributor(row: DistributorRow): Distributor {
     cityName: row.city_name ?? undefined,
     marketType: (row.market_type ?? undefined) as DistributorMarketType | undefined,
     marketSystem: (row.market_system ?? undefined) as MarketSystem | undefined,
+    creditLimit: row.credit_limit ?? undefined,
   }
 }
 
@@ -297,6 +298,9 @@ function buildScalarBody(input: DistributorCreateInput) {
     gstin: str(input.gstNumber),
     advance_cheque_numbers: str(input.advanceChequeNumbers),
     payment_condition_id: input.paymentConditionId,
+    // The API takes this as a digit-only string ("500000"), not a number —
+    // a number is rejected as missing.
+    credit_limit: input.creditLimit != null ? String(input.creditLimit) : undefined,
     bank_account_name: str(input.bankAccountName),
     bank_account_number: str(input.bankAccountNumber),
     // Stored upper-case, whatever the field/draft happened to hold.
@@ -406,6 +410,7 @@ export async function fetchDistributor(id: string): Promise<{
       advanceChequeNumbers: r.advance_cheque_numbers ?? '',
       advanceChequePhoto: [],
       paymentConditionId: idStr(r.payment_condition_id),
+      creditLimit: r.credit_limit != null ? String(r.credit_limit) : '',
       bankAccountName: r.bank_account_name ?? '',
       bankAccountNumber: r.bank_account_number ?? '',
       bankIfsc: r.bank_ifsc ?? '',
@@ -498,6 +503,7 @@ export async function fetchDistributorDetail(id: string): Promise<DistributorDet
       advanceChequePhotoUrl: mediaUrl(r.advance_cheque_photo_path),
       paymentConditionId: r.payment_condition_id ?? null,
       paymentCondition: r.payment_condition_name ?? null,
+      creditLimit: r.credit_limit ?? null,
       bankAccountName: r.bank_account_name ?? null,
       bankAccountNumber: r.bank_account_number ?? null,
       bankIfsc: r.bank_ifsc ?? null,

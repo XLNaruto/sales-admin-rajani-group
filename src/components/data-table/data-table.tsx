@@ -103,6 +103,12 @@ interface DataTableProps<TData, TValue> {
   hasMore?: boolean
   /** Whether the next batch is currently loading (shows a bottom loading row). */
   isFetchingMore?: boolean
+  /**
+   * Make whole rows clickable. Rows get a pointer cursor; a click that lands on
+   * an interactive element inside a cell (button, link, input) is left to that
+   * element instead.
+   */
+  onRowClick?: (row: TData) => void
 }
 
 /**
@@ -136,6 +142,7 @@ export function DataTable<TData, TValue>({
   onLoadMore,
   hasMore = false,
   isFetchingMore = false,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   // Sorting + pagination can be controlled by the caller (server-side) or fall
   // back to internal state (client-side). Controlled props win when supplied.
@@ -252,7 +259,19 @@ export function DataTable<TData, TValue>({
             ) : table.getRowModel().rows.length ? (
               <>
                 {table.getRowModel().rows.map((row) => (
-                  <TableRow key={row.id} className="[&:last-child_td]:border-0">
+                  <TableRow
+                    key={row.id}
+                    className={cn('[&:last-child_td]:border-0', onRowClick && 'cursor-pointer')}
+                    onClick={
+                      onRowClick
+                        ? (event) => {
+                            const target = event.target as HTMLElement
+                            if (target.closest('button, a, input, [role="button"]')) return
+                            onRowClick(row.original)
+                          }
+                        : undefined
+                    }
+                  >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell
                         key={cell.id}

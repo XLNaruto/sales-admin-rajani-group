@@ -259,6 +259,16 @@ export const queryKeys = {
    * purpose: the live-day keys answer "what did he report doing", these answer
    * "where was the handset".
    */
+  /**
+   * Daily Summary — one page of the per-rep day report. The whole filter set
+   * (date, region, tab, search, page, sort) is carried in the key.
+   */
+  dailySummary: {
+    all: ['daily-summary'] as const,
+    /** GET /daily-summary — one page of rows for a day. */
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.dailySummary.all, 'list', filters ?? {}] as const,
+  },
   locationTracking: {
     all: ['location-tracking'] as const,
     /** GET /locations/live — one page of the fleet's latest fixes. */

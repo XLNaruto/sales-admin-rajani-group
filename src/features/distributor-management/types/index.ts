@@ -107,6 +107,8 @@ export interface Distributor {
   advanceChequeNumbers?: string
   advanceChequePhotoPath?: string
   paymentConditionId?: PaymentConditionId
+  /** Credit limit in whole rupees (`credit_limit`). */
+  creditLimit?: number
   bankAccountName?: string
   bankAccountNumber?: string
   bankIfsc?: string
@@ -177,6 +179,8 @@ export interface DistributorCreateInput {
   advanceChequeNumbers?: string
   advanceChequePhoto?: File[]
   paymentConditionId?: PaymentConditionId
+  /** Credit limit in whole rupees (`credit_limit`). */
+  creditLimit?: number
   bankAccountName?: string
   bankAccountNumber?: string
   bankIfsc?: string
@@ -274,6 +278,8 @@ export interface DistributorDetailView {
   paymentConditionId: number | null
   /** Master name resolved by the API — what the detail view shows. */
   paymentCondition: string | null
+  /** Credit limit in whole rupees. */
+  creditLimit: number | null
   bankAccountName: string | null
   bankAccountNumber: string | null
   bankIfsc: string | null

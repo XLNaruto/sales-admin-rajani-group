@@ -184,6 +184,13 @@ export const distributorSchema = z.object({
   // Id of a row in the payment-condition master (Masters → Payment Conditions),
   // stringified like every other select value; sent as `payment_condition_id`.
   paymentConditionId: z.string().optional(),
+  // Whole rupees — required by the API, and the column is an integer, so
+  // decimals are rejected.
+  creditLimit: z
+    .string()
+    .trim()
+    .min(1, 'Please enter the credit limit')
+    .regex(/^\d+$/, 'Enter a whole amount (no decimals)'),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   bankIfsc: z
@@ -234,6 +241,7 @@ export const distributorDefaults: Partial<DistributorFormValues> = {
   gstPhoto: [],
   advanceChequeNumbers: '',
   advanceChequePhoto: [],
+  creditLimit: '',
   bankAccountName: '',
   bankAccountNumber: '',
   bankIfsc: '',

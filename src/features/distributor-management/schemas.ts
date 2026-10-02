@@ -1,5 +1,15 @@
 import { z } from 'zod'
 
+/**
+ * `credit_limit` travels as a digit-only string ("500000"), nullable. Parsed to
+ * a number here so the rest of the app works in whole rupees; a number is
+ * accepted too in case the backend ever switches.
+ */
+const creditLimitSchema = z
+  .union([z.string(), z.number()])
+  .nullish()
+  .transform((v) => (v == null || v === '' ? null : Number(v)))
+
 /** Status values the list endpoint returns (tolerant — unknown falls back). */
 export const distributorStatusSchema = z.enum([
   'active',
@@ -53,6 +63,8 @@ export const distributorRowSchema = z.object({
   company_names: z.array(z.string()).nullish(),
   market_type: z.string().nullish(),
   market_system: z.string().nullish(),
+  // Whole rupees; null when no limit has been set.
+  credit_limit: creditLimitSchema,
   status: distributorStatusSchema.catch('pending'),
   onboarding_status: distributorOnboardingStatusSchema.catch('pending'),
 })
@@ -148,6 +160,8 @@ export const distributorDetailSchema = z.object({
   // what the API resolves alongside it for display.
   payment_condition_id: z.number().nullish(),
   payment_condition_name: z.string().nullish(),
+  // Whole rupees the distributor may hold outstanding; null when not set.
+  credit_limit: creditLimitSchema,
   bank_account_name: z.string().nullish(),
   bank_account_number: z.string().nullish(),
   bank_ifsc: z.string().nullish(),

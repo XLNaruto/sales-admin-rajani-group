@@ -19,7 +19,7 @@ import { useCan } from "@/features/permissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { isForbiddenError } from "@/lib/api-error";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { Forbidden } from "@/features/error";
 import { DistributorCompanyMappingDialog } from "../components/distributor-company-mapping-dialog";
 import { DistributorDetailDialog } from "../components/distributor-detail-dialog";
@@ -344,6 +344,19 @@ export function DistributorsPage() {
         cell: ({ row }) =>
           row.original.cityName ? (
             row.original.cityName
+          ) : (
+            <span className="text-muted-foreground">N/A</span>
+          ),
+      },
+      {
+        id: "creditLimit",
+        header: "Credit Limit",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.creditLimit != null ? (
+            <span className="tabular-nums">
+              {formatCurrency(row.original.creditLimit)}
+            </span>
           ) : (
             <span className="text-muted-foreground">N/A</span>
           ),

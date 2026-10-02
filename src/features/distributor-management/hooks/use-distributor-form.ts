@@ -21,6 +21,7 @@ import {
   type DistributorFormValues,
 } from "../lib/distributor-form";
 import { assignedProductErrorRow } from "../lib/assigned-products";
+import { serverFieldErrors } from "../lib/server-field-errors";
 import type { GeoLabels } from "@/features/location";
 import type {
   DistributorCreateInput,
@@ -168,6 +169,7 @@ function toInput(values: DistributorFormValues): DistributorCreateInput {
     advanceChequeNumbers: str(values.advanceChequeNumbers),
     advanceChequePhoto: values.advanceChequePhoto ?? [],
     paymentConditionId: num(values.paymentConditionId),
+    creditLimit: num(values.creditLimit),
     bankAccountName: str(values.bankAccountName),
     bankAccountNumber: str(values.bankAccountNumber),
     bankIfsc: str(values.bankIfsc?.toUpperCase()),
@@ -300,6 +302,22 @@ export function useDistributorForm(id?: string, draftId?: string) {
             message: row.message,
           });
           scrollToFirstError();
+          return;
+        }
+        // A VALIDATION_ERROR names the offending fields in `details` — show
+        // each message inline under its field, like a client-side error.
+        if (errorCode(error) === "VALIDATION_ERROR") {
+          const fieldErrors = serverFieldErrors(
+            error,
+            Object.keys(distributorSchema.shape),
+          );
+          fieldErrors.forEach(({ field, message }) =>
+            form.setError(field, { type: "server", message }),
+          );
+          toasterrormsg(
+            getApiErrorMessage(error, "Please fix the highlighted fields."),
+          );
+          if (fieldErrors.length > 0) scrollToFirstError();
           return;
         }
         if (errorCode(error) === "CATEGORY_NOT_FOUND") {

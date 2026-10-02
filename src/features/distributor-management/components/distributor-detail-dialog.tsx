@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PreviewTrigger } from "@/components/common/file-preview-lightbox";
 import { GeoLocationValue } from "@/components/maps/geo-location-value";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useDistributorDetail } from "../api/use-distributors";
 import { labelFor } from "../lib/distributor-reference";
 import type { AssignedProduct, DistributorStatus } from "../types";
@@ -375,6 +375,14 @@ export function DistributorDetailDialog({ id, onClose }: Props) {
                 <Field
                   label="Payment Condition"
                   value={data.paymentCondition}
+                />
+                <Field
+                  label="Credit Limit"
+                  value={
+                    data.creditLimit != null
+                      ? formatCurrency(data.creditLimit)
+                      : null
+                  }
                 />
                 <Field
                   label="Advance Cheque Numbers"

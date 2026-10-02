@@ -278,6 +278,15 @@ export const endpoints = {
     UPDATE: (id: string | number) => `/sales-incharge-admin/activities/${id}`,
     DELETE: (id: string | number) => `/sales-incharge-admin/activities/${id}`,
   },
+  /**
+   * Daily Summary — one row per sales incharge for a single day: attendance,
+   * first call, call counters, productivity and primary order value. Read-only,
+   * gated on `daily-summary:read`.
+   */
+  DAILY_SUMMARY: {
+    /** GET ?date&state_id&type&search&page&page_size&sort_by&sort_order */
+    LIST: '/sales-incharge-admin/daily-summary',
+  },
   /** The field day as it actually happened — attendance, calls, route. */
   LIVE_DAY: {
     /** GET ?sales_incharge_id&from_date&to_date — one entry per date (max 31). */

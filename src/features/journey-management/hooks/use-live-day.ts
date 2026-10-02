@@ -22,7 +22,22 @@ interface LiveDayParams {
   id?: string
   /** The day, as `yyyy-MM-dd`. */
   date?: string
+  /**
+   * The screen that opened this day, when it wasn't the month grid. Drives the
+   * header's Back button and where a company switch lands.
+   */
+  from?: LiveDayOrigin
+  /** The origin screen's own `?data=` token, so Back restores its exact view. */
+  backData?: string
 }
+
+/** Screens other than the month grid that drill into a day. */
+export type LiveDayOrigin = 'daily-summary'
+
+/** Where Back goes for each origin. Whitelisted — never a path from the URL. */
+const ORIGIN_ROUTES = {
+  'daily-summary': { to: '/daily-summary', label: 'Daily Summary' },
+} as const satisfies Record<LiveDayOrigin, { to: string; label: string }>
 
 export function useLiveDay(data?: string) {
   const navigate = useNavigate()
@@ -48,6 +63,9 @@ export function useLiveDay(data?: string) {
     [inchargeSelect.options, inchargeId],
   )
 
+  const origin = params.from && params.from in ORIGIN_ROUTES ? params.from : undefined
+  const backData = origin ? params.backData : undefined
+
   const open = useCallback(
     (id: string | undefined, nextDate: string) => {
       // A different day is a different trail — the filter would otherwise stick
@@ -55,11 +73,12 @@ export function useLiveDay(data?: string) {
       setFilter('all')
       navigate({
         to: '/journey/live-day',
-        search: { data: encryptParams({ id, date: nextDate }) },
+        // The origin rides along, so stepping days never loses the way back.
+        search: { data: encryptParams({ id, date: nextDate, from: origin, backData }) },
         replace: true,
       })
     },
-    [navigate],
+    [navigate, origin, backData],
   )
 
   const selectIncharge = useCallback(
@@ -113,6 +132,13 @@ export function useLiveDay(data?: string) {
     missMarkers: useMemo(() => withPoint(misses), [misses]),
     /** Every planned stop that was missed, regardless of filter. */
     missed: day?.notVisited ?? [],
+    /**
+     * Back to the screen that opened this day (e.g. the Daily Summary with its
+     * filters intact), or null when it was opened from the month grid.
+     */
+    back: origin
+      ? { ...ORIGIN_ROUTES[origin], search: backData ? { data: backData } : {} }
+      : null,
     /** Token that reopens the month grid on this day's month. */
     monthToken: encryptParams({ id: inchargeId, month: monthOf(date) }),
   }

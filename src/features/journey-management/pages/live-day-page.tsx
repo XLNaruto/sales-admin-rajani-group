@@ -2,7 +2,15 @@ import { useRedirectOnCompanySwitch } from '@/features/company'
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { format, parseISO } from 'date-fns'
-import { ArrowLeft, BadgeCheck, Hash, MapPin, Navigation, ShieldAlert } from 'lucide-react'
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CalendarRange,
+  Hash,
+  MapPin,
+  Navigation,
+  ShieldAlert,
+} from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Combobox } from '@/components/ui/combobox'
 import { EmptyState } from '@/components/common/empty-state'
@@ -18,6 +26,9 @@ import { DayTimeline } from '../components/day-timeline'
 import { DayTrailMap } from '../components/day-trail-map'
 import { TrailLegend } from '../components/trail-legend'
 import { useLiveDay } from '../hooks/use-live-day'
+
+const HEADER_BUTTON =
+  'inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border/60 bg-card px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground'
 
 interface LiveDayPageProps {
   /** Encrypted `?data=` token carrying `{ id, date }`. */
@@ -39,10 +50,6 @@ interface LiveDayPageProps {
  * shown with no line and the reason is spelled out.
  */
 export function LiveDayPage({ data }: LiveDayPageProps) {
-  // Opened from a day card on the live map, for an incharge of the company that
-  // was active then — back to the map when the tenant changes.
-  useRedirectOnCompanySwitch('/journey/live-map')
-
   const {
     day,
     isLoading,
@@ -62,7 +69,12 @@ export function LiveDayPage({ data }: LiveDayPageProps) {
     missMarkers,
     missed,
     monthToken,
+    back,
   } = useLiveDay(data)
+
+  // The incharge belongs to the company that was active when the day was
+  // opened — back to the screen it came from when the tenant changes.
+  useRedirectOnCompanySwitch(back?.to ?? '/journey/live-map')
 
   const [picked, setPicked] = useState<string | null>(null)
 
@@ -144,7 +156,7 @@ export function LiveDayPage({ data }: LiveDayPageProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <DayStepper
               date={date}
               label={dateLabel}
@@ -156,11 +168,18 @@ export function LiveDayPage({ data }: LiveDayPageProps) {
             <Link
               to="/journey/live-map"
               search={{ data: monthToken }}
-              className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-border/60 bg-card px-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              className={HEADER_BUTTON}
             >
-              <ArrowLeft className="size-4" />
+              {/* With an origin, Back owns the arrow — Month is then a jump, not a return. */}
+              {back ? <CalendarRange className="size-4" /> : <ArrowLeft className="size-4" />}
               Month
             </Link>
+            {back ? (
+              <Link to={back.to} search={back.search} className={HEADER_BUTTON}>
+                <ArrowLeft className="size-4" />
+                {back.label}
+              </Link>
+            ) : null}
           </div>
         </div>
 

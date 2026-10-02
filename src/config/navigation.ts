@@ -16,6 +16,7 @@ import {
   CalendarSync,
   UserPen,
   SatelliteDish,
+  ClipboardList,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -40,7 +41,17 @@ export interface NavGroup {
 export const navGroups: NavGroup[] = [
   {
     title: 'Overview',
-    items: [{ label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard }],
+    items: [
+      { label: 'Dashboard', to: '/dashboard', icon: LayoutDashboard },
+      {
+        label: 'Daily Summary',
+        to: '/daily-summary',
+        icon: ClipboardList,
+        // Like `live-day:read`, the `:read` code is the menu grant — there is
+        // no `daily-summary:list`.
+        permission: 'daily-summary:read',
+      },
+    ],
   },
   {
     title: 'Sales Incharge',

@@ -992,6 +992,17 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
             />
           </Field>
 
+          <Field
+            label="Credit Limit (₹)"
+            error={errors.creditLimit?.message}
+          >
+            <Input
+              inputMode="numeric"
+              placeholder="e.g. 500000"
+              {...register("creditLimit")}
+            />
+          </Field>
+
           {/* Bank details */}
           <div className="col-span-full">
             <FormSection
