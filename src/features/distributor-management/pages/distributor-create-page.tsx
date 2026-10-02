@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Combobox } from "@/components/ui/combobox";
 import { Field, MultiSelect } from "@/features/beat-creation";
+import { formatCurrency } from "@/lib/utils";
 import { GeoLocationPicker } from "@/components/maps/geo-location-picker";
 import { FileInput } from "@/components/common/file-input";
 import { IfscInput } from "@/components/common/ifsc-input";
+import { CREDIT_LIMIT_MAX_DIGITS } from "../lib/distributor-form";
 import { OwnerPartnersField } from "../components/owner-partners-field";
 import { AssignedProductsField } from "../components/assigned-products-field";
 import { useDistributorForm } from "../hooks/use-distributor-form";
@@ -149,6 +151,8 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
   // the local count, Rural the rural one, "Local & Rural" both, Counter Sales
   // neither.
   const marketType = useWatch({ control, name: "marketType" });
+  const creditLimit = useWatch({ control, name: "creditLimit" });
+  const creditLimitField = register("creditLimit");
   const showLocalRetailers =
     marketType === "local" || marketType === "local_rural";
   const showRuralRetailers =
@@ -995,11 +999,21 @@ export function DistributorCreatePage({ data }: DistributorCreatePageProps) {
           <Field
             label="Credit Limit (₹)"
             error={errors.creditLimit?.message}
+            hint={
+              creditLimit ? formatCurrency(Number(creditLimit)) : undefined
+            }
           >
             <Input
               inputMode="numeric"
               placeholder="e.g. 500000"
-              {...register("creditLimit")}
+              maxLength={CREDIT_LIMIT_MAX_DIGITS}
+              {...creditLimitField}
+              // Sanitise before RHF reads the value — its `onChange` option
+              // runs only after the raw value is already stored.
+              onChange={(e) => {
+                digitsOnly(CREDIT_LIMIT_MAX_DIGITS)(e);
+                creditLimitField.onChange(e);
+              }}
             />
           </Field>
 

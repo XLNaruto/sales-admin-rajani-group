@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
 // Optional numeric text field — allows empty, otherwise must be a finite number.
+/** Longest credit limit the API accepts (`credit_limit` pattern `^\d{1,12}$`). */
+export const CREDIT_LIMIT_MAX_DIGITS = 12
+
 const optNum = (msg = 'Enter a valid number') =>
   z
     .string()
@@ -184,13 +187,14 @@ export const distributorSchema = z.object({
   // Id of a row in the payment-condition master (Masters → Payment Conditions),
   // stringified like every other select value; sent as `payment_condition_id`.
   paymentConditionId: z.string().optional(),
-  // Whole rupees — required by the API, and the column is an integer, so
-  // decimals are rejected.
+  // Whole rupees, required. The API takes a digit-only string of at most
+  // 12 digits (`^\d{1,12}$`), so decimals, signs and separators are rejected.
   creditLimit: z
     .string()
     .trim()
     .min(1, 'Please enter the credit limit')
-    .regex(/^\d+$/, 'Enter a whole amount (no decimals)'),
+    .regex(/^\d+$/, 'Please enter a valid credit limit')
+    .max(CREDIT_LIMIT_MAX_DIGITS, 'Credit limit is too high. Please enter a smaller amount'),
   bankAccountName: z.string().optional(),
   bankAccountNumber: z.string().optional(),
   bankIfsc: z
