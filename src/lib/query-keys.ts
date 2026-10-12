@@ -269,6 +269,19 @@ export const queryKeys = {
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.dailySummary.all, 'list', filters ?? {}] as const,
   },
+  /**
+   * Daily Reports — morning / evening field reports. The list key carries the
+   * whole filter set; the detail key is one rep's report of one kind on one day.
+   */
+  dailyReports: {
+    all: ['daily-reports'] as const,
+    /** GET /daily-reports — one page of rows for a day and kind. */
+    list: (filters?: Record<string, unknown>) =>
+      [...queryKeys.dailyReports.all, 'list', filters ?? {}] as const,
+    /** GET /daily-reports/:id/:kind — one rep's report. */
+    detail: (salesInchargeId: string, kind: string, date: string) =>
+      [...queryKeys.dailyReports.all, 'detail', salesInchargeId, kind, date] as const,
+  },
   locationTracking: {
     all: ['location-tracking'] as const,
     /** GET /locations/live — one page of the fleet's latest fixes. */

@@ -17,6 +17,7 @@ import {
   UserPen,
   SatelliteDish,
   ClipboardList,
+  NotebookText,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -50,6 +51,14 @@ export const navGroups: NavGroup[] = [
         // Like `live-day:read`, the `:read` code is the menu grant — there is
         // no `daily-summary:list`.
         permission: 'daily-summary:read',
+      },
+      {
+        label: 'Daily Reports',
+        to: '/daily-reports',
+        icon: NotebookText,
+        // Its own grant, separate from `daily-summary:read`; the `:read` code
+        // is the menu grant here too.
+        permission: 'daily-report:read',
       },
     ],
   },
@@ -200,6 +209,8 @@ const extraTitles: Record<string, string> = {
   // Opened from a row on the fleet map (and from a rep's record), so it has no
   // sidebar item of its own.
   '/tracking/trail': 'Rep Day Trail',
+  // Opened from a row on the Daily Reports list.
+  '/daily-reports/detail': 'Daily Report',
   // Request detail screens — opened from a queue row or a notification, so they
   // have no sidebar item of their own. Named here so the last crumb reads as the
   // screen rather than as its URL segment.

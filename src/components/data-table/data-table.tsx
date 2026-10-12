@@ -109,6 +109,11 @@ interface DataTableProps<TData, TValue> {
    * element instead.
    */
   onRowClick?: (row: TData) => void
+  /**
+   * Narrow `onRowClick` to some rows only — the rest get no pointer cursor and
+   * ignore clicks. Defaults to every row.
+   */
+  isRowClickable?: (row: TData) => boolean
 }
 
 /**
@@ -143,6 +148,7 @@ export function DataTable<TData, TValue>({
   hasMore = false,
   isFetchingMore = false,
   onRowClick,
+  isRowClickable,
 }: DataTableProps<TData, TValue>) {
   // Sorting + pagination can be controlled by the caller (server-side) or fall
   // back to internal state (client-side). Controlled props win when supplied.
@@ -258,12 +264,15 @@ export function DataTable<TData, TValue>({
               ))
             ) : table.getRowModel().rows.length ? (
               <>
-                {table.getRowModel().rows.map((row) => (
+                {table.getRowModel().rows.map((row) => {
+                  const clickable =
+                    Boolean(onRowClick) && (isRowClickable?.(row.original) ?? true)
+                  return (
                   <TableRow
                     key={row.id}
-                    className={cn('[&:last-child_td]:border-0', onRowClick && 'cursor-pointer')}
+                    className={cn('[&:last-child_td]:border-0', clickable && 'cursor-pointer')}
                     onClick={
-                      onRowClick
+                      clickable && onRowClick
                         ? (event) => {
                             const target = event.target as HTMLElement
                             if (target.closest('button, a, input, [role="button"]')) return
@@ -284,7 +293,8 @@ export function DataTable<TData, TValue>({
                       </TableCell>
                     ))}
                   </TableRow>
-                ))}
+                  )
+                })}
                 {isInfinite && isFetchingMore ? (
                   <TableRow className="hover:bg-transparent">
                     <TableCell

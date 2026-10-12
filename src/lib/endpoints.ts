@@ -287,6 +287,19 @@ export const endpoints = {
     /** GET ?date&state_id&type&search&page&page_size&sort_by&sort_order */
     LIST: '/sales-incharge-admin/daily-summary',
   },
+  /**
+   * Daily Reports — every sales incharge's morning or evening report for one
+   * date, scoped to the selected company. Read-only, gated on
+   * `daily-report:read`. Never the mobile `/sales-incharge/daily-reports`
+   * routes: those are self-only for the logged-in rep.
+   */
+  DAILY_REPORT: {
+    /** GET ?kind&date&search&has_report&page&page_size — sorted by rep name. */
+    LIST: '/sales-incharge-admin/daily-reports',
+    /** GET ?date — one rep's report in full. */
+    DETAIL: (salesInchargeId: string | number, kind: string) =>
+      `/sales-incharge-admin/daily-reports/${salesInchargeId}/${kind}`,
+  },
   /** The field day as it actually happened — attendance, calls, route. */
   LIVE_DAY: {
     /** GET ?sales_incharge_id&from_date&to_date — one entry per date (max 31). */
