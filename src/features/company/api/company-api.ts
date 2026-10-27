@@ -31,16 +31,18 @@ export async function fetchMyCompanies(): Promise<CompaniesState> {
 /**
  * POST /sales-incharge-admin/me/company/select — switch which company (tenant)
  * the caller operates as. The selection is stored against the session
- * server-side, so subsequent requests are scoped to it. Returns the updated
- * tenant state.
+ * server-side, so subsequent requests are scoped to it.
+ *
+ * The response body is deliberately ignored: its shape isn't guaranteed to
+ * match `/me/companies`, and a parse failure here used to reject the mutation
+ * even though the server had already switched — leaving the UI on the old
+ * company until a reload. Callers refetch `/me/companies` for the new state.
  */
-export async function selectMyCompany(companyId: number): Promise<CompaniesState> {
+export async function selectMyCompany(companyId: number): Promise<void> {
   try {
-    const raw = await http.post<unknown, { company_id: number }>(
-      endpoints.ME.SELECT_COMPANY,
-      { company_id: companyId },
-    )
-    return toCompaniesState(companiesResponseSchema.parse(raw))
+    await http.post<unknown, { company_id: number }>(endpoints.ME.SELECT_COMPANY, {
+      company_id: companyId,
+    })
   } catch (error) {
     throw asApiError(error, "Couldn't switch company.")
   }
