@@ -14,7 +14,7 @@ import type { NotificationEntityType } from '../types'
  * token (see `lib/route-search.ts`). That keeps the address bar and the
  * breadcrumb free of raw database ids.
  *
- * `entity_type` is a closed set of three today, and will not stay that way —
+ * `entity_type` is a closed set of two today, and will not stay that way —
  * orders, dispatch and collections are coming. An unknown value must therefore
  * render as a non-clickable row rather than crash, which is what a `null` from
  * {@link notificationTarget} means.
@@ -39,11 +39,6 @@ export const NOTIFICATION_ROUTE: Record<string, NotificationRoute> = {
     base: '/requests/beat-changes/detail',
     permission: 'beat-change:list',
     label: 'beat change request',
-  },
-  day_change: {
-    base: '/requests/day-changes/detail',
-    permission: 'day-change:list',
-    label: 'day change request',
   },
   profile_edit_request: {
     base: '/requests/profile-edits/detail',

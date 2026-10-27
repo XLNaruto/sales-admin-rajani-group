@@ -9,5 +9,4 @@
  * `@/features/field-requests`, never a sub-module path.
  */
 export * from './beat-changes'
-export * from './day-changes'
 export * from './profile-edit-requests'

@@ -2,7 +2,6 @@ import { toast } from 'sonner'
 import {
   AlertTriangle,
   Bell,
-  CalendarClock,
   CheckCircle2,
   ChevronRight,
   Info,
@@ -32,7 +31,6 @@ import type { NotificationTone } from '../types'
 /** What the push is about, by entity — a broadcast has no entity at all. */
 const ENTITY_ICON: Record<string, LucideIcon> = {
   beat_change: Route,
-  day_change: CalendarClock,
   profile_edit_request: UserRoundPen,
 }
 

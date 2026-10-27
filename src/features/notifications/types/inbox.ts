@@ -20,7 +20,6 @@ export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent'
 /** The request types the panel knows how to open. */
 export const NOTIFICATION_ENTITY_TYPES = [
   'beat_change',
-  'day_change',
   'profile_edit_request',
 ] as const
 
@@ -29,9 +28,9 @@ export type KnownNotificationEntity = (typeof NOTIFICATION_ENTITY_TYPES)[number]
 /**
  * What a notification points at.
  *
- * A closed set of three today, but the backend will add more (orders, dispatch,
+ * A closed set of two today, but the backend will add more (orders, dispatch,
  * collections) and an old panel has to survive meeting one — hence the open
- * `string` arm rather than a bare union. Anything outside the three renders as
+ * `string` arm rather than a bare union. Anything outside the two renders as
  * a non-clickable row instead of crashing.
  */
 export type NotificationEntityType = KnownNotificationEntity | (string & {})
@@ -57,8 +56,6 @@ export interface NotificationMetadata {
   sales_incharge_id?: number
   plan_date?: string
   operation?: string
-  /** A COUNT of proposed entries on a day change — not the entries themselves. */
-  entries?: number
   reason?: string
   message?: string
   [key: string]: unknown

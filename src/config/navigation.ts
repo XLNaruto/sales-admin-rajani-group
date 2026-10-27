@@ -13,7 +13,6 @@ import {
   Tags,
   HandCoins,
   Repeat2,
-  CalendarSync,
   UserPen,
   SatelliteDish,
   ClipboardList,
@@ -135,9 +134,7 @@ export const navGroups: NavGroup[] = [
         label: 'Plan Detail',
         to: '/journey/plan',
         icon: CalendarRange,
-        // There is no `journey-plan:read` — `:list` is the read grant for both
-        // the month list and a single plan.
-        permission: 'journey-plan:list',
+        permission: 'journey-plan:read',
       },
       {
         label: 'Live Map',
@@ -172,12 +169,6 @@ export const navGroups: NavGroup[] = [
         to: '/requests/beat-changes',
         icon: Repeat2,
         permission: 'beat-change:list',
-      },
-      {
-        label: 'Journey Day Change Requests',
-        to: '/requests/day-changes',
-        icon: CalendarSync,
-        permission: 'day-change:list',
       },
       {
         label: 'Profile Edit Requests',
@@ -219,7 +210,6 @@ const extraTitles: Record<string, string> = {
   // have no sidebar item of their own. Named here so the last crumb reads as the
   // screen rather than as its URL segment.
   '/requests/beat-changes/detail': 'Beat Change Request',
-  '/requests/day-changes/detail': 'Day Change Request',
   '/requests/profile-edits/detail': 'Profile Edit Request',
   '/profile': 'My Profile',
   '/login': 'Login',

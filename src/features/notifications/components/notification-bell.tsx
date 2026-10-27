@@ -198,7 +198,7 @@ export function NotificationBell() {
                 <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
                   {tab === 'unread'
                     ? "You're all caught up."
-                    : 'Beat changes, day changes and profile edits raised by your reps will land here.'}
+                    : 'Beat changes and profile edits raised by your reps will land here.'}
                 </p>
               </div>
             ) : (

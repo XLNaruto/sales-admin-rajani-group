@@ -9,15 +9,15 @@ import { requirePermission } from '@/features/permissions'
  * alongside the id because the month pager has to find the *same person's* next
  * month, whose plan id it does not yet know.
  *
- * Opening a plan needs `journey-plan:list` — the API has no `journey-plan:read`.
- * Editing the allocation or correcting the schedule (`journey-plan:update`), publishing and approving
+ * Opening a plan needs `journey-plan:read`. Editing the allocation or correcting
+ * the schedule (`journey-plan:update`), publishing and approving
  * (`journey-plan:approve` — **one key for both ends of the chain**) and the
  * assistant (`journey-plan-agent:use`) are all checked on the controls, so
  * read-only reviewers still see the month.
  */
 export const Route = createFileRoute('/_authenticated/journey/plan')({
   beforeLoad: ({ context }) =>
-    requirePermission(context.queryClient, 'journey-plan:list'),
+    requirePermission(context.queryClient, 'journey-plan:read'),
   validateSearch: validateDataSearch,
   component: RouteComponent,
 })
