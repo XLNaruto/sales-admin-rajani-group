@@ -6,9 +6,6 @@ export const Route = createFileRoute('/_authenticated/retailers/')({
   // Block direct URL access when the user lacks the permission — hiding the
   // sidebar link alone doesn't stop someone navigating to /retailers.
   beforeLoad: ({ context }) =>
-    requirePermission(context.queryClient,  //'retailer-master:list'
-      'beat:list',
-      
-    ),
+    requirePermission(context.queryClient, 'retailer-master:list'),
   component: RetailersPage,
 })

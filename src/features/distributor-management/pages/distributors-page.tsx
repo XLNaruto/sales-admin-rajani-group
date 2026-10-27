@@ -159,7 +159,7 @@ export function DistributorsPage() {
                 </button>
               </Hint>
             )}
-            {row.original.onboardingStatus === "pending" && (
+            {row.original.onboardingStatus === "pending" && can("distributor-master:approve") && (
               <>
                 <Hint label="Approve">
                   <button
@@ -220,7 +220,7 @@ export function DistributorsPage() {
                 type="button"
                 role="switch"
                 aria-checked={active}
-                disabled={isSettingStatus}
+                disabled={isSettingStatus || !can("distributor-master:update")}
                 onClick={() =>
                   changeStatus(row.original.id, active ? "inactive" : "active")
                 }

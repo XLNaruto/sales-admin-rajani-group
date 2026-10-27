@@ -135,7 +135,9 @@ export const navGroups: NavGroup[] = [
         label: 'Plan Detail',
         to: '/journey/plan',
         icon: CalendarRange,
-        permission: 'journey-plan:read',
+        // There is no `journey-plan:read` — `:list` is the read grant for both
+        // the month list and a single plan.
+        permission: 'journey-plan:list',
       },
       {
         label: 'Live Map',
@@ -192,11 +194,13 @@ export const navGroups: NavGroup[] = [
         label: 'Outlet Types',
         to: '/masters/outlet-types',
         icon: Tags,
+        permission: 'outlet-type:list',
       },
       {
         label: 'Payment Conditions',
         to: '/masters/payment-conditions',
         icon: HandCoins,
+        permission: 'payment-condition:list',
       },
     ],
   },

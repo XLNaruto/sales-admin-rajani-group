@@ -102,15 +102,17 @@ export function SalesInchargePage() {
         meta: { className: "w-px whitespace-nowrap" },
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
-            <Hint label="Edit">
-              <button
-                type="button"
-                onClick={() => goToEdit(row.original.id)}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
-              >
-                <Pencil className="size-4" />
-              </button>
-            </Hint>
+            {can("sales-incharge:update") && (
+              <Hint label="Edit">
+                <button
+                  type="button"
+                  onClick={() => goToEdit(row.original.id)}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-blue-600/10 text-blue-600 transition-colors hover:bg-blue-600/20 dark:text-blue-400"
+                >
+                  <Pencil className="size-4" />
+                </button>
+              </Hint>
+            )}
             <Hint label="View details">
               <button
                 type="button"
@@ -144,16 +146,18 @@ export function SalesInchargePage() {
                 </button>
               </Hint>
             )}
-            <Hint label="Delete">
-              <button
-                type="button"
-                onClick={() => setPendingDelete(row.original)}
-                disabled={isDeleting}
-                className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
-              >
-                <Trash2 className="size-4" />
-              </button>
-            </Hint>
+            {can("sales-incharge:delete") && (
+              <Hint label="Delete">
+                <button
+                  type="button"
+                  onClick={() => setPendingDelete(row.original)}
+                  disabled={isDeleting}
+                  className="grid size-8 cursor-pointer place-items-center rounded-lg bg-rose-500/10 text-rose-600 transition-colors hover:bg-rose-500/20 disabled:opacity-50 dark:text-rose-400"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </Hint>
+            )}
           </div>
         ),
       },
@@ -200,7 +204,7 @@ export function SalesInchargePage() {
               role="switch"
               aria-checked={active}
               title={active ? "Set inactive" : "Set active"}
-              disabled={isSettingStatus}
+              disabled={isSettingStatus || !can("sales-incharge:update")}
               onClick={() =>
                 changeStatus(row.original.id, active ? "inactive" : "active")
               }
@@ -302,19 +306,21 @@ export function SalesInchargePage() {
         title="Sales Incharge"
         description="Manage the sales-incharge team and onboard new members."
         actions={
-          <div className="flex items-center gap-2">
-            {/* Renders only while unsubmitted drafts exist. */}
-            <DraftsButton
-              formKey={SALES_INCHARGE_DRAFT_KEY}
-              onOpen={goToDraft}
-              onNew={goToCreate}
-              newLabel="sales incharge"
-              title="Saved drafts"
-            />
-            <Button className="cursor-pointer" onClick={goToCreate}>
-              <Plus /> Create Sales
-            </Button>
-          </div>
+          can("sales-incharge:create") ? (
+            <div className="flex items-center gap-2">
+              {/* Renders only while unsubmitted drafts exist. */}
+              <DraftsButton
+                formKey={SALES_INCHARGE_DRAFT_KEY}
+                onOpen={goToDraft}
+                onNew={goToCreate}
+                newLabel="sales incharge"
+                title="Saved drafts"
+              />
+              <Button className="cursor-pointer" onClick={goToCreate}>
+                <Plus /> Create Sales
+              </Button>
+            </div>
+          ) : null
         }
       />
       <DataTable
@@ -362,7 +368,7 @@ export function SalesInchargePage() {
                     : "Add your first sales incharge to get started."}
               </p>
             </div>
-            {!hasActiveFilters && !isError && (
+            {!hasActiveFilters && !isError && can("sales-incharge:create") && (
               <Button className="cursor-pointer" onClick={goToCreate}>
                 <Plus /> Create Sales
               </Button>

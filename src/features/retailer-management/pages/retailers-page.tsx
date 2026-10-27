@@ -146,7 +146,7 @@ export function RetailersPage() {
                 </button>
               </Hint>
             )}
-            {row.original.onboardingStatus === 'pending' && (
+            {row.original.onboardingStatus === 'pending' && can('retailer-master:approve') && (
               <>
                 <Hint label="Approve">
                   <button
@@ -214,7 +214,7 @@ export function RetailersPage() {
               role="switch"
               aria-checked={active}
               title={active ? 'Set inactive' : 'Set active'}
-              disabled={isSettingStatus}
+              disabled={isSettingStatus || !can('retailer-master:update')}
               onClick={() => changeStatus(row.original.id, active ? 'inactive' : 'active')}
               className="inline-flex min-w-28 cursor-pointer items-center gap-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
