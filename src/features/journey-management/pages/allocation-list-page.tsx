@@ -4,7 +4,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { CalendarCheck, CalendarPlus, Eye, Loader2 } from 'lucide-react'
 import { Hint } from '@/components/common/hint'
 import { PageHeader } from '@/components/common/page-header'
-import { DataTable, DataTableColumnHeader } from '@/components/data-table'
+import { ALL_PAGE_SIZE, DataTable, DataTableColumnHeader } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
 import { encryptParams } from '@/lib/crypto'
 import { AllocationToolbar } from '../components/allocation-toolbar'
@@ -62,6 +62,9 @@ export function AllocationListPage() {
     hasActiveFilters,
     pagination,
     setPagination,
+    onLoadMore,
+    hasMore,
+    isFetchingMore,
     sorting,
     setSorting,
     createPlan,
@@ -98,7 +101,7 @@ export function AllocationListPage() {
           const { pageIndex, pageSize } = table.getState().pagination
           return (
             <span className="font-mono text-sm tabular-nums text-muted-foreground">
-              {pageIndex * pageSize + row.index + 1}
+              {(pageSize === ALL_PAGE_SIZE ? 0 : pageIndex * pageSize) + row.index + 1}
             </span>
           )
         },
@@ -294,7 +297,7 @@ export function AllocationListPage() {
         isLoading={isLoading}
         itemName="plans"
         maxHeight="65vh"
-        pageSizeOptions={[5,10, 25, 50]}
+        pageSizeOptions={[5, 10, 25, 50]}
         // Server-side everything: the response is one page, in the server's order.
         manualPagination
         pagination={pagination}
@@ -303,6 +306,9 @@ export function AllocationListPage() {
         manualSorting
         sorting={sorting}
         onSortingChange={setSorting}
+        onLoadMore={onLoadMore}
+        hasMore={hasMore}
+        isFetchingMore={isFetchingMore}
         toolbar={
           <AllocationToolbar
             filters={filters}

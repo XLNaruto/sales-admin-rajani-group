@@ -193,6 +193,9 @@ export const queryKeys = {
     /** GET /journey-plans — the allocation list (period + server-side filters). */
     plans: (filters?: Record<string, unknown>) =>
       [...queryKeys.journey.all, 'plans', filters ?? {}] as const,
+    /** Infinite ("All") variant of the allocation list. */
+    plansInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.journey.all, 'plans-infinite', filters ?? {}] as const,
     /** GET /journey-plans/{id} — one sales incharge's plan, with its allocation and strip. */
     plan: (id: string) => [...queryKeys.journey.all, 'plan', id] as const,
     /** GET /journey-plans/reps — the sales incharge switcher's options for a period. */

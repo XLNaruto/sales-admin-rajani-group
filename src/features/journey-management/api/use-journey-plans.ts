@@ -10,6 +10,7 @@
  */
 import {
   keepPreviousData,
+  useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
@@ -30,6 +31,25 @@ export function useJourneyPlanQueue(
     // would otherwise blank the table between fetches.
     placeholderData: keepPreviousData,
     enabled: options.enabled ?? Boolean(params.periodMonth),
+  })
+}
+
+/**
+ * GET /journey-plans — infinite ("All") variant. Loads one batch of `pageSize`
+ * rows per page and appends the next as the table is scrolled; the endpoint
+ * refuses `page_size=-1`, so "All" is never sent as a single request.
+ */
+export function useJourneyPlanQueueInfinite(
+  params: Omit<QueueParams, 'page'>,
+  options: { enabled?: boolean } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: queryKeys.journey.plansInfinite(params as unknown as Record<string, unknown>),
+    queryFn: ({ pageParam }) => fetchQueue({ ...params, page: pageParam }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.page < lastPage.totalPages ? lastPage.page + 1 : undefined,
+    enabled: (options.enabled ?? true) && Boolean(params.periodMonth),
   })
 }
 

@@ -15,7 +15,12 @@ import { toastsuccessmsg } from '@/lib/toast'
 import { toastApiError } from '@/lib/api-toast'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useCan } from '@/features/permissions'
-import { useCreateJourneyPlan, useJourneyPlanQueue } from '../api/use-journey-plans'
+import { ALL_PAGE_SIZE, INFINITE_BATCH_SIZE } from '@/components/data-table'
+import {
+  useCreateJourneyPlan,
+  useJourneyPlanQueue,
+  useJourneyPlanQueueInfinite,
+} from '../api/use-journey-plans'
 import { currentMonth, monthLabel, shiftMonth } from '../lib/journey-format'
 import { SORT_COLUMNS } from '../lib/journey-metrics'
 import type { JourneyPlanDetail, PlanStatus, QueueParams } from '../types'
@@ -47,12 +52,14 @@ export function useAllocationList() {
 
   const search = useDebouncedValue(filters.search)
 
-  const params = useMemo<QueueParams>(() => {
+  // "All" selected → lazy/infinite mode; the endpoint refuses `page_size=-1`.
+  const isAll = pagination.pageSize === ALL_PAGE_SIZE
+
+  /** Server-side filter/sort params shared by both modes (page/size differ). */
+  const baseParams = useMemo<Omit<QueueParams, 'page' | 'pageSize'>>(() => {
     const sort = sorting[0]
     return {
       periodMonth: month,
-      page: pagination.pageIndex + 1,
-      pageSize: pagination.pageSize,
       ...(filters.status ? { status: filters.status } : {}),
       search: search.trim() || undefined,
       ...(sort && SORT_COLUMNS[sort.id]
@@ -62,9 +69,27 @@ export function useAllocationList() {
           }
         : {}),
     }
-  }, [month, pagination, search, sorting, filters.status])
+  }, [month, search, sorting, filters.status])
 
-  const queue = useJourneyPlanQueue(params)
+  // Only one of the two queries is enabled at a time.
+  const paged = useJourneyPlanQueue(
+    { ...baseParams, page: pagination.pageIndex + 1, pageSize: pagination.pageSize },
+    { enabled: !isAll && Boolean(month) },
+  )
+  const infinite = useJourneyPlanQueueInfinite(
+    { ...baseParams, pageSize: INFINITE_BATCH_SIZE },
+    { enabled: isAll },
+  )
+
+  const infiniteRows = useMemo(
+    () => infinite.data?.pages.flatMap((p) => p.rows) ?? [],
+    [infinite.data],
+  )
+  const rows = isAll ? infiniteRows : (paged.data?.rows ?? [])
+  const total = isAll
+    ? (infinite.data?.pages.at(-1)?.total ?? infiniteRows.length)
+    : (paged.data?.total ?? 0)
+  const queue = isAll ? infinite : paged
 
   const create = useCreateJourneyPlan()
 
@@ -129,9 +154,9 @@ export function useAllocationList() {
     goPrevMonth: () => selectMonth(shiftMonth(month, -1)),
     goNextMonth: () => selectMonth(shiftMonth(month, 1)),
     selectMonth,
-    rows: queue.data?.rows ?? [],
+    rows,
     /** Rows matching the current tab and search — the table's `rowCount`. */
-    total: queue.data?.total ?? 0,
+    total,
     isLoading: queue.isLoading,
     isFetching: queue.isFetching,
     error: queue.error,
@@ -144,6 +169,10 @@ export function useAllocationList() {
     hasActiveFilters: filters.search.trim() !== '' || filters.status !== null,
     pagination,
     setPagination,
+    // Infinite ("All") scroll wiring — no-op unless the "All" page size is set.
+    onLoadMore: isAll ? () => void infinite.fetchNextPage() : undefined,
+    hasMore: isAll ? infinite.hasNextPage : false,
+    isFetchingMore: isAll ? infinite.isFetchingNextPage : false,
     sorting,
     setSorting,
     createPlan,
