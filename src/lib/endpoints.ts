@@ -40,6 +40,12 @@ export const endpoints = {
     UPDATE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
     STATUS: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/status`,
     DELETE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}`,
+    /**
+     * DELETE — soft-deletes the rep's live (approved) face so he can register a
+     * new one. `id` is the SALES INCHARGE id, not the face id. Refused (`409`)
+     * while the rep has a pending face request; `404` when he has no live face.
+     */
+    FACE: (id: string | number) => `/sales-incharge-admin/sales-incharges/${id}/face`,
     DOCUMENTS_PRESIGN: '/sales-incharge-admin/sales-incharges/documents/presign',
   },
   /**
@@ -365,6 +371,23 @@ export const endpoints = {
      */
     STATUS: (id: string | number) =>
       `/sales-incharge-admin/profile-edit-requests/${id}/status`,
+  },
+  /**
+   * Face registration requests — a rep's add / re-capture of his face, held
+   * `pending` until a sales admin answers it. The live face never changes until
+   * approval.
+   */
+  FACE_REQUEST: {
+    /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
+    LIST: '/sales-incharge-admin/face-requests',
+    /** GET one request in full, plus the rep's live `current_face` (404s outside the selected company). */
+    GET: (id: string | number) => `/sales-incharge-admin/face-requests/${id}`,
+    /**
+     * PATCH { status, reject_reason? } — `reject_reason` (3–500 chars) is
+     * REQUIRED on a rejection. Answered once; a second answer comes back `409`.
+     */
+    STATUS: (id: string | number) =>
+      `/sales-incharge-admin/face-requests/${id}/status`,
   },
   /**
    * The signed-in admin's notification inbox — the bell.

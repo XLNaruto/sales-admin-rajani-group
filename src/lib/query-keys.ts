@@ -247,6 +247,15 @@ export const queryKeys = {
     /** GET /beat-changes/{id} — one request in full (the deep-link read). */
     beatChange: (id: number) =>
       [...queryKeys.fieldRequests.all, 'beat-change', id] as const,
+    /** GET /face-requests — one page of the face-registration queue. */
+    faceRequests: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'face-requests', filters ?? {}] as const,
+    /** Infinite ("All") variant of the face-registration queue. */
+    faceRequestsInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'face-requests-infinite', filters ?? {}] as const,
+    /** GET /face-requests/{id} — one request plus the rep's live face. */
+    faceRequest: (id: number) =>
+      [...queryKeys.fieldRequests.all, 'face-request', id] as const,
   },
   /**
    * Location tracking — the GPS ledger reads. Separate from `journey` on

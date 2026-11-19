@@ -17,6 +17,7 @@ import {
   SatelliteDish,
   ClipboardList,
   NotebookText,
+  ScanFace,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -175,6 +176,12 @@ export const navGroups: NavGroup[] = [
         to: '/requests/profile-edits',
         icon: UserPen,
         permission: 'profile-edit-request:list',
+      },
+      {
+        label: 'Face Requests',
+        to: '/requests/face-requests',
+        icon: ScanFace,
+        permission: 'sales-incharge-face-request:list',
       },
     ],
   },

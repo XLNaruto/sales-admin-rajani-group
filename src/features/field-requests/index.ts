@@ -10,3 +10,4 @@
  */
 export * from './beat-changes'
 export * from './profile-edit-requests'
+export * from './face-requests'
