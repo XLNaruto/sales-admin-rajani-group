@@ -390,6 +390,24 @@ export const endpoints = {
       `/sales-incharge-admin/face-requests/${id}/status`,
   },
   /**
+   * Retailer edit requests — a rep's proposed change to an APPROVED outlet,
+   * held `pending` until a sales admin answers it. The outlet does not change
+   * until approval (pending / rejected outlets are still edited directly).
+   */
+  RETAILER_EDIT_REQUEST: {
+    /** GET one page of the queue. Defaults to `pending` when `status` is omitted. */
+    LIST: '/sales-incharge-admin/retailer-edit-requests',
+    /** GET one request plus `current_retailer` (the outlet as it is now). */
+    GET: (id: string | number) => `/sales-incharge-admin/retailer-edit-requests/${id}`,
+    /**
+     * PATCH { status, reason? } — `reason` is REQUIRED on a rejection, optional
+     * on an approval. Approving applies `payload` in one transaction; answered
+     * once, a second answer comes back `409`.
+     */
+    STATUS: (id: string | number) =>
+      `/sales-incharge-admin/retailer-edit-requests/${id}/status`,
+  },
+  /**
    * The signed-in admin's notification inbox — the bell.
    *
    * Deliberately UNGATED: the feed is a property of the token holder rather

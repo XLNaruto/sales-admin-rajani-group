@@ -68,6 +68,8 @@ const NOTIFICATION_ROUTE = {
   beat_change: (id) => `/requests/beat-changes/${id}`,
   day_change: (id) => `/requests/day-changes/${id}`,
   profile_edit_request: (id) => `/requests/profile-edits/${id}`,
+  sales_incharge_face_request: (id) => `/requests/face-requests/${id}`,
+  retailer_edit_request: (id) => `/requests/retailer-edits/${id}`,
 }
 
 function targetUrl(data) {

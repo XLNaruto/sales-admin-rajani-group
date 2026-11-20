@@ -71,6 +71,8 @@ export function useReviewFaceRequest() {
       void qc.invalidateQueries({ queryKey: queryKeys.fieldRequests.all })
       // An approved face changes the rep's record.
       void qc.invalidateQueries({ queryKey: queryKeys.salesIncharge.all })
+      // Answering is what makes the request's notification old news.
+      void qc.invalidateQueries({ queryKey: queryKeys.notifications.inbox.all })
     },
   })
 }

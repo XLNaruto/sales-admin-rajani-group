@@ -8,6 +8,8 @@ import {
   Megaphone,
   Route,
   UserRoundPen,
+  ScanFace,
+  SquarePen,
   X,
   type LucideIcon,
 } from 'lucide-react'
@@ -32,6 +34,8 @@ import type { NotificationTone } from '../types'
 const ENTITY_ICON: Record<string, LucideIcon> = {
   beat_change: Route,
   profile_edit_request: UserRoundPen,
+  sales_incharge_face_request: ScanFace,
+  retailer_edit_request: SquarePen,
 }
 
 const TONE_ICON: Record<NotificationTone, LucideIcon> = {

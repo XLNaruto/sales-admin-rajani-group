@@ -45,6 +45,16 @@ export const NOTIFICATION_ROUTE: Record<string, NotificationRoute> = {
     permission: 'profile-edit-request:list',
     label: 'profile edit request',
   },
+  sales_incharge_face_request: {
+    base: '/requests/face-requests/detail',
+    permission: 'sales-incharge-face-request:list',
+    label: 'face request',
+  },
+  retailer_edit_request: {
+    base: '/requests/retailer-edits/detail',
+    permission: 'retailer-edit-request:list',
+    label: 'retailer edit request',
+  },
 }
 
 /** The routing entry for an entity type, or `null` if this panel predates it. */

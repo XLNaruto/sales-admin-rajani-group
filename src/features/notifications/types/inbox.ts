@@ -21,6 +21,8 @@ export type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent'
 export const NOTIFICATION_ENTITY_TYPES = [
   'beat_change',
   'profile_edit_request',
+  'sales_incharge_face_request',
+  'retailer_edit_request',
 ] as const
 
 export type KnownNotificationEntity = (typeof NOTIFICATION_ENTITY_TYPES)[number]

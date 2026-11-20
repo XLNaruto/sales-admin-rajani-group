@@ -1,5 +1,7 @@
 /** Face requests — the sub-module behind Field Requests → Face Requests. */
 export { FaceRequestsPage } from './pages/face-requests-page'
+/** The notification deep-link target — one request, opened by id. */
+export { FaceRequestDetailPage } from './pages/face-request-detail-page'
 export {
   useFaceRequestList,
   useFaceRequestsInfinite,

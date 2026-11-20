@@ -101,7 +101,7 @@ function RequestedBucket({
 }
 
 /** Live face vs. requested capture, one bucket per row. */
-function Comparison({ view }: { view: FaceRequestDetail }) {
+export function FaceRequestComparison({ view }: { view: FaceRequestDetail }) {
   const live = view.currentFace
   const rows = [
     {
@@ -245,7 +245,7 @@ export function FaceRequestDetailDialog({
                 <Skeleton className="h-28 w-full rounded-xl" />
               </div>
             ) : (
-              <Comparison view={data} />
+              <FaceRequestComparison view={data} />
             )}
           </div>
         ) : null}

@@ -256,6 +256,15 @@ export const queryKeys = {
     /** GET /face-requests/{id} — one request plus the rep's live face. */
     faceRequest: (id: number) =>
       [...queryKeys.fieldRequests.all, 'face-request', id] as const,
+    /** GET /retailer-edit-requests — one page of the retailer-edit queue. */
+    retailerEdits: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'retailer-edits', filters ?? {}] as const,
+    /** Infinite ("All") variant of the retailer-edit queue. */
+    retailerEditsInfinite: (filters?: Record<string, unknown>) =>
+      [...queryKeys.fieldRequests.all, 'retailer-edits-infinite', filters ?? {}] as const,
+    /** GET /retailer-edit-requests/{id} — one request plus the outlet as it is now. */
+    retailerEdit: (id: number) =>
+      [...queryKeys.fieldRequests.all, 'retailer-edit', id] as const,
   },
   /**
    * Location tracking — the GPS ledger reads. Separate from `journey` on

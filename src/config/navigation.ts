@@ -18,6 +18,7 @@ import {
   ClipboardList,
   NotebookText,
   ScanFace,
+  SquarePen,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -183,6 +184,12 @@ export const navGroups: NavGroup[] = [
         icon: ScanFace,
         permission: 'sales-incharge-face-request:list',
       },
+      {
+        label: 'Retailer Edit Requests',
+        to: '/requests/retailer-edits',
+        icon: SquarePen,
+        permission: 'retailer-edit-request:list',
+      },
     ],
   },
   {
@@ -218,6 +225,8 @@ const extraTitles: Record<string, string> = {
   // screen rather than as its URL segment.
   '/requests/beat-changes/detail': 'Beat Change Request',
   '/requests/profile-edits/detail': 'Profile Edit Request',
+  '/requests/face-requests/detail': 'Face Request',
+  '/requests/retailer-edits/detail': 'Retailer Edit Request',
   '/profile': 'My Profile',
   '/login': 'Login',
   '/forgot-password': 'Forgot Password',
