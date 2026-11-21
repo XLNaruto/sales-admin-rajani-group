@@ -206,7 +206,7 @@ export function DailySummaryPage({ data }: DailySummaryPageProps) {
         accessorKey: 'netValue',
         header: ({ column }) => <SortHeader column={column} title="Primary Net Value" />,
         meta: { className: NUMERIC },
-        cell: ({ row }) => formatNetValue(row.original.netValue),
+        cell: ({ row }) => `₹${formatNetValue(row.original.netValue)}`,
       },
       {
         id: 'primary_order_count',
@@ -220,7 +220,7 @@ export function DailySummaryPage({ data }: DailySummaryPageProps) {
         header: 'Secondary Net Value',
         enableSorting: false,
         meta: { className: NUMERIC },
-        cell: ({ row }) => formatNetValue(row.original.secondaryNetValue),
+        cell: ({ row }) => `₹${formatNetValue(row.original.secondaryNetValue)}`,
       },
       {
         id: 'secondary_order_count',

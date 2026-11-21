@@ -70,8 +70,8 @@ function KindBadge({ kind }: { kind: SalesDetailsRowKind }) {
 /** Placeholder for a missing text value. */
 const NA = <span className="text-muted-foreground">N/A</span>
 
-/** Rupees to two decimals; a zero reads a plain `0` rather than `0.00`. */
-const amount = (value: number) => (value === 0 ? '0' : formatAmount(value))
+/** Rupees with the ₹ sign, two decimals; a zero reads `₹0` rather than `₹0.00`. */
+const amount = (value: number) => `₹${value === 0 ? '0' : formatAmount(value)}`
 
 /**
  * A figure cell. On a visit-only row every figure is zero by design (no order
