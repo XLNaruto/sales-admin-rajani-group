@@ -232,6 +232,29 @@ export function useDailySummaryScreen(data?: string) {
     [canOpenDay, navigate, data],
   )
 
+  /**
+   * Open the rep's Sales Details page — same grant as this screen, so always
+   * available. A push, so the browser's Back returns here; the page's own Back
+   * button restores this view from `backData`.
+   */
+  const openSalesDetails = useCallback(
+    (row: DailySummary) => {
+      navigate({
+        to: '/daily-summary/sales-details',
+        search: {
+          data: encryptParams({
+            id: row.salesInchargeId,
+            date: row.date,
+            name: row.salesInchargeName,
+            code: row.employeeCode ?? undefined,
+            backData: data,
+          }),
+        },
+      })
+    },
+    [navigate, data],
+  )
+
   return {
     date,
     dateLabel: trackedDateLabel(date),
@@ -267,5 +290,6 @@ export function useDailySummaryScreen(data?: string) {
     onPaginationChange,
     canOpenDay,
     openDay,
+    openSalesDetails,
   }
 }

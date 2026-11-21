@@ -68,8 +68,14 @@ export interface DailySummary {
   totalPhysicalCalls: number
   /** Already rounded to 2 decimals by the server. */
   productivityPercentage: number
-  /** Plain rupees, unformatted. */
+  /** Primary (distributor) orders' net value, plain rupees. Primary-only by contract. */
   netValue: number
+  primaryOrderCount: number
+  /** Secondary (retailer) orders' net value, plain rupees. */
+  secondaryNetValue: number
+  secondaryOrderCount: number
+  /** Order lines across the secondary orders. */
+  secondaryLineCount: number
   beatIds: string[]
   beatNames: string[]
 }
@@ -91,4 +97,79 @@ export interface DailySummaryResult {
   page: number
   pageSize: number
   totalPages: number
+}
+
+/* ------------------------------ Sales details ----------------------------- */
+
+export type SalesDetailsCallType = 'in_turn' | 'out_of_turn' | 'telephonic'
+export type SalesDetailsPartyType = 'retailer' | 'distributor'
+
+/**
+ * One row of Sales Details: a call (visit) with the orders booked in it,
+ * summed. A zero-sale call still has a row. An order booked with no visit gets
+ * a row of its own (`visitId: null`).
+ */
+export interface SalesDetailsRow {
+  /** Stable key — the visit id, or the first order id for a visit-less order. */
+  key: string
+  visitId: string | null
+  orderIds: string[]
+  /** ISO-8601 UTC instant of the call (or of the order, when there is no visit). */
+  at: string | null
+  beatName: string | null
+  partyType: SalesDetailsPartyType | null
+  partyName: string | null
+  callType: SalesDetailsCallType | null
+  /** Out-of-turn visit. */
+  isOvt: boolean
+  isProductive: boolean
+  /** Order quantity in pieces. */
+  qty: number
+  /** Order quantity in standard units (pieces ÷ the SKU's pieces-per-unit). */
+  stdQty: number
+  value: number
+  discount: number
+  netSales: number
+}
+
+export interface SalesDetailsTotals {
+  qty: number
+  stdQty: number
+  value: number
+  discount: number
+  netSales: number
+}
+
+export interface SalesDetails {
+  salesInchargeId: string
+  salesInchargeName: string | null
+  date: string
+  /** Whole-day totals, whatever page is showing. */
+  dayTotals: SalesDetailsTotals
+  /** `yyyy-MM-dd` — the first day the month-to-date figures count from. */
+  mtdFrom: string | null
+  mtdNetSales: number
+  mtdPrimaryNetSales: number
+  mtdSecondaryNetSales: number
+  /** This page of calls, in time order. */
+  rows: SalesDetailsRow[]
+  /** Calls on the day, across every page. */
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
+/**
+ * Sales Details filter, applied by the API. `visit` = visit-only rows;
+ * `order` = order-only and visit + order rows.
+ */
+export type SalesDetailsFilter = 'all' | 'visit' | 'order'
+
+export interface SalesDetailsParams {
+  salesInchargeId: string
+  date: string
+  type: SalesDetailsFilter
+  page: number
+  pageSize: number
 }

@@ -46,11 +46,11 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 function ReportFacts({ report }: { report: RepDailyReport }) {
   return (
     <dl className="grid grid-cols-2 gap-x-6 gap-y-4 rounded-xl border border-border/60 bg-card p-4 lg:grid-cols-5">
-      <Fact label="Centre">{joinNames(report.centres, ' / ') || '—'}</Fact>
-      <Fact label="Market Route">{joinNames(report.marketRoutes, ', ') || '—'}</Fact>
-      <Fact label="Deal Person">{joinNames(report.dealPersons, ', ') || '—'}</Fact>
+      <Fact label="Centre">{joinNames(report.centres, ' / ') || 'N/A'}</Fact>
+      <Fact label="Market Route">{joinNames(report.marketRoutes, ', ') || 'N/A'}</Fact>
+      <Fact label="Deal Person">{joinNames(report.dealPersons, ', ') || 'N/A'}</Fact>
       <Fact label="Start">
-        <span className="tabular-nums">{timeIST(report.startTime) || '—'}</span>
+        <span className="tabular-nums">{timeIST(report.startTime) || 'N/A'}</span>
       </Fact>
       <Fact label="Close">
         <span className="flex flex-wrap items-center gap-2">
@@ -59,7 +59,7 @@ function ReportFacts({ report }: { report: RepDailyReport }) {
             <span className="tabular-nums">{timeIST(report.closeTime)}</span>
           ) : null}
           {!report.isClosed ? <Badge variant="warning">In progress</Badge> : null}
-          {!report.closeTime && report.isClosed ? '—' : null}
+          {!report.closeTime && report.isClosed ? 'N/A' : null}
         </span>
       </Fact>
     </dl>

@@ -292,6 +292,8 @@ export const endpoints = {
   DAILY_SUMMARY: {
     /** GET ?date&state_id&type&search&page&page_size&sort_by&sort_order */
     LIST: '/sales-incharge-admin/daily-summary',
+    /** GET ?sales_incharge_id&date — one rep's calls and sales + month-to-date net sales. */
+    SALES_DETAILS: '/sales-incharge-admin/daily-summary/sales-details',
   },
   /**
    * Daily Reports — every sales incharge's morning or evening report for one

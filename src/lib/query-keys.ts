@@ -280,6 +280,9 @@ export const queryKeys = {
     /** GET /daily-summary — one page of rows for a day. */
     list: (filters?: Record<string, unknown>) =>
       [...queryKeys.dailySummary.all, 'list', filters ?? {}] as const,
+    /** GET /daily-summary/sales-details — one page of a rep's calls and sales on a day. */
+    salesDetails: (params: Record<string, unknown>) =>
+      [...queryKeys.dailySummary.all, 'sales-details', params] as const,
   },
   /**
    * Daily Reports — morning / evening field reports. The list key carries the

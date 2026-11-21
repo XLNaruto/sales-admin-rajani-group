@@ -37,15 +37,21 @@ const NOWRAP = `${COMPACT} whitespace-nowrap`
 const NUMERIC = `${COMPACT} whitespace-nowrap text-right tabular-nums`
 const WRAP = `${COMPACT} min-w-32`
 
-/** A rep with no report shows a dash — never a zero that reads as a real figure. */
-const DASH = <span className="text-muted-foreground">—</span>
+/** Placeholder for a missing text value. Amounts and counts show `0` instead. */
+const NA = <span className="text-muted-foreground">N/A</span>
+/** An amount or count with nothing behind it. */
+const ZERO = <span className="text-muted-foreground">0</span>
 
-/** Read one figure off the row's report, or a dash when there is no report. */
+/**
+ * Read one figure off the row's report. With no report, a text column shows
+ * N/A and a numeric one passes `ZERO`.
+ */
 function withReport(
   row: DailyReportRow,
   render: (report: DailyReportSummary) => ReactNode,
+  empty: ReactNode = NA,
 ): ReactNode {
-  return row.report ? render(row.report) : DASH
+  return row.report ? render(row.report) : empty
 }
 
 /** ₹ amount, with the kg as a muted second line when there is any. */
@@ -114,7 +120,7 @@ export function DailyReportsPage({ data }: DailyReportsPageProps) {
         id: 'centre',
         header: 'Centre',
         meta: { className: WRAP },
-        cell: ({ row }) => withReport(row.original, (r) => joinNames(r.centres, ' / ') || DASH),
+        cell: ({ row }) => withReport(row.original, (r) => joinNames(r.centres, ' / ') || NA),
       },
       {
         id: 'market_route',
@@ -123,7 +129,7 @@ export function DailyReportsPage({ data }: DailyReportsPageProps) {
         cell: ({ row }) =>
           withReport(row.original, (r) => {
             const routes = joinNames(r.marketRoutes, ', ')
-            if (!routes) return DASH
+            if (!routes) return NA
             return (
               <Hint label={routes}>
                 <span className="block max-w-48 cursor-default truncate">{routes}</span>
@@ -135,7 +141,7 @@ export function DailyReportsPage({ data }: DailyReportsPageProps) {
         id: 'start',
         header: 'Start',
         meta: { className: NOWRAP },
-        cell: ({ row }) => withReport(row.original, (r) => timeIST(r.startTime) || DASH),
+        cell: ({ row }) => withReport(row.original, (r) => timeIST(r.startTime) || NA),
       },
       {
         id: 'close',
@@ -154,27 +160,27 @@ export function DailyReportsPage({ data }: DailyReportsPageProps) {
         id: 'target',
         header: 'Target ₹',
         meta: { className: NUMERIC },
-        cell: ({ row }) => withReport(row.original, (r) => <MoneyCell measures={r.target} />),
+        cell: ({ row }) => withReport(row.original, (r) => <MoneyCell measures={r.target} />, ZERO),
       },
       {
         id: 'retailing',
         header: 'Retailing ₹',
         meta: { className: NUMERIC },
-        cell: ({ row }) => withReport(row.original, (r) => <MoneyCell measures={r.retailing} />),
+        cell: ({ row }) => withReport(row.original, (r) => <MoneyCell measures={r.retailing} />, ZERO),
       },
       {
         id: 'order_to_company',
         header: 'Order to Company ₹',
         meta: { className: NUMERIC },
         cell: ({ row }) =>
-          withReport(row.original, (r) => <MoneyCell measures={r.orderToCompany} />),
+          withReport(row.original, (r) => <MoneyCell measures={r.orderToCompany} />, ZERO),
       },
       ...(['sc', 'tc', 'pc', 'nc'] as const).map(
         (key): ColumnDef<DailyReportRow> => ({
           id: key,
           header: key.toUpperCase(),
           meta: { className: NUMERIC },
-          cell: ({ row }) => withReport(row.original, (r) => r.counters[key]),
+          cell: ({ row }) => withReport(row.original, (r) => r.counters[key], ZERO),
         }),
       ),
       {
